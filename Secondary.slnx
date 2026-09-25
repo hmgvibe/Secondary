@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Secondary.Core/Secondary.Core.csproj" />
+    <Project Path="src/Secondary.App/Secondary.App.csproj" />
+    <Project Path="src/Secondary.Diagnostics/Secondary.Diagnostics.csproj" />
+    <Project Path="src/Secondary.SensorHelper/Secondary.SensorHelper.csproj" />
+  </Folder>
+  <Folder Name="/tests/"><Project Path="tests/Secondary.Tests/Secondary.Tests.csproj" /><Project Path="tests/Secondary.UiTests/Secondary.UiTests.csproj" /></Folder>
+</Solution>

@@ -1,0 +1,6 @@
+.tools/
+**/bin/
+**/obj/
+artifacts/
+dotnet-install.ps1
+.vs/

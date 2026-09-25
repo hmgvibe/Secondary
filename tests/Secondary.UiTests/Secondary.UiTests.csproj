@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows10.0.22621.0</TargetFramework><WindowsSdkPackageVersion>10.0.22621.57</WindowsSdkPackageVersion><UseWPF>true</UseWPF><Nullable>enable</Nullable><PlatformTarget>x64</PlatformTarget></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../../src/Secondary.App/Secondary.App.csproj"/></ItemGroup>
+ <Target Name="CopySensorHelperForTests" AfterTargets="Build">
+  <ItemGroup><HelperFiles Include="../../src/Secondary.App/bin/$(Configuration)/net10.0-windows10.0.22621.0/SensorHelper/**/*" /></ItemGroup>
+  <Copy SourceFiles="@(HelperFiles)" DestinationFiles="@(HelperFiles->'$(OutDir)SensorHelper/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+ </Target>
+</Project>

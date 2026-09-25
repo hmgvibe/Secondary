@@ -1,0 +1,54 @@
+<UserControl x:Class="Secondary.App.Monitoring.SystemDashboard" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Secondary.App">
+ <StackPanel>
+  <StackPanel x:Name="GameSamplingOptions" Visibility="Collapsed" HorizontalAlignment="Center" Margin="8,0,8,20">
+   <ComboBox x:Name="SamplingPicker" SelectedIndex="{Binding GameSamplingIndex, Mode=TwoWay}" MinWidth="240" AutomationProperties.Name="遊戲模式採樣率">
+    <ComboBoxItem Content="低採樣率 · 基本 3 秒／GPU 10 秒"/>
+    <ComboBoxItem Content="高採樣率 · 基本 1 秒／GPU 2 秒"/>
+   </ComboBox>
+   <TextBlock Text="高採樣率更即時，但可能增加 CPU 開銷。" Style="{DynamicResource Label}" FontSize="12" Margin="0,8,0,0" TextAlignment="Center"/>
+  </StackPanel>
+  <ItemsControl x:Name="Metrics">
+   <ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="local:BalancedColumnsPanel.StackOrder" Value="{Binding StackOrder}"/></Style></ItemsControl.ItemContainerStyle>
+   <ItemsControl.ItemsPanel><ItemsPanelTemplate><local:BalancedColumnsPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+   <ItemsControl.ItemTemplate><DataTemplate>
+    <Border Style="{DynamicResource Panel}" MinHeight="190" VerticalAlignment="Top">
+     <StackPanel>
+      <TextBlock Text="{Binding Title}" FontSize="16" Foreground="{DynamicResource MutedBrush}"/>
+      <TextBlock Text="{Binding Value}" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap">
+       <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Margin" Value="0,20,0,12"/><Style.Triggers><DataTrigger Binding="{Binding IsStorage}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+      </TextBlock>
+      <TextBlock Text="{Binding Detail}" Style="{DynamicResource Label}" FontSize="12"/>
+      <TextBlock Text="{Binding Extra}" FontSize="13" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}">
+       <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Margin" Value="0,20,0,0"/><Style.Triggers>
+        <DataTrigger Binding="{Binding IsGame, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+        <DataTrigger Binding="{Binding Extra}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+       </Style.Triggers></Style></TextBlock.Style>
+      </TextBlock>
+      <ContentControl>
+       <ContentControl.Style><Style TargetType="ContentControl"><Style.Triggers><DataTrigger Binding="{Binding IsStorage}" Value="True">
+        <Setter Property="ContentTemplate"><Setter.Value><DataTemplate>
+         <ItemsControl ItemsSource="{Binding DataContext.SystemDashboard.Disks, RelativeSource={RelativeSource AncestorType=UserControl}}">
+          <ItemsControl.ItemTemplate><DataTemplate>
+           <StackPanel Margin="0,20,0,0">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+             <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+             <TextBlock Grid.Column="1" Text="{Binding UsageLabel}" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="13"/>
+            </Grid>
+            <ProgressBar Value="{Binding Percent, Mode=OneWay}" Minimum="0" Maximum="100" Height="10" Margin="0,12,0,12" IsEnabled="{Binding IsValid}" AutomationProperties.Name="{Binding Name, StringFormat={}{0} 磁碟使用率}">
+             <ProgressBar.Template><ControlTemplate TargetType="ProgressBar"><Grid x:Name="PART_Track" Background="{DynamicResource InsetBrush}"><Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{DynamicResource AccentBrush}" CornerRadius="5"/></Grid></ControlTemplate></ProgressBar.Template>
+            </ProgressBar>
+            <TextBlock Text="{Binding CapacityLabel}" Style="{DynamicResource Label}" FontSize="13"/>
+            <TextBlock Text="{Binding FreeLabel}" Style="{DynamicResource Label}" FontSize="12" Margin="0,6,0,0"/>
+           </StackPanel>
+          </DataTemplate></ItemsControl.ItemTemplate>
+         </ItemsControl>
+        </DataTemplate></Setter.Value></Setter>
+       </DataTrigger></Style.Triggers></Style></ContentControl.Style>
+      </ContentControl>
+     </StackPanel>
+    </Border>
+   </DataTemplate></ItemsControl.ItemTemplate>
+  </ItemsControl>
+  <TextBlock Text="{Binding SystemDashboard.Status}" Style="{DynamicResource Label}" FontSize="12" TextAlignment="Center" Margin="8,20,8,16"/>
+ </StackPanel>
+</UserControl>
