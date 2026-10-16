@@ -23,6 +23,7 @@ public partial class MainWindow
     private bool gameDisposed;
     public bool GameMonitoringActive => gameSession is not null;
     public Task GameMonitoringCompletion => gameCompletion;
+    public long GameMonitoringUpdateCount { get; private set; }
     private readonly Stopwatch gameClock = Stopwatch.StartNew();
     private sealed record GpuChoice(string Identity, string Name) { public override string ToString() => Name; }
     private string? displayedSwapChain;
@@ -68,6 +69,12 @@ public partial class MainWindow
                 await session.RunAsync(owner.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                AppDiagnostics.Write("game-worker", error);
+                if (!owner.IsCancellationRequested && !Dispatcher.HasShutdownStarted)
+                    await Dispatcher.InvokeAsync(() => { if (ReferenceEquals(gameSession, session)) GameNotice.Text = "監測工作已停止；切換頁面可重試。"; });
+            }
         });
         // Dispose a previous generation only after it has stopped touching its token.
         gameTimer ??= new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
@@ -97,6 +104,7 @@ public partial class MainWindow
     private void OnGameTick(object? sender, EventArgs e)
     {
         if (gameSession is null) return;
+        GameMonitoringUpdateCount++;
         var snapshot = gameSession.Read();
         var sample = snapshot.System;
         var time = gameClock.Elapsed.TotalSeconds;
@@ -131,7 +139,8 @@ public partial class MainWindow
         GpuGauge.Value = gpuUsage ?? double.NaN;
         GpuValue.Text = Number(gpuUsage, "0") + (gpuUsage.HasValue ? "%" : "");
         if (gpuRoot is null) GpuDetails.Text = "所有 GPU 中最忙引擎（整機）\n" + snapshot.GpuStatus;
-        else GpuDetails.Text = gpuReadings[0].Metric.Split(" / ")[0] + "\n" + Number(GpuMetric("GPU Core", "°C")) + " °C · " + Number(GpuMetric("GPU Core", "MHz"), "0") + " MHz\n" + Number(GpuMetric("GPU Package", "W")) + " W · " + gpuRoot;
+        else GpuDetails.Text = gpuReadings[0].Metric.Split(" / ")[0] + "\n" + Number(GpuMetric("GPU Core", "°C")) + " °C · " + Number(GpuMetric("GPU Core", "MHz"), "0") + " MHz\n" + Number(GpuMetric("GPU Package", "W")) + " W";
+        GpuDetails.ToolTip = gpuRoot;
         var used = GpuMetric("GPU Memory Used", "MB");
         var total = GpuMetric("GPU Memory Total", "MB");
         var vram = total > 0 && used >= 0 && used <= total ? used / total * 100 : null;
@@ -156,9 +165,17 @@ public partial class MainWindow
         DownloadTrace.Maximum = UploadTrace.Maximum = Math.Max(1, down.Concat(up).Max(p => p.Value ?? 0) * 1.1);
         NetworkScale.Text = "0–" + Rate(DownloadTrace.Maximum);
         DownloadTrace.Update(down); UploadTrace.Update(up);
-        GameSourceState.Text = "LIVE / " + (SamplingPicker.SelectedIndex == 1 ? "HIGH" : "LOW");
+        static string State(TelemetrySourceState state) => state switch { TelemetrySourceState.Available => "正常", TelemetrySourceState.Stale => "過期", TelemetrySourceState.Failed => "失敗", TelemetrySourceState.Stopped => "停止", TelemetrySourceState.Disabled => "未啟用", _ => "等待" };
+        GameSourceState.Text = (snapshot.CpuState == TelemetrySourceState.Available && snapshot.MemoryState == TelemetrySourceState.Available
+            ? "LIVE / " : snapshot.SystemState == TelemetrySourceState.Stale ? "STALE / " : "PARTIAL / ") + (SamplingPicker.SelectedIndex == 1 ? "HIGH" : "LOW");
+        CompactSourceText.Text = snapshot.SystemState is TelemetrySourceState.Failed or TelemetrySourceState.Stale ? snapshot.SystemStatus : snapshot.FrameStatus;
         GameNotice.Text = snapshot.FrameStatus + (snapshot.Frames.SwapChain is { } chain ? " · " + chain : "") + "\nCPU／記憶體／網路為整機數據；FPS 為應用程式幀率，非顯示器刷新率。";
         TelemetryStatus.Text = $"{sample?.Time.ToLocalTime():HH:mm:ss} / 基本 {(SamplingPicker.SelectedIndex == 1 ? "1" : "3")}s · GPU／硬體 {(SamplingPicker.SelectedIndex == 1 ? "2" : "10")}s · UI 1 Hz\n{snapshot.SensorStatus}";
+        TelemetryStatus.Text += $"\nCPU：{State(snapshot.CpuState)} · 記憶體：{State(snapshot.MemoryState)} · 網路：{State(snapshot.NetworkState)} · GPU：{State(snapshot.GpuState)} · 幀：{State(snapshot.FrameState)}";
+        CpuValue.ToolTip = snapshot.SystemStatus;
+        GpuValue.ToolTip = snapshot.GpuStatus + "\n" + snapshot.SensorStatus;
+        FpsValue.ToolTip = snapshot.FrameStatus;
+        FrameTrace.ToolTip = snapshot.Frames.Milliseconds is double interval ? $"目前平均幀間隔 {interval:0.00} ms；最近 60 秒曲線" : snapshot.FrameStatus;
         if (snapshot.TargetExited && gameTarget is not null)
         { GameProcessPicker.Content = gameTarget.Name + " · 已退出"; gameTarget = null; }
     }

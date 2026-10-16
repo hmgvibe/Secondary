@@ -1,0 +1,34 @@
+name: Verify Windows build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verification:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Fetch and verify pinned PresentMon
+        shell: pwsh
+        run: ./scripts/fetch-presentmon.ps1
+      - name: Locked restore, dependency audit, Release build and regression tests
+        shell: pwsh
+        run: ./scripts/build.ps1 -Configuration Release -OutputDirectory artifacts/ci/verification
+      - name: Verify lightweight candidate package
+        shell: pwsh
+        run: ./scripts/package.ps1 -RuntimeMode Installed -OutputRoot artifacts/ci/package
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-verification
+          path: artifacts/ci
+          retention-days: 14
+          if-no-files-found: warn

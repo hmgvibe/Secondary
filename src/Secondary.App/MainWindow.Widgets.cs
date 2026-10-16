@@ -26,6 +26,21 @@ public partial class MainWindow
             item.Click += (_, _) => AddHomeWidget(kind); menu.Items.Add(item);
         }
         menu.Items.Add(new Separator());
+        if (utilityWidgets.Count > 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "選取現有組件", Style = (Style)FindResource("WidgetMenuItem"), IsEnabled = false });
+            var ordinal = 0;
+            foreach (var widget in utilityWidgets.Values)
+            {
+                var item = new MenuItem { Header = $"{++ordinal}. {HomeUtilityWidget.Title(widget.Content.Settings.Kind)}", Style = (Style)FindResource("WidgetMenuItem") };
+                item.Click += (_, _) =>
+                {
+                    foreach (var other in utilityWidgets.Values) Panel.SetZIndex(other.Frame, 0);
+                    Panel.SetZIndex(widget.Frame, 1); widget.Frame.SelectForEditing();
+                };
+                menu.Items.Add(item);
+            }
+        }
         menu.Items.Add(new MenuItem { Header = $"已加入 {utilityWidgets.Count} / 12  ·  可重複新增", FontSize = 12, Style = (Style)FindResource("WidgetMenuItem"), IsEnabled = false });
         menu.PlacementTarget = (UIElement)sender; menu.IsOpen = true;
     }
@@ -33,10 +48,18 @@ public partial class MainWindow
     {
         if (!HomeWidgetSettings.Supported(kind) || utilityWidgets.Count >= 12) return false;
         var home = model.Settings.Home ?? new();
-        var index = utilityWidgets.Count;
-        var widget = new HomeWidgetSettings(Guid.NewGuid().ToString("N"), kind, new WidgetPlacement(.08 + index % 3 * .36,.08 + index / 3 % 3 * .36,1));
+        WidgetCanvas.UpdateLayout();
+        var occupied = WidgetCanvas.Children.OfType<HomeWidget>().Select(frame => new Rect(
+            Math.Max(0, Canvas.GetLeft(frame)), Math.Max(0, Canvas.GetTop(frame)),
+            Math.Max(0, frame.ActualWidth), Math.Max(0, frame.ActualHeight))).ToArray();
+        var placement = HomeWidgetLayout.FindNewPlacement(new Size(WidgetCanvas.ActualWidth, WidgetCanvas.ActualHeight), occupied, utilityWidgets.Count, out var crowded);
+        var widget = new HomeWidgetSettings(Guid.NewGuid().ToString("N"), kind, placement);
         if (!model.SaveHome(home with { Widgets = (home.Widgets ?? []).Append(widget).ToArray() })) { HomeMediaStatus.Text = model.Status; return false; }
-        AttachUtilityWidget(widget); UpdateHomeActivity(); return true;
+        AttachUtilityWidget(widget);
+        utilityWidgets[widget.Id].Frame.SelectForEditing();
+        if (crowded) HomeMediaStatus.Text = "首頁空間已滿；新組件已放在最上層，可拖動調整或從組件清單選取。";
+        else HomeMediaStatus.Text = "";
+        UpdateHomeActivity(); return true;
     }
     private void AttachUtilityWidget(HomeWidgetSettings settings)
     {
@@ -44,6 +67,7 @@ public partial class MainWindow
         frame.Attach(WidgetCanvas,content,HomeUtilityWidget.Title(settings.Kind));
         frame.Configure(settings.Placement ?? new(),new Size(320,300));
         utilityWidgets.Add(settings.Id,(frame,content));
+        Panel.SetZIndex(frame, 1);
         frame.PreviewMouseDown += (_, _) =>
         {
             foreach (var other in utilityWidgets.Values) Panel.SetZIndex(other.Frame,0);

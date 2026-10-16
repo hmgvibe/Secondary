@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Secondary.Core;
@@ -17,10 +18,16 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
     private readonly DispatcherTimer refresh = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly Stopwatch elapsed = new();
     private readonly StackPanel body = new();
-    private readonly Viewbox numberHost = new() { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly };
+    private readonly Viewbox numberHost = new() { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both };
     private readonly TextBlock readout = new() { FontSize = 44, FontFamily = new FontFamily("Bahnschrift"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0,8,0,12) };
     private readonly TextBlock status = new() { FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,10,0,0), TextAlignment = TextAlignment.Center };
     private TextBox? note, minutes;
+    private readonly Border contentViewport;
+    private readonly ScrollViewer contentScroll;
+    private readonly WeatherDataService weatherSource;
+    private UniformGrid? calendarGrid;
+    private TextBlock? calendarHeading;
+    private readonly System.Collections.Generic.List<TextBlock> calendarLabels = new();
     private Button? toggle;
     private DateTime month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime calendarDay;
@@ -28,11 +35,14 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
     public bool IsRefreshing => refresh.IsEnabled;
     public event Func<HomeWidgetSettings, bool>? SaveRequested;
     public static string Title(string kind) => kind switch { "Calendar" => "日曆", "Note" => "便箋", "Countdown" => "倒數計時", "Stopwatch" => "碼錶", "Todo" => "待辦清單", "Counter" => "計數器", "TimeProgress" => "時間進度", "Media" => "媒體", "Weather" => "天氣", "EventCountdown" => "倒數日", _ => kind };
-    public HomeUtilityWidget(HomeWidgetSettings settings)
+    public HomeUtilityWidget(HomeWidgetSettings settings) : this(settings, WeatherDataService.Shared) { }
+    internal HomeUtilityWidget(HomeWidgetSettings settings, WeatherDataService weatherSource)
     {
+        this.weatherSource = weatherSource;
         Settings = settings.Normalize();
         numberHost.Child = readout;
-        var panel = new Border { Padding = new Thickness(12,8,12,8), Child = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } };
+        contentScroll = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        var panel = contentViewport = new Border { Padding = new Thickness(12,8,12,8), Child = contentScroll };
         status.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");
         panel.SetResourceReference(TextElement.ForegroundProperty, "TextBrush");
         Child = panel;
@@ -46,12 +56,14 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
         else if (settings.Kind == "Note")
         {
             note = new TextBox { Text = Settings.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 144, MaxLength = 4000, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            contentScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
             note.SetResourceReference(StyleProperty,"WidgetInput");
             status.Text = "僅儲存於此電腦";
             System.Windows.Automation.AutomationProperties.SetName(note, "便箋內容");
             body.Children.Add(note);
             var save = ActionButton("儲存便箋", () => SaveNote()); body.Children.Add(save); body.Children.Add(status);
             note.TextChanged += (_, _) => status.Text = "尚未儲存";
+            note.PreviewKeyDown += (_, e) => { if (e.Key == Key.S && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { SaveNote(); e.Handled = true; } };
         }
         else
         {
@@ -67,7 +79,7 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
                 System.Windows.Automation.AutomationProperties.SetName(minutes, "倒數分鐘，1 至 1440");
                 row.Children.Add(minutes); body.Children.Add(row);
             }
-            var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
             toggle = ActionButton("開始", Toggle); actions.Children.Add(toggle);
             toggle.SetResourceReference(Control.BackgroundProperty,"SelectedBrush");
             actions.Children.Add(ActionButton("重設", () => { elapsed.Reset(); toggle.Content = "開始"; if (minutes is not null) minutes.IsEnabled = true; UpdateTime(); }));
@@ -76,7 +88,7 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
         }
         if (eventSettingsButton is not null)
         {
-            var scroll = (ScrollViewer)panel.Child;
+            var scroll = contentScroll;
             panel.Child = null;
             var layout = new Grid();
             layout.Children.Add(scroll);
@@ -87,6 +99,7 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
             layout.Children.Add(eventSettingsButton);
             panel.Child = layout;
         }
+        contentViewport.SizeChanged += (_, _) => UpdateResponsiveLayout();
         refresh.Tick += OnTick;
     }
     private static Button ActionButton(string title, Action action)
@@ -123,8 +136,8 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
     }
     private void OnTick(object? sender, EventArgs e)
     {
-        if (Settings.Kind == "TimeProgress") RenderProgress();
-        else if (Settings.Kind == "Calendar") { if (calendarDay != DateTime.Today) RenderCalendar(); }
+        if (Settings.Kind == "TimeProgress") UpdateProgress();
+        else if (Settings.Kind == "Calendar") { if (calendarDay != DateTime.Today) UpdateCalendar(); }
         else if (Settings.Kind == "EventCountdown") UpdateEventCountdown();
         else if (Settings.Kind == "Media") _ = RefreshMediaAsync();
         else if (Settings.Kind == "Weather") _ = RefreshWeatherAsync();
@@ -133,23 +146,42 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
     public void SetActive(bool active)
     {
         refresh.Stop();
+        if (disposed) return;
         widgetActive = active;
-        if (!active) weatherRequest?.Cancel();
-        refresh.Interval = Settings.Kind switch { "Media" => TimeSpan.FromSeconds(5), "Weather" => TimeSpan.FromMinutes(15), "TimeProgress" or "Calendar" or "EventCountdown" => TimeSpan.FromMinutes(1), _ => TimeSpan.FromSeconds(1) };
+        if (!active) PauseWeatherRequests();
+        SetMediaSubscription(active && Settings.Kind == "Media");
+        refresh.Interval = Settings.Kind switch { "Media" => TimeSpan.FromSeconds(5), "Weather" or "TimeProgress" or "Calendar" or "EventCountdown" => TimeSpan.FromMinutes(1), _ => TimeSpan.FromSeconds(1) };
         if (active && Settings.Kind is not ("Note" or "Todo" or "Counter")) { OnTick(null, EventArgs.Empty); refresh.Start(); }
     }
     private void RenderCalendar()
     {
-        calendarDay = DateTime.Today; body.Children.Clear();
         var header = new DockPanel();
-        var previous = ActionButton("‹", () => { if (month.Year > 1 || month.Month > 1) { month = month.AddMonths(-1); RenderCalendar(); } });
-        var next = ActionButton("›", () => { if (month.Year < 9999 || month.Month < 12) { month = month.AddMonths(1); RenderCalendar(); } });
+        var previous = ActionButton("‹", () => { if (month.Year > 1 || month.Month > 1) { month = month.AddMonths(-1); UpdateCalendar(); } });
+        var next = ActionButton("›", () => { if (month.Year < 9999 || month.Month < 12) { month = month.AddMonths(1); UpdateCalendar(); } });
+        System.Windows.Automation.AutomationProperties.SetName(previous, "上一個月");
+        System.Windows.Automation.AutomationProperties.SetName(next, "下一個月");
         foreach (var button in new[] { previous, next }) { button.Width = 36; button.MinWidth = 36; button.Padding = new Thickness(0); button.Margin = new Thickness(0); button.FontSize = 20; button.Background = Brushes.Transparent; }
         DockPanel.SetDock(next, Dock.Right); header.Children.Add(next); DockPanel.SetDock(previous, Dock.Left); header.Children.Add(previous);
-        header.Children.Add(new TextBlock { Text = month.ToString("yyyy 年 M 月"), FontSize = 17, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        calendarHeading = new TextBlock { FontSize = 17, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        header.Children.Add(calendarHeading);
         body.Children.Add(header);
-        var days = new UniformGrid { Columns = 7, Rows = 7, Height = 144, Margin = new Thickness(0,8,0,0) };
-        foreach (var day in new[] { "日", "一", "二", "三", "四", "五", "六" }) days.Children.Add(new TextBlock { Text = day, TextAlignment = TextAlignment.Center, Opacity = .55 });
+        calendarGrid = new UniformGrid { Columns = 7, Rows = 7, Height = 144, Margin = new Thickness(0,8,0,0) };
+        body.Children.Add(calendarGrid);
+        body.Children.Add(ActionButton("回到今天", () => { month = new(DateTime.Today.Year,DateTime.Today.Month,1); UpdateCalendar(); }));
+        UpdateCalendar();
+    }
+    private void UpdateCalendar()
+    {
+        if (calendarGrid is null || calendarHeading is null) return;
+        calendarDay = DateTime.Today;
+        calendarHeading.Text = month.ToString("yyyy 年 M 月");
+        var days = calendarGrid;
+        days.Children.Clear(); calendarLabels.Clear();
+        foreach (var day in new[] { "日", "一", "二", "三", "四", "五", "六" })
+        {
+            var label = new TextBlock { Text = day, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Opacity = .55 };
+            days.Children.Add(label); calendarLabels.Add(label);
+        }
         for (var i = 0; i < (int)month.DayOfWeek; i++) days.Children.Add(new TextBlock());
         for (var day = 1; day <= DateTime.DaysInMonth(month.Year, month.Month); day++)
         {
@@ -157,9 +189,9 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
             var cell = new Border { Child = label, CornerRadius = new CornerRadius(6), Margin = new Thickness(3,0,3,0) };
             if (month.Year == calendarDay.Year && month.Month == calendarDay.Month && day == calendarDay.Day) { label.FontWeight = FontWeights.Bold; cell.SetResourceReference(Border.BackgroundProperty,"SelectedBrush"); cell.SetResourceReference(Border.BorderBrushProperty,"AccentBrush"); cell.BorderThickness = new Thickness(1); }
             days.Children.Add(cell);
+            calendarLabels.Add(label);
         }
-        body.Children.Add(days);
-        body.Children.Add(ActionButton("回到今天", () => { month = new(DateTime.Today.Year,DateTime.Today.Month,1); RenderCalendar(); }));
+        UpdateResponsiveLayout();
     }
-    public void Dispose() { disposed = true; weatherRequest?.Cancel(); refresh.Stop(); refresh.Tick -= OnTick; elapsed.Stop(); }
+    public void Dispose() { disposed = true; widgetActive = false; PauseWeatherRequests(); SetMediaSubscription(false); refresh.Stop(); refresh.Tick -= OnTick; elapsed.Stop(); }
 }

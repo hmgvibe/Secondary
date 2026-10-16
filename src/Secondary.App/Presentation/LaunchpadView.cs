@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -29,11 +30,20 @@ public sealed class LaunchpadView : StackPanel, IDisposable
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,12,0,0) };
     private CancellationTokenSource? execution;
     private readonly Button cancel;
-    private bool filtering;
+    private readonly DispatcherTimer searchDebounce = new(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(150) };
+    private bool filtering, searchDirty, reviewing, disposed;
     private Point dragStart;
     public Func<bool> CanRun { get; set; } = () => true;
     public int EntryCount => entries.Length;
     public string GroupLayout => library.GroupLayout;
+    public bool HasPendingSearch => searchDirty;
+    public bool IsSearchDebouncing => searchDebounce.IsEnabled;
+    public bool IsExecuting => execution is not null;
+    public bool IsReviewing => reviewing;
+    public string ExecutionStatus => status.Text;
+    public Task ExecutionCompletion { get; private set; } = Task.CompletedTask;
+    internal void PrepareMeasurementEntries() => Save(Enumerable.Range(1, 200).Select(i =>
+        new ShortcutEntry("measure-" + i, "量測入口 " + i, "量測分組 " + i % 8, Steps: [new("Open", "https://example.invalid/" + i)])).ToArray());
     public LaunchpadView(string path)
     {
         library = new(path); entries = library.Load(); runner = new(executor);
@@ -55,10 +65,12 @@ public sealed class LaunchpadView : StackPanel, IDisposable
         toolbar.Children.Add(cancel); Children.Add(toolbar);
         groupViewport.Content = groupSections; Children.Add(groupViewport); Children.Add(status);
         Loaded += (_, _) => AttachViewport();
-        Unloaded += (_, _) => DetachViewport();
+        Unloaded += (_, _) => { searchDebounce.Stop(); if (reviewing) Cancel(); DetachViewport(); };
+        IsVisibleChanged += OnVisibilityChanged;
+        searchDebounce.Tick += OnSearchDebounceTick;
         groupViewport.SizeChanged += (_, _) => UpdateHorizontalExtent();
         status.FontSize = 13; status.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");
-        search.TextChanged += (_, _) => RenderTiles(); groups.SelectionChanged += (_, _) => { if (!filtering) RenderTiles(); };
+        search.TextChanged += OnSearchChanged; groups.SelectionChanged += (_, _) => { if (!filtering) RenderTiles(); };
         Background = Brushes.Transparent;
         AllowDrop = true; Drop += OnDrop; DragOver += (_, e) => HandleExternalDrag(e,false);
         Refresh(); status.Text = library.Error ?? "尚未執行任何捷徑。首次使用請按「＋ 新增」，也可拖入檔案或網址。";
@@ -82,8 +94,30 @@ public sealed class LaunchpadView : StackPanel, IDisposable
         groups.SelectedIndex = selected is not null && groups.Items.Contains(selected) ? groups.Items.IndexOf(selected) : 0;
         filtering = false; layoutToggle.IsEnabled = !library.ReadOnly; RenderTiles();
     }
+    private void OnSearchChanged(object sender, TextChangedEventArgs e)
+    {
+        if (disposed) return;
+        searchDirty = true; searchDebounce.Stop();
+        if (IsVisible) searchDebounce.Start();
+    }
+    private void OnSearchDebounceTick(object? sender, EventArgs e)
+    {
+        searchDebounce.Stop();
+        if (!disposed && IsVisible && searchDirty) RenderTiles();
+    }
+    private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (disposed) return;
+        if (!IsVisible) { searchDebounce.Stop(); if (reviewing) Cancel(); }
+        else if (searchDirty) RenderTiles();
+    }
+    // Offscreen screenshots and explicit layout measurements need the latest query
+    // without pretending that an invisible window is receiving live text input.
+    public void RenderPendingTilesForMeasurement() { if (searchDirty && !disposed) RenderTiles(); }
     private void RenderTiles()
     {
+        if (disposed) return;
+        searchDebounce.Stop(); searchDirty = false;
         groupSections.Children.Clear();
         horizontalTilePanels.Clear();
         var horizontal = library.GroupLayout == "Horizontal";
@@ -122,7 +156,7 @@ public sealed class LaunchpadView : StackPanel, IDisposable
     }
     private void AttachViewport()
     {
-        if (contentScroll is not null) return;
+        if (disposed || contentScroll is not null) return;
         for (DependencyObject? parent = VisualTreeHelper.GetParent(this); parent is not null; parent = VisualTreeHelper.GetParent(parent))
             if (parent is ScrollViewer scroll) { contentScroll = scroll; break; }
         if (contentScroll is not null)
@@ -172,7 +206,13 @@ public sealed class LaunchpadView : StackPanel, IDisposable
         var tile = new Button { Content = body, Width = 180, Height = 144,
             Margin = horizontal ? new Thickness(0,0,12,10) : new Thickness(0,0,12,12), AllowDrop = true };
         System.Windows.Automation.AutomationProperties.SetName(tile,entry.Name);
-        tile.Click += async (_, _) => await Launch(entry);
+        tile.Click += async (_, _) =>
+        {
+            var alreadyRunning = execution is not null;
+            var launch = Launch(entry);
+            if (!alreadyRunning) ExecutionCompletion = launch;
+            await launch;
+        };
         tile.PreviewMouseLeftButtonDown += (_, e) => dragStart = e.GetPosition(tile);
         tile.PreviewMouseMove += (_, e) => { if (e.LeftButton == MouseButtonState.Pressed && (e.GetPosition(tile)-dragStart).Length > 8) DragDrop.DoDragDrop(tile,new DataObject("Secondary.ShortcutId",entry.Id),DragDropEffects.Move); };
         tile.DragOver += (_, e) => { if (e.Data.GetDataPresent("Secondary.ShortcutId")) { e.Effects = DragDropEffects.Move; e.Handled = true; } };
@@ -249,28 +289,108 @@ public sealed class LaunchpadView : StackPanel, IDisposable
         status.Text = $"已新增 {added} 個；略過 {skipped} 個（重複、不存在、不支援或已達上限）。沒有啟動任何目標；可右鍵編輯。";
         return added;
     }
-    private async System.Threading.Tasks.Task Launch(ShortcutEntry entry)
+    private bool MatchesCurrentExecution(ShortcutEntry snapshot, out ShortcutEntry current)
     {
-        if (execution is not null || !CanRun()) { status.Text = "目前不能執行；請先取消正在進行的巨集或退出遊戲模式。"; return; }
-        using var cancellation = new CancellationTokenSource(); execution = cancellation; cancel.IsEnabled = true;
+        current = entries.FirstOrDefault(e => e.Id == snapshot.Id)!;
+        if (current is not null && current.ApprovedFingerprint == snapshot.ApprovedFingerprint &&
+            current.Steps is not null && snapshot.Steps is not null && current.Steps.SequenceEqual(snapshot.Steps)) return true;
+        status.Text = "快捷方式已變更或移除，這次未執行；請重新點選並確認。";
+        return false;
+    }
+    private async Task SetExecutionStatus(CancellationTokenSource owner, string text)
+    {
+        if (Dispatcher.HasShutdownStarted) return;
         try
         {
-            var review = executor.Review(entry);
-            if (!ShortcutApproval.IsApproved(entry,review))
+            await Dispatcher.InvokeAsync(() =>
             {
-                if (!ShortcutDialogs.Confirm(Owner,"首次執行 · " + entry.Name,"請確認以下目標與步驟，只執行你信任的內容。確認後會記住選擇；執行步驟或腳本內容變更時才會再次詢問。\n\n" + review,"確認並執行")) return;
-                cancellation.Token.ThrowIfCancellationRequested(); if (!CanRun()) return;
-                var approved = entry with { ApprovedFingerprint = ShortcutApproval.Fingerprint(entry,review) };
-                if (!Save(entries.Select(e => e.Id == entry.Id ? approved : e).ToArray())) return;
-            }
-            cancellation.Token.ThrowIfCancellationRequested(); if (!CanRun()) return;
-            await runner.Run(entry,i => status.Text = $"執行 {entry.Name} · 步驟 {i}/{entry.Steps!.Length}",cancellation.Token);
-            status.Text = "已完成：" + entry.Name;
+                if (!disposed && ReferenceEquals(execution, owner)) status.Text = text;
+            }).Task.ConfigureAwait(false);
         }
-        catch (OperationCanceledException) { status.Text = "已取消；不會關閉已開啟的程式，也不能撤銷已完成的操作。"; }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException) { status.Text = "執行停止：" + e.Message; }
-        finally { execution = null; cancel.IsEnabled = false; }
+        catch (OperationCanceledException) { }
     }
-    public void Cancel() => execution?.Cancel();
-    public void Dispose() => Cancel();
+    private async Task Launch(ShortcutEntry entry)
+    {
+        if (disposed || execution is not null || !CanRun()) { status.Text = "目前不能執行；請先取消正在進行的巨集或退出遊戲模式。"; return; }
+        // A tile may remain on screen during a search debounce. Resolve its current
+        // entry before review and copy the immutable steps for this launch attempt.
+        var currentEntry = entries.FirstOrDefault(e => e.Id == entry.Id);
+        if (currentEntry is null) { status.Text = "快捷方式已移除，這次未執行。"; return; }
+        entry = currentEntry with { Steps = currentEntry.Steps?.ToArray() };
+        using var cancellation = new CancellationTokenSource(); execution = cancellation; cancel.IsEnabled = true; reviewing = true;
+        status.Text = "正在讀取執行內容；可按「取消執行」停止。";
+        try
+        {
+            var review = await Task.Run(() =>
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                var details = executor.Review(entry);
+                cancellation.Token.ThrowIfCancellationRequested();
+                var fingerprint = ShortcutApproval.Fingerprint(entry, details);
+                return (Details: details, Fingerprint: fingerprint, Approved: entry.ApprovedFingerprint == fingerprint);
+            }, cancellation.Token).ConfigureAwait(false);
+            // Always marshal confirmation and persistence explicitly. This also
+            // works for offscreen tests without a dispatcher synchronization context.
+            var approvedEntry = await Dispatcher.InvokeAsync<ShortcutEntry?>(() =>
+            {
+                cancellation.Token.ThrowIfCancellationRequested(); reviewing = false;
+                if (disposed || !CanRun() || !MatchesCurrentExecution(entry, out var current)) return null;
+                if (!review.Approved)
+                {
+                    if (!ShortcutDialogs.Confirm(Owner,"首次執行 · " + current.Name,"請確認以下目標與步驟，只執行你信任的內容。確認後會記住選擇；執行步驟或腳本內容變更時才會再次詢問。\n\n" + review.Details,"確認並執行")) return null;
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    if (disposed || !CanRun() || !MatchesCurrentExecution(entry, out current)) return null;
+                    var approved = current with { ApprovedFingerprint = review.Fingerprint };
+                    if (!Save(entries.Select(e => e.Id == current.Id ? approved : e).ToArray())) return null;
+                    current = approved;
+                }
+                cancellation.Token.ThrowIfCancellationRequested();
+                return current with { Steps = current.Steps?.ToArray() };
+            }, DispatcherPriority.Normal, cancellation.Token).Task.ConfigureAwait(false);
+            if (approvedEntry is null) return;
+            // Execute also verifies the confirmed script hash while holding its
+            // existing write-protected handle. That validation stays off the UI too.
+            await Task.Run(() => runner.Run(approvedEntry, i =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    if (disposed || !CanRun()) throw new OperationCanceledException(cancellation.Token);
+                    if (!disposed && ReferenceEquals(execution, cancellation))
+                        status.Text = $"執行 {approvedEntry.Name} · 步驟 {i}/{approvedEntry.Steps!.Length}";
+                }, DispatcherPriority.Normal, cancellation.Token);
+            }, cancellation.Token), cancellation.Token).ConfigureAwait(false);
+            cancellation.Token.ThrowIfCancellationRequested();
+            await SetExecutionStatus(cancellation, "已完成：" + approvedEntry.Name).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { await SetExecutionStatus(cancellation, "已取消；不會關閉已開啟的程式，也不能撤銷已完成的操作。").ConfigureAwait(false); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException)
+        {
+            AppDiagnostics.Write("shortcut-execution", e);
+            await SetExecutionStatus(cancellation, "執行停止：" + e.Message).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (!Dispatcher.HasShutdownStarted)
+                try
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (!ReferenceEquals(execution, cancellation)) return;
+                        execution = null; cancel.IsEnabled = false; reviewing = false;
+                    }).Task.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { }
+        }
+    }
+    public void Cancel()
+    {
+        try { execution?.Cancel(); }
+        catch (ObjectDisposedException) { }
+    }
+    public void Dispose()
+    {
+        disposed = true; Cancel(); searchDebounce.Stop(); searchDebounce.Tick -= OnSearchDebounceTick;
+        search.TextChanged -= OnSearchChanged; IsVisibleChanged -= OnVisibilityChanged; DetachViewport();
+    }
 }

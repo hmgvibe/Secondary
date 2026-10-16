@@ -14,8 +14,7 @@ public partial class MainWindow
     public Presentation.HomeWidget ClockWidget { get; } = new();
     private void ConfigureClockWidget(HomeSettings options)
     {
-        var natural = options.ClockStyle == "Analog" ? new Size(280,308) : new Size(options.ShowSeconds ? 658 : 462,182);
-        ClockWidget.Configure(new WidgetPlacement(options.X,options.Y,options.Size,options.ClockWidthScale,options.ClockHeightScale),natural);
+        ClockWidget.Configure(new WidgetPlacement(options.X,options.Y,options.Size,options.ClockWidthScale,options.ClockHeightScale),ClockView.NaturalSize);
     }
     public bool HomeCustomizeOpen => HomeCustomizeOverlay.Visibility == Visibility.Visible;
     private System.Windows.IInputElement? homePreviousFocus;

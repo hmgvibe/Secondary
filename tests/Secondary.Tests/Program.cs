@@ -94,7 +94,7 @@ try
     var path = Path.Combine(directory, "settings.json");
     var store = new SettingsStore(path);
     Check(store.Load().DisplayId is null, "First run has no saved selection");
-    Check(store.Save(new(DisplayId: "b")), "Selection saved");
+    Check(store.Save(new(DisplayId: "b")), "Selection saved: " + store.LastError);
     Check(new SettingsStore(path).Load().DisplayId == "b", "Selection persists across instances");
     Check(Directory.GetFiles(directory, "*.tmp").Length == 0, "Atomic save leaves no temporary file");
     File.WriteAllText(path, "invalid JSON");
@@ -236,6 +236,7 @@ try
 
 }
 finally { Directory.Delete(directory, true); }
+DataOptimizationChecks.Run(Check);
 Console.WriteLine($"{passed} tests passed.");
 
 sealed class TrackingModule : ISectionModule

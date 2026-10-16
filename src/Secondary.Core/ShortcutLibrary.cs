@@ -57,6 +57,7 @@ public static class ShortcutPolicy
 
 public sealed class ShortcutLibrary(string path)
 {
+    public const int MaximumBytes = 4_000_000;
     public string? Error { get; private set; }
     public bool ReadOnly { get; private set; }
     public string GroupLayout { get; private set; } = "Vertical";
@@ -66,8 +67,7 @@ public sealed class ShortcutLibrary(string path)
         {
             Error = null; ReadOnly = false; GroupLayout = "Vertical";
             if (!File.Exists(path)) return [];
-            if (new FileInfo(path).Length > 4_000_000) throw new InvalidDataException("捷徑資料過大。");
-            var doc = JsonSerializer.Deserialize<ShortcutDocument>(File.ReadAllText(path));
+            var doc = BoundedJson.Read<ShortcutDocument>(path, MaximumBytes, "捷徑資料過大。");
             if (doc?.Version != 1 || doc.Entries is null || doc.Entries.Length > 200 || doc.Entries.Any(e => e is null || ShortcutPolicy.Validate(e) is not null) || doc.Entries.Select(e => e.Id).Distinct().Count() != doc.Entries.Length)
                 throw new InvalidDataException("捷徑資料格式不正確；保留原檔，未覆寫。");
             GroupLayout = doc.GroupLayout == "Horizontal" ? "Horizontal" : "Vertical";
@@ -83,11 +83,13 @@ public sealed class ShortcutLibrary(string path)
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
+            var bytes = BoundedJson.Serialize(new ShortcutDocument(Entries:entries,GroupLayout:GroupLayout), MaximumBytes,
+                "捷徑資料超過 4 MB，請縮減步驟或啟動參數；原檔未覆寫。");
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-            File.WriteAllText(temp,JsonSerializer.Serialize(new ShortcutDocument(Entries:entries,GroupLayout:GroupLayout),new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllBytes(temp, bytes);
             File.Move(temp,path,true); Error = null; return true;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Error = e.Message; return false; }
+        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException) { Error = e.Message; return false; }
         finally { try { if (File.Exists(temp)) File.Delete(temp); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
     }
     public bool SetGroupLayout(ShortcutEntry[] entries, string layout)

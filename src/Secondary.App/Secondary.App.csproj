@@ -15,7 +15,7 @@
     <ItemGroup><SensorHelperFiles Include="../Secondary.SensorHelper/bin/$(Configuration)/net10.0-windows/**/*" /></ItemGroup>
     <Copy SourceFiles="@(SensorHelperFiles)" DestinationFiles="@(SensorHelperFiles->'$(OutDir)SensorHelper/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
-  <Target Name="PublishSensorHelper" BeforeTargets="ComputeFilesToPublish">
+  <Target Name="PublishSensorHelper" BeforeTargets="ComputeFilesToPublish" Condition="'$(PublishSensorHelperSeparately)' != 'true'">
     <ItemGroup>
       <SensorPublishFiles Include="../Secondary.SensorHelper/bin/$(Configuration)/net10.0-windows/**/*" />
       <ResolvedFileToPublish Include="@(SensorPublishFiles)">
@@ -23,5 +23,12 @@
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ResolvedFileToPublish>
     </ItemGroup>
+  </Target>
+  <Target Name="VerifyPublishMonitoring" BeforeTargets="PrepareForPublish">
+    <Error Condition="!Exists('../../.tools/monitoring/PresentMon-2.6.0-x64.exe')" Text="Publishing requires the verified PresentMon console. Run scripts/fetch-presentmon.ps1." />
+    <GetFileHash Files="../../.tools/monitoring/PresentMon-2.6.0-x64.exe" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="MonitoringHash" />
+    </GetFileHash>
+    <Error Condition="'%(MonitoringHash.FileHash)' != 'B2A706BC6AD475749E3B7E3409263AA1E6906D45BDCF993F6DBC0F660188F1AF'" Text="PresentMon SHA-256 does not match the verified release." />
   </Target>
 </Project>

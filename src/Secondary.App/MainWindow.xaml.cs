@@ -31,7 +31,7 @@ public partial class MainWindow : Window
     public bool SettingsOpen => settingsOpen;
     public string CurrentPage => SettingsOpen ? "settings" : model.Modes.Current;
     public bool AllowClose { get; set; }
-    public MainWindow(ShellViewModel model, bool registerHotkey = true)
+    public MainWindow(ShellViewModel model, bool registerHotkey = true, string? shortcutsPath = null)
     {
         this.model = model;
         InitializeComponent();
@@ -44,9 +44,9 @@ public partial class MainWindow : Window
         NavigationSizePicker.SelectedIndex = model.Settings.NavigationSize == "Small" ? 1 : 0;
         NavigationPositionPicker.SelectedItem = NavigationPositionPicker.Items.OfType<ComboBoxItem>().First(i => (string)i.Tag == model.Settings.NavigationPosition);
         InitializeHome();
-        Launchpad = new Presentation.LaunchpadView(registerHotkey
+        Launchpad = new Presentation.LaunchpadView(shortcutsPath ?? (registerHotkey
             ? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Secondary","shortcuts.json")
-            : System.IO.Path.Combine(System.IO.Path.GetTempPath(),"Secondary-tests-" + Guid.NewGuid().ToString("N"),"shortcuts.json"));
+            : System.IO.Path.Combine(System.IO.Path.GetTempPath(),"Secondary-tests-" + Guid.NewGuid().ToString("N"),"shortcuts.json")));
         Launchpad.CanRun = () => !IsGame && IsVisible && WindowState != WindowState.Minimized;
         ShortcutsPage.Children.Add(Launchpad);
         ContentScroll.AllowDrop = true;
@@ -309,6 +309,7 @@ public partial class MainWindow : Window
     }
     public void ApplyResponsiveLayout(double width, double height = 800)
     {
+        shellHeight = height;
         HomeCustomizeDialog.Width = Math.Max(0, Math.Min(720, width - 32));
         HomeCustomizeDialog.Height = Math.Max(0, Math.Min(820, height - 32));
         var compact = width < 720 || height < 580;
@@ -316,6 +317,7 @@ public partial class MainWindow : Window
         var position = model.Settings.NavigationPosition;
         var vertical = position is "Left" or "Right";
         var scale = model.Settings.NavigationSize == "Small" ? .8 : 1;
+        size = System.Math.Max(size, 44 / scale);
         NavigationBar.LayoutTransform = new ScaleTransform(scale, scale);
         NavigationItems.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
         NavigationBar.HorizontalAlignment = position == "Left" ? HorizontalAlignment.Left : position == "Right" ? HorizontalAlignment.Right : HorizontalAlignment.Center;
@@ -345,6 +347,7 @@ public partial class MainWindow : Window
         Grid.SetColumn(AnalysisPreview, narrow ? 0 : 1);
         Grid.SetRow(AnalysisPreview, narrow ? 1 : 0);
         HardwarePreview.Margin = new Thickness(0, 0, narrow ? 0 : 28, 0);
+        ApplyGameLayout(ContentArea.Width < 700 || shellHeight < 900);
     }
     public void EnterFullscreen(DisplayInfo display)
     {

@@ -12,7 +12,9 @@ namespace Secondary.App.Monitoring;
 
 public sealed record SystemSample(double? Cpu, ulong TotalMemory, ulong AvailableMemory,
     double? Download, double? Upload, double? Gpu, string GpuStatus, string Storage, string Power, DateTimeOffset Time,
-    DiskUsage[]? Disks = null, string? CpuName = null, string? SystemInfo = null, string? Connections = null, long UptimeMilliseconds = 0);
+    DiskUsage[]? Disks = null, string? CpuName = null, string? SystemInfo = null, string? Connections = null, long UptimeMilliseconds = 0,
+    TelemetrySourceState CpuState = TelemetrySourceState.Waiting, TelemetrySourceState MemoryState = TelemetrySourceState.Waiting,
+    TelemetrySourceState NetworkState = TelemetrySourceState.Waiting, string? SourceStatus = null);
 
 public interface ISystemSampler : IDisposable { SystemSample Read(bool game, bool high = false); }
 
@@ -32,19 +34,25 @@ public sealed class WindowsSampler(bool enableGpu = true) : ISystemSampler
     {
         var now = Stopwatch.GetTimestamp();
         double? cpu = null;
+        var cpuState = TelemetrySourceState.Waiting;
+        var issues = new List<string>();
         if (GetSystemTimes(out var idle, out var kernel, out var user))
         {
             var current = new CpuTimes(idle, kernel, user);
             cpu = TelemetryMath.CpuPercent(previousCpu, current);
             previousCpu = current;
+            cpuState = cpu.HasValue ? TelemetrySourceState.Available : TelemetrySourceState.Waiting;
         }
-        else previousCpu = null;
+        else { previousCpu = null; cpuState = TelemetrySourceState.Failed; issues.Add("CPU 採樣失敗（" + Marshal.GetLastWin32Error() + "）"); }
         var memory = new MemoryStatus { Length = (uint)Marshal.SizeOf<MemoryStatus>() };
-        if (!GlobalMemoryStatusEx(ref memory)) memory = default;
+        var memoryValid = GlobalMemoryStatusEx(ref memory);
+        if (!memoryValid) { issues.Add("記憶體採樣失敗（" + Marshal.GetLastWin32Error() + "）"); memory = default; }
+        var memoryState = memoryValid && memory.TotalPhysical > 0 ? TelemetrySourceState.Available : TelemetrySourceState.Failed;
+        var networkFailed = false;
         if (inventoryAt == 0 || Stopwatch.GetElapsedTime(inventoryAt, now).TotalSeconds >= 30)
         {
             try { adapters = NetworkInterface.GetAllNetworkInterfaces().Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback && n.NetworkInterfaceType != NetworkInterfaceType.Tunnel).ToArray(); }
-            catch (NetworkInformationException) { adapters = Array.Empty<NetworkInterface>(); }
+            catch (NetworkInformationException) { adapters = Array.Empty<NetworkInterface>(); networkFailed = true; issues.Add("網路介面清單讀取失敗"); }
             var ids = adapters.Select(n => n.Id).ToHashSet();
             foreach (var id in network.Keys.Where(k => !ids.Contains(k)).ToArray()) network.Remove(id);
             if (!game)
@@ -94,7 +102,7 @@ public sealed class WindowsSampler(bool enableGpu = true) : ISystemSampler
                 }
                 network[adapter.Id] = (stats.BytesReceived, stats.BytesSent, now);
             }
-            catch (NetworkInformationException) { network.Remove(adapter.Id); }
+            catch (NetworkInformationException) { network.Remove(adapter.Id); networkFailed = true; }
         }
         if (enableGpu && (gpuAt == 0 || Stopwatch.GetElapsedTime(gpuAt, now).TotalSeconds >= SamplingPolicy.GpuIntervalSeconds(game, high)))
         {
@@ -109,14 +117,16 @@ public sealed class WindowsSampler(bool enableGpu = true) : ISystemSampler
                 (p.BatteryFlag == 255 ? " · 電池狀態未知" : (p.BatteryFlag & 128) != 0 ? " · 無電池" : p.BatteryPercent <= 100 ? $" · 電量 {p.BatteryPercent}%" : " · 電量未知");
         return new(cpu, memory.TotalPhysical, memory.AvailablePhysical, validNetwork ? down : null, validNetwork ? up : null,
             gpuValue, gpuStatus, game ? "遊戲模式不讀取磁碟" : storage, power, DateTimeOffset.Now,
-            game ? Array.Empty<DiskUsage>() : disks, game ? null : cpuName, game ? null : systemInfo, game ? null : connections, game ? 0 : Environment.TickCount64);
+            game ? Array.Empty<DiskUsage>() : disks, game ? null : cpuName, game ? null : systemInfo, game ? null : connections, game ? 0 : Environment.TickCount64,
+            cpuState, memoryState, validNetwork ? TelemetrySourceState.Available : networkFailed ? TelemetrySourceState.Failed : TelemetrySourceState.Waiting,
+            issues.Count > 0 ? string.Join("；", issues) : networkFailed ? "部分網路介面無法讀取；可用介面仍更新" : cpu is null ? "CPU／網路正在建立採樣基準" : "CPU／記憶體／網路採樣持續更新");
     }
     public void Dispose() => gpu?.Dispose();
     [StructLayout(LayoutKind.Sequential)]
     private struct MemoryStatus { public uint Length, Load; public ulong TotalPhysical, AvailablePhysical, TotalPage, AvailablePage, TotalVirtual, AvailableVirtual, Extended; }
     [StructLayout(LayoutKind.Sequential)]
     private struct PowerStatus { public byte AcLineStatus, BatteryFlag, BatteryPercent, SystemStatus; public uint LifeTime, FullLifeTime; }
-    [DllImport("kernel32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetSystemTimes(out ulong idle, out ulong kernel, out ulong user);
-    [DllImport("kernel32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool GlobalMemoryStatusEx(ref MemoryStatus status);
+    [DllImport("kernel32.dll", SetLastError = true)][return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetSystemTimes(out ulong idle, out ulong kernel, out ulong user);
+    [DllImport("kernel32.dll", SetLastError = true)][return: MarshalAs(UnmanagedType.Bool)] private static extern bool GlobalMemoryStatusEx(ref MemoryStatus status);
     [DllImport("kernel32.dll")][return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetSystemPowerStatus(out PowerStatus status);
 }

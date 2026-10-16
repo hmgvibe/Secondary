@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Automation;
@@ -18,17 +20,28 @@ namespace Secondary.App.Presentation;
 
 public sealed partial class HomeUtilityWidget
 {
-    private static readonly HttpClient weatherClient = new() { Timeout = TimeSpan.FromSeconds(10) };
     private CancellationTokenSource? weatherRequest;
-    private bool disposed, widgetActive, mediaBusy, weatherBusy;
+    private CancellationTokenSource? weatherSearchRequest;
+    private CancellationTokenSource? mediaRefreshRequest;
+    private bool disposed, widgetActive, mediaBusy, mediaControlling, weatherBusy;
     private TextBlock? mediaTitle, mediaArtist, mediaState, weatherReading, weatherDetails, weatherCity, weatherIcon, weatherMeta, weatherEditorStatus, eventReading, eventDescription, eventEditorStatus;
-    private Button? mediaToggle;
+    private Button? mediaToggle, mediaPrevious, mediaNext;
+    private Grid? mediaHero, weatherHero;
+    private IDisposable? mediaSubscription;
+    private int mediaRefreshQueued;
     private Border? mediaArtwork, mediaProgress;
     private TextBlock? mediaArtworkIcon, mediaTime;
     private StackPanel? weatherEditor, weatherDisplay, eventEditor, eventDisplay;
     private Button? eventSettingsButton;
     private string? artworkKey;
     private double mediaFraction;
+    private TextBlock? weatherUpdated;
+    private TextBox? weatherCityInput;
+    private ComboBox? weatherCandidates;
+    private Button? weatherSelect;
+    private WeatherReading? lastWeather;
+    private DateTimeOffset weatherAttempt;
+    private bool weatherFailed;
 
     private static TextBlock Label(string text, int size = 13) => new()
     {
@@ -59,7 +72,7 @@ public sealed partial class HomeUtilityWidget
         nowPlaying.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         body.Children.Add(nowPlaying);
 
-        var hero = new Grid { Margin = new Thickness(0, 12, 0, 10) };
+        var hero = mediaHero = new Grid { Margin = new Thickness(0, 12, 0, 10) };
         hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
         hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         mediaArtworkIcon = new TextBlock { Text = "\uE8D6", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 34, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -88,8 +101,8 @@ public sealed partial class HomeUtilityWidget
         body.Children.Add(mediaTime);
 
         var controls = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 0) };
-        var previous = ActionButton("\uE892", () => _ = ControlMediaAsync("previous"));
-        var next = ActionButton("\uE893", () => _ = ControlMediaAsync("next"));
+        var previous = mediaPrevious = ActionButton("\uE892", () => _ = ControlMediaAsync("previous"));
+        var next = mediaNext = ActionButton("\uE893", () => _ = ControlMediaAsync("next"));
         mediaToggle = ActionButton("\uE768", () => _ = ControlMediaAsync("toggle"));
         foreach (var button in new[] { previous, mediaToggle, next })
         {
@@ -113,11 +126,12 @@ public sealed partial class HomeUtilityWidget
     {
         if (mediaBusy || disposed || !widgetActive) return;
         mediaBusy = true;
+        var request = mediaRefreshRequest = new CancellationTokenSource();
         try
         {
-            var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-            var session = manager.GetCurrentSession();
-            if (disposed || !widgetActive) return;
+            var snapshot = await MediaWidgetSource.Shared.ReadAsync().WaitAsync(TimeSpan.FromSeconds(5), request.Token);
+            var session = snapshot.Session;
+            if (disposed || !widgetActive || request.IsCancellationRequested) return;
             if (session is null)
             {
                 mediaTitle!.Text = "尚未播放媒體";
@@ -125,19 +139,24 @@ public sealed partial class HomeUtilityWidget
                 mediaState!.Text = "";
                 mediaTime!.Text = "—:—  /  —:—";
                 mediaFraction = 0; UpdateMediaProgress();
+                mediaPrevious!.IsEnabled = mediaToggle!.IsEnabled = mediaNext!.IsEnabled = false;
                 if (artworkKey is not null) { artworkKey = null; mediaArtwork!.Child = mediaArtworkIcon; }
                 return;
             }
-            var props = await session.TryGetMediaPropertiesAsync();
-            if (disposed || !widgetActive) return;
-            var playback = session.GetPlaybackInfo();
+            var props = snapshot.Properties!;
+            if (disposed || !widgetActive || request.IsCancellationRequested) return;
+            var playback = snapshot.Playback!;
             mediaTitle!.Text = string.IsNullOrWhiteSpace(props.Title) ? "未提供標題" : props.Title;
             mediaArtist!.Text = string.IsNullOrWhiteSpace(props.Artist) ? "未提供演出者" : props.Artist;
             mediaState!.Text = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? "播放中" : "已暫停";
             mediaToggle!.Content = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? "\uE769" : "\uE768";
+            mediaPrevious!.IsEnabled = !mediaControlling && playback.Controls.IsPreviousEnabled;
+            mediaNext!.IsEnabled = !mediaControlling && playback.Controls.IsNextEnabled;
+            var playing = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            mediaToggle.IsEnabled = !mediaControlling && (playback.Controls.IsPlayPauseToggleEnabled || (playing ? playback.Controls.IsPauseEnabled : playback.Controls.IsPlayEnabled));
             try
             {
-                var timeline = session.GetTimelineProperties();
+                var timeline = snapshot.Timeline!;
                 var duration = timeline.EndTime - timeline.StartTime;
                 var position = timeline.Position - timeline.StartTime;
                 mediaFraction = duration.TotalSeconds > 0 ? Math.Clamp(position.TotalSeconds / duration.TotalSeconds, 0, 1) : 0;
@@ -145,18 +164,47 @@ public sealed partial class HomeUtilityWidget
                 UpdateMediaProgress();
             }
             catch (Exception) { mediaFraction = 0; mediaTime!.Text = "—:—  /  —:—"; UpdateMediaProgress(); }
-            var key = session.SourceAppUserModelId + "|" + props.Title + "|" + props.Artist;
+            var key = session.SourceAppUserModelId + "|" + props.Title + "|" + props.Artist + "|" + snapshot.ArtworkRevision.ToString(CultureInfo.InvariantCulture);
             if (key != artworkKey)
             {
-                artworkKey = key;
-                await UpdateArtworkAsync(props.Thumbnail, key);
+                await UpdateArtworkAsync(props.Thumbnail, key, request.Token);
             }
+            UpdateResponsiveLayout();
         }
+        catch (OperationCanceledException) when (request.IsCancellationRequested) { }
         catch (Exception)
         {
-            if (!disposed && widgetActive) mediaState!.Text = "無法讀取系統媒體工作階段";
+            if (!disposed && widgetActive && !request.IsCancellationRequested)
+            {
+                mediaState!.Text = "無法讀取系統媒體工作階段";
+                mediaPrevious!.IsEnabled = mediaToggle!.IsEnabled = mediaNext!.IsEnabled = false;
+            }
         }
-        finally { mediaBusy = false; }
+        finally
+        {
+            if (ReferenceEquals(mediaRefreshRequest, request)) { mediaRefreshRequest = null; mediaBusy = false; }
+            request.Dispose();
+        }
+    }
+
+    private void SetMediaSubscription(bool active)
+    {
+        if (active && !disposed) mediaSubscription ??= MediaWidgetSource.Shared.Subscribe(OnMediaSourceChanged);
+        else
+        {
+            mediaSubscription?.Dispose(); mediaSubscription = null;
+            var request = mediaRefreshRequest; mediaRefreshRequest = null; mediaBusy = false;
+            request?.Cancel();
+        }
+    }
+    private void OnMediaSourceChanged()
+    {
+        if (disposed || Dispatcher.HasShutdownStarted || Interlocked.Exchange(ref mediaRefreshQueued, 1) != 0) return;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            Interlocked.Exchange(ref mediaRefreshQueued, 0);
+            if (!disposed && widgetActive) _ = RefreshMediaAsync();
+        }));
     }
 
     private static string MediaClock(TimeSpan value) => value.TotalHours >= 1
@@ -168,46 +216,59 @@ public sealed partial class HomeUtilityWidget
         if (mediaProgress?.Parent is Grid track) mediaProgress.Width = Math.Max(0, track.ActualWidth * mediaFraction);
     }
 
-    private async Task UpdateArtworkAsync(IRandomAccessStreamReference? thumbnail, string key)
+    private async Task UpdateArtworkAsync(IRandomAccessStreamReference? thumbnail, string key, CancellationToken token)
     {
-        if (thumbnail is null) { mediaArtwork!.Child = mediaArtworkIcon; return; }
+        if (thumbnail is null) { mediaArtwork!.Child = mediaArtworkIcon; artworkKey = key; return; }
         try
         {
-            using var stream = await thumbnail.OpenReadAsync();
-            if (stream.Size is 0 or > 2_000_000) { mediaArtwork!.Child = mediaArtworkIcon; return; }
+            using var stream = await thumbnail.OpenReadAsync().AsTask(token).WaitAsync(TimeSpan.FromSeconds(5), token);
+            if (token.IsCancellationRequested || disposed || !widgetActive) return;
+            if (stream.Size is 0 or > 2_000_000) { mediaArtwork!.Child = mediaArtworkIcon; artworkKey = key; return; }
             using var reader = new DataReader(stream.GetInputStreamAt(0));
             var size = (uint)stream.Size;
-            if (await reader.LoadAsync(size) != size) return;
+            if (await reader.LoadAsync(size).AsTask(token).WaitAsync(TimeSpan.FromSeconds(5), token) != size) return;
             var bytes = new byte[size]; reader.ReadBytes(bytes);
-            if (disposed || !widgetActive || artworkKey != key) return;
+            if (disposed || !widgetActive || token.IsCancellationRequested) return;
             using var input = new MemoryStream(bytes);
             var bitmap = new BitmapImage(); bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.DecodePixelWidth = 144; bitmap.StreamSource = input; bitmap.EndInit(); bitmap.Freeze();
+            bitmap.DecodePixelWidth = 336; bitmap.StreamSource = input; bitmap.EndInit(); bitmap.Freeze();
+            var cover = Math.Max(44, mediaArtwork!.Width);
             mediaArtwork!.Child = new Image
             {
-                Source = bitmap, Stretch = Stretch.UniformToFill, Width = 72, Height = 72,
-                Clip = new RectangleGeometry(new Rect(0, 0, 72, 72), 12, 12)
+                Source = bitmap, Stretch = Stretch.UniformToFill, Width = cover, Height = cover,
+                Clip = new RectangleGeometry(new Rect(0, 0, cover, cover), 12, 12)
             };
+            artworkKey = key;
         }
-        catch (Exception) { if (!disposed && artworkKey == key) mediaArtwork!.Child = mediaArtworkIcon; }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception) { if (!disposed && widgetActive && !token.IsCancellationRequested) { artworkKey = null; mediaArtwork!.Child = mediaArtworkIcon; } }
     }
 
     private async Task ControlMediaAsync(string command)
     {
+        if (disposed || mediaControlling) return;
+        mediaControlling = true;
+        mediaPrevious!.IsEnabled = mediaToggle!.IsEnabled = mediaNext!.IsEnabled = false;
         try
         {
-            var session = (await GlobalSystemMediaTransportControlsSessionManager.RequestAsync()).GetCurrentSession();
+            var session = (await MediaWidgetSource.Shared.ManagerAsync().WaitAsync(TimeSpan.FromSeconds(5))).GetCurrentSession();
             if (session is null) { mediaState!.Text = "目前沒有可控制的媒體"; return; }
-            var ok = command switch
+            mediaState!.Text = "正在控制播放器…";
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            async Task<bool> SendAsync() => command switch
             {
-                "previous" => await session.TrySkipPreviousAsync(),
-                "next" => await session.TrySkipNextAsync(),
-                _ => await session.TryTogglePlayPauseAsync()
+                "previous" => await session.TrySkipPreviousAsync().AsTask(deadline.Token),
+                "next" => await session.TrySkipNextAsync().AsTask(deadline.Token),
+                _ when session.GetPlaybackInfo().Controls.IsPlayPauseToggleEnabled => await session.TryTogglePlayPauseAsync().AsTask(deadline.Token),
+                _ when session.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing => await session.TryPauseAsync().AsTask(deadline.Token),
+                _ => await session.TryPlayAsync().AsTask(deadline.Token)
             };
+            var ok = await SendAsync().WaitAsync(deadline.Token);
             if (!disposed) mediaState!.Text = ok ? "指令已送出" : "播放器不支援此操作";
             await RefreshMediaAsync();
         }
         catch (Exception) { if (!disposed) mediaState!.Text = "媒體控制失敗"; }
+        finally { mediaControlling = false; if (!disposed && widgetActive) _ = RefreshMediaAsync(); }
     }
 
     private void RenderWeather()
@@ -217,38 +278,49 @@ public sealed partial class HomeUtilityWidget
         {
             weatherEditor!.Visibility = weatherEditor.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
             weatherDisplay!.Visibility = weatherEditor.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            if (weatherEditor.Visibility == Visibility.Visible) weatherCityInput!.Focus();
         });
         DockPanel.SetDock(settings, Dock.Right); header.Children.Add(settings);
-        weatherCity = Label(Settings.City.Length == 0 ? "設定城市" : Settings.City, 15);
+        weatherCity = Label(Settings.Location?.Name ?? (Settings.City.Length == 0 ? "設定城市" : Settings.City), 15);
         weatherCity.FontWeight = FontWeights.SemiBold; weatherCity.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(weatherCity); body.Children.Add(header);
 
-        weatherEditor = new StackPanel { Visibility = Settings.City.Length == 0 ? Visibility.Visible : Visibility.Collapsed };
+        weatherEditor = new StackPanel { Visibility = Settings.Location is null ? Visibility.Visible : Visibility.Collapsed };
         weatherEditor.Children.Add(Label("城市名稱", 12));
         var row = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
-        var city = new TextBox { Text = Settings.City, MaxLength = 100, MinHeight = 36 };
-        city.SetResourceReference(StyleProperty, "WidgetInput");
-        System.Windows.Automation.AutomationProperties.SetName(city, "天氣城市");
-        var search = ActionButton("查詢", () =>
+        weatherCityInput = new TextBox { Text = Settings.City, MaxLength = 100, MinHeight = 36 };
+        weatherCityInput.SetResourceReference(StyleProperty, "WidgetInput");
+        AutomationProperties.SetName(weatherCityInput, "天氣城市；Enter 查詢候選地點");
+        var search = ActionButton("查詢", () => _ = SearchWeatherCitiesAsync());
+        weatherCityInput.PreviewKeyDown += (_, e) => { if (e.Key == Key.Enter) { _ = SearchWeatherCitiesAsync(); e.Handled = true; } };
+        weatherCityInput.TextChanged += (_, _) =>
         {
-            var name = city.Text.Trim();
-            if (name.Length < 2) { weatherEditorStatus!.Text = "請輸入至少 2 個字的城市名稱。"; return; }
-            if (!Commit(Settings with { City = name })) { weatherEditorStatus!.Text = "儲存城市失敗，請重試。"; return; }
-            weatherCity!.Text = name; weatherReading!.Text = "—°";
-            weatherDetails!.Text = "正在查詢…"; weatherMeta!.Text = "";
-            weatherEditorStatus!.Text = "";
+            weatherCandidates!.Visibility = weatherSelect!.Visibility = Visibility.Collapsed;
+            weatherSearchRequest?.Cancel();
+        };
+        search.Margin = new Thickness(6,0,0,0);
+        DockPanel.SetDock(search, Dock.Right); row.Children.Add(search); row.Children.Add(weatherCityInput);
+        weatherEditor.Children.Add(row);
+        weatherCandidates = new ComboBox { Visibility = Visibility.Collapsed, MinHeight = 36, Margin = new Thickness(0, 6, 0, 0), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+        AutomationProperties.SetName(weatherCandidates, "選擇天氣城市、行政區及國家");
+        weatherEditor.Children.Add(weatherCandidates);
+        weatherSelect = ActionButton("使用此地點", () =>
+        {
+            if (weatherCandidates.SelectedItem is not WeatherLocation location) return;
+            if (!Commit(Settings with { City = weatherCityInput.Text.Trim(), Location = location })) { weatherEditorStatus!.Text = "儲存地點失敗，請重試。"; return; }
+            weatherRequest?.Cancel(); lastWeather = null; weatherAttempt = default; weatherFailed = false;
+            weatherCity!.Text = location.Name; weatherReading!.Text = "—°"; weatherDetails!.Text = "正在查詢…";
+            weatherMeta!.Text = ""; weatherUpdated!.Text = ""; weatherEditorStatus!.Text = "";
             weatherEditor.Visibility = Visibility.Collapsed; weatherDisplay!.Visibility = Visibility.Visible;
             _ = RefreshWeatherAsync(force: true);
         });
-        search.Margin = new Thickness(6,0,0,0);
-        DockPanel.SetDock(search, Dock.Right); row.Children.Add(search); row.Children.Add(city);
-        weatherEditor.Children.Add(row);
-        weatherEditorStatus = Label("可加上國家或地區，例如 Taipei, Taiwan", 11);
+        weatherSelect.Visibility = Visibility.Collapsed; weatherEditor.Children.Add(weatherSelect);
+        weatherEditorStatus = Label("查詢會將城市名稱傳送至 Open-Meteo。選擇城市、行政區及國家後才儲存。", 11);
         weatherEditorStatus.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         weatherEditor.Children.Add(weatherEditorStatus); body.Children.Add(weatherEditor);
 
-        weatherDisplay = new StackPanel { Visibility = Settings.City.Length == 0 ? Visibility.Collapsed : Visibility.Visible };
-        var hero = new Grid();
+        weatherDisplay = new StackPanel { Visibility = Settings.Location is null ? Visibility.Collapsed : Visibility.Visible };
+        var hero = weatherHero = new Grid();
         hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
         hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         weatherIcon = Label("☀", 48); weatherIcon.FontFamily = new FontFamily("Segoe UI Symbol");
@@ -259,65 +331,112 @@ public sealed partial class HomeUtilityWidget
         weatherReading.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(weatherReading, 1); hero.Children.Add(weatherReading);
         weatherDisplay.Children.Add(hero);
-        weatherDetails = Label(Settings.City.Length == 0 ? "" : "正在等待天氣資料", 15);
-        weatherDetails.FontWeight = FontWeights.SemiBold;
+        weatherDetails = Label("正在等待天氣資料", 15); weatherDetails.FontWeight = FontWeights.SemiBold;
         weatherDisplay.Children.Add(weatherDetails);
-        weatherMeta = Label("", 12);
-        weatherMeta.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        weatherMeta = Label("", 12); weatherMeta.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         weatherDisplay.Children.Add(weatherMeta);
-        var attribution = Label("OPEN-METEO  ·  約每 15 分鐘更新", 10);
-        attribution.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
-        attribution.Margin = new Thickness(0, 12, 0, 0);
-        weatherDisplay.Children.Add(attribution);
-        body.Children.Add(weatherDisplay);
+        weatherUpdated = Label("", 11); weatherUpdated.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        weatherDisplay.Children.Add(weatherUpdated);
+        var attribution = Label("", 10);
+        attribution.Margin = new Thickness(0, 8, 0, 0);
+        attribution.Inlines.Add(SourceLink("天氣資料：Open-Meteo", "https://open-meteo.com/"));
+        attribution.Inlines.Add(new Run(" · "));
+        attribution.Inlines.Add(SourceLink("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"));
+        attribution.ToolTip = "資料按原值顯示，數字四捨五入；約每 15 分鐘更新。";
+        weatherDisplay.Children.Add(attribution); body.Children.Add(weatherDisplay);
     }
-
-    private async Task RefreshWeatherAsync(bool force = false)
+    private static Hyperlink SourceLink(string text, string url)
     {
-        if (disposed || !widgetActive || Settings.City.Length == 0 || weatherBusy && !force) return;
-        weatherBusy = true;
-        weatherRequest?.Cancel();
-        var request = new CancellationTokenSource(); weatherRequest = request;
+        var link = new Hyperlink(new Run(text)) { NavigateUri = new Uri(url) };
+        link.SetResourceReference(TextElement.ForegroundProperty, "AccentBrush");
+        link.RequestNavigate += (_, e) =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); } catch (Exception) { }
+            e.Handled = true;
+        };
+        return link;
+    }
+    private async Task SearchWeatherCitiesAsync()
+    {
+        if (disposed) return;
+        var query = weatherCityInput!.Text.Trim();
+        if (query.Length < 2) { weatherEditorStatus!.Text = "請輸入至少 2 個字的城市名稱。"; return; }
+        weatherSearchRequest?.Cancel();
+        var request = weatherSearchRequest = new CancellationTokenSource();
+        weatherEditorStatus!.Text = "正在搜尋城市…";
         try
         {
-            var token = request.Token;
-            var city = Settings.City;
-            weatherDetails!.Text = "正在查詢…";
-            var geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=" + Uri.EscapeDataString(city) + "&count=1&language=zh&format=json";
-            using var geo = await weatherClient.GetAsync(geoUrl, token);
-            geo.EnsureSuccessStatusCode();
-            using var geoJson = JsonDocument.Parse(await geo.Content.ReadAsStreamAsync(token));
-            if (!geoJson.RootElement.TryGetProperty("results", out var results) || results.GetArrayLength() == 0)
-            { weatherDetails.Text = "找不到城市，請加上國家或地區重試。"; return; }
-            var place = results[0];
-            var latitude = place.GetProperty("latitude").GetDouble().ToString(CultureInfo.InvariantCulture);
-            var longitude = place.GetProperty("longitude").GetDouble().ToString(CultureInfo.InvariantCulture);
-            var forecastUrl = $"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto";
-            using var forecast = await weatherClient.GetAsync(forecastUrl, token);
-            forecast.EnsureSuccessStatusCode();
-            using var json = JsonDocument.Parse(await forecast.Content.ReadAsStreamAsync(token));
-            var current = json.RootElement.GetProperty("current");
-            if (disposed || !widgetActive || token.IsCancellationRequested || Settings.City != city) return;
-            var temp = current.GetProperty("temperature_2m").GetDouble();
-            var feels = current.GetProperty("apparent_temperature").GetDouble();
-            var humidity = current.GetProperty("relative_humidity_2m").GetInt32();
-            var wind = current.GetProperty("wind_speed_10m").GetDouble();
-            var code = current.GetProperty("weather_code").GetInt32();
-            weatherReading!.Text = $"{temp:0.#}°C";
-            weatherCity!.Text = place.GetProperty("name").GetString() ?? city;
-            weatherIcon!.Text = WeatherSymbol(code);
-            weatherDetails!.Text = WeatherDescription(code);
-            weatherMeta!.Text = $"體感 {feels:0.#}°   ·   濕度 {humidity}%\n風速 {wind:0.#} km/h";
+            var locations = await weatherSource.SearchAsync(query, request.Token);
+            if (disposed || request.IsCancellationRequested || weatherCityInput.Text.Trim() != query) return;
+            weatherCandidates!.ItemsSource = locations;
+            weatherCandidates.SelectedIndex = locations.Length > 0 ? 0 : -1;
+            weatherCandidates.Visibility = weatherSelect!.Visibility = locations.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+            weatherEditorStatus.Text = locations.Length > 0 ? "請核對城市、行政區及國家，再按「使用此地點」。" : "找不到城市；請嘗試城市的英文名稱。";
         }
-        catch (OperationCanceledException) { }
-        catch (Exception) { if (!disposed && !request.IsCancellationRequested) weatherDetails!.Text = "天氣查詢失敗；檢查網路後再試。"; }
+        catch (OperationCanceledException) when (request.IsCancellationRequested) { }
+        catch (Exception) { if (!disposed && !request.IsCancellationRequested) weatherEditorStatus.Text = "城市查詢失敗；請檢查網路後重試。"; }
+        finally
+        {
+            if (ReferenceEquals(weatherSearchRequest, request)) weatherSearchRequest = null;
+            request.Dispose();
+        }
+    }
+    private async Task RefreshWeatherAsync(bool force = false)
+    {
+        if (disposed || !widgetActive || Settings.Location is not { } location) return;
+        var now = weatherSource.UtcNow;
+        lastWeather ??= weatherSource.Cached(location);
+        UpdateWeatherState();
+        if (!force && (weatherBusy || lastWeather is not null && now - lastWeather.FetchedAt < WeatherDataService.Freshness || now - weatherAttempt < TimeSpan.FromMinutes(2))) return;
+        weatherRequest?.Cancel();
+        var request = new CancellationTokenSource(); weatherRequest = request; weatherBusy = true; weatherAttempt = now;
+        if (lastWeather is null) weatherDetails!.Text = "正在查詢…";
+        else weatherUpdated!.Text += " · 正在更新";
+        try
+        {
+            var reading = await weatherSource.ReadAsync(location, force, request.Token);
+            if (disposed || !widgetActive || request.IsCancellationRequested || Settings.Location != location) return;
+            lastWeather = reading; weatherFailed = false; UpdateWeatherState();
+        }
+        catch (OperationCanceledException) when (request.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (!disposed && !request.IsCancellationRequested)
+            {
+                weatherFailed = true; UpdateWeatherState();
+                if (lastWeather is null) weatherDetails!.Text = "天氣查詢失敗；檢查網路後再試。";
+                if (lastWeather is null) weatherUpdated!.Text = "尚無成功更新 · 更新失敗，稍後重試";
+            }
+        }
         finally
         {
             if (ReferenceEquals(weatherRequest, request)) { weatherBusy = false; weatherRequest = null; }
             request.Dispose();
         }
     }
-
+    private void UpdateWeatherState()
+    {
+        if (lastWeather is not { } reading) return;
+        weatherCity!.Text = reading.Location.Name;
+        weatherReading!.Text = $"{reading.Temperature:0.#}°C";
+        weatherIcon!.Text = WeatherSymbol(reading.Code); weatherDetails!.Text = WeatherDescription(reading.Code);
+        weatherMeta!.Text = $"體感 {reading.ApparentTemperature:0.#}° · 濕度 {reading.Humidity}%\n風速 {reading.WindSpeed:0.#} km/h";
+        var stale = weatherSource.UtcNow - reading.FetchedAt >= WeatherDataService.Freshness;
+        weatherUpdated!.Text = $"更新 {reading.FetchedAt.ToLocalTime():HH:mm}" + (stale ? " · 資料已過期" : " · 最新快取");
+        if (weatherFailed) weatherUpdated.Text += " · 更新失敗，稍後重試";
+        weatherUpdated.ToolTip = $"地點：{reading.Location}\n最後成功查詢：{reading.FetchedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n服務資料時間（地點當地時間）：{reading.SourceTime}";
+        UpdateResponsiveLayout();
+    }
+    private void PauseWeatherRequests()
+    {
+        // Clear the generation before cancelling. A quick return can start its
+        // next request immediately; an older continuation cannot reset that state.
+        var forecast = weatherRequest; weatherRequest = null;
+        var search = weatherSearchRequest; weatherSearchRequest = null;
+        weatherBusy = false; weatherAttempt = default;
+        forecast?.Cancel(); search?.Cancel();
+        if (!disposed && search is not null) weatherEditorStatus!.Text = "查詢已暫停；返回後可重新查詢。";
+    }
     private static string WeatherDescription(int code) => code switch
     {
         0 => "晴朗", 1 or 2 => "局部多雲", 3 => "陰天", 45 or 48 => "有霧",
@@ -384,5 +503,6 @@ public sealed partial class HomeUtilityWidget
         var days = target.DayNumber - DateOnly.FromDateTime(DateTime.Now).DayNumber;
         eventReading.Text = days > 0 ? $"{days} 天" : days == 0 ? "就是今天" : $"已過 {Math.Abs((long)days)} 天";
         eventDescription.Text = target.ToString("yyyy 年 MM 月 dd 日", CultureInfo.InvariantCulture);
+        UpdateResponsiveLayout();
     }
 }

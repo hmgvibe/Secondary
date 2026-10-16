@@ -9,6 +9,7 @@ public sealed record AppSettings(int Version = 3, string? DisplayId = null,
 
 public sealed class SettingsStore(string path)
 {
+    public const int MaximumBytes = 4_000_000;
     public string? LastError { get; private set; }
     private bool preserveOriginal;
     public bool NeedsSave { get; private set; }
@@ -19,7 +20,7 @@ public sealed class SettingsStore(string path)
         try
         {
             if (!File.Exists(path)) return new();
-            var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path));
+            var settings = BoundedJson.Read<AppSettings>(path, MaximumBytes, "設定資料過大；原始設定已保留。");
             if (settings is null || settings.Version is < 1 or > 3) throw new InvalidDataException("不支援的設定版本");
             preserveOriginal = settings.Version < 3;
             NeedsSave = preserveOriginal;
@@ -36,6 +37,7 @@ public sealed class SettingsStore(string path)
         {
             LastError = e.Message;
             preserveOriginal = true;
+            NeedsSave = true;
             return new();
         }
     }
@@ -46,17 +48,19 @@ public sealed class SettingsStore(string path)
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
+            var bytes = BoundedJson.Serialize(settings, MaximumBytes, "設定資料過大，未覆寫原始設定。");
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             if (preserveOriginal && File.Exists(path))
             { File.Copy(path, path + "." + Guid.NewGuid().ToString("N") + ".bak"); preserveOriginal = false; }
-            File.WriteAllText(temporary, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllBytes(temporary, bytes);
             File.Move(temporary, path, true);
             NeedsSave = false;
             return true;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
         {
             LastError = e.Message;
+            NeedsSave = true;
             return false;
         }
         finally

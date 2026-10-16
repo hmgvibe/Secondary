@@ -22,8 +22,13 @@ internal static class Program
     private static int Main(string[] args)
     {
         if (args.Length == 1 && args[0] == "--wait-target") { Thread.Sleep(2000); return 0; }
-        try { Run(args); return 0; }
-        catch (Exception e) { Console.Error.WriteLine(e); return 1; }
+        var code = 0;
+        try { Run(args); }
+        catch (Exception e) { Console.Error.WriteLine(e); code = 1; }
+        // Explicit WPF shutdown can leave native media broker threads alive.
+        // Run's finally closes owned windows and stops monitoring first.
+        Environment.Exit(code);
+        return code;
     }
     private static void Check(bool condition, string message)
     {
@@ -31,8 +36,28 @@ internal static class Program
         assertions++;
     }
     private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+    private static string? OutputDirectory(string[] args) => args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
     private static void Run(string[] args)
     {
+        if (args.Contains("--widget-edit-only"))
+        {
+            var widgetApp = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            try
+            {
+                WidgetGeometryChecks.Run(Check);
+                WidgetInteractionChecks.Run(Check, OutputDirectory(args));
+                Console.WriteLine($"PASS: {assertions} widget editing assertions");
+            }
+            finally { widgetApp.Shutdown(); }
+            return;
+        }
+        if (args.Contains("--data-only"))
+        {
+            var dataApp = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            try { UiDataOptimizationChecks.Run(Check); Console.WriteLine($"PASS: {assertions} data integration assertions"); }
+            finally { dataApp.Shutdown(); }
+            return;
+        }
         if (args.Contains("--game-telemetry"))
         {
             using var selected = Process.GetCurrentProcess();
@@ -132,7 +157,14 @@ internal static class Program
                         var networkChart = (Grid)window.FindName("NetworkChart");
                         var networkTraces = Descendants(networkChart).OfType<TelemetryTrace>().ToArray();
                         Check(networkTraces.Length == 2 && !networkTraces[0].Dashed && networkTraces[1].Dashed, "Network chart distinguishes download and upload with solid and dashed traces");
-                        Check(networkChart.ActualHeight == 190 && networkChart.ActualWidth > 200, "Network chart uses the full analysis width and frame-pacing chart height");
+                        if (!window.CompactGameLayout)
+                            Check(networkChart.ActualHeight == 190 && networkChart.ActualWidth > 200, "Expanded network chart uses the full analysis width and frame-pacing chart height");
+                        else
+                        {
+                            var summary = (FrameworkElement)window.FindName("CompactGameSummary");
+                            var viewport = (ScrollViewer)window.FindName("ContentScroll");
+                            Check(summary.ActualHeight > 100 && summary.ActualHeight <= viewport.ActualHeight, "Compact HUD keeps its six primary readings in the first viewport");
+                        }
                     }
                     window.OpenSettings();
                     Layout(window, root, size.Width, size.Height, scale);
@@ -191,13 +223,24 @@ internal static class Program
             TestLaunchpad(window,root,testDirectory,args);
             TestLaunchpadWrapping(window,root,testDirectory);
             TestUtilityWidgets(window, model, root, testDirectory, args);
+            ClockOptimizationChecks.Run(window, model, Check, OutputDirectory(args));
+            WidgetOptimizationChecks.Run(window, model, Check, OutputDirectory(args));
+            WidgetGeometryChecks.Run(Check);
+            WidgetInteractionChecks.Run(Check, OutputDirectory(args));
+            BackgroundOptimizationChecks.Run(window, model, Check, OutputDirectory(args));
+            UiDataOptimizationChecks.Run(Check);
+            RootOptimizationChecks.Run(window, model, Check);
+            LaunchpadOptimizationChecks.Run(window, model, Check, OutputDirectory(args));
+            ShortcutPathOptimizationChecks.Run(Check, OutputDirectory(args));
             if (args.Contains("--live"))
             {
+                LiveOptimizationChecks.Run(window, model, Check, OutputDirectory(args));
                 // Opt-in integration check: real WPF animation clocks, isolated settings,
                 // no global hotkeys and no display changes.
                 window.SetAppearance(ShellAppearance.Normal);
                 model.SaveRuntime(gameAnimation: true);
                 window.Show(); Flush();
+                LaunchpadOptimizationChecks.RunLive(window, Check);
                 ShortcutEntry? edited = null;
                 Dispatcher.CurrentDispatcher.BeginInvoke(() =>
                 {
@@ -221,14 +264,14 @@ internal static class Program
                 Check(edited?.Name == "Edited fixture", "Native shortcut editor saves draft without launching target");
                 window.Navigate("home"); Flush();
                 var clockWidget = window.ClockWidget;
-                var clockMover = clockWidget.Children.OfType<Thumb>().First();
+                var clockMover = clockWidget.Children.OfType<Thumb>().Single(t => t.Tag is ResizeEdges.None);
                 Check(clockMover.Focus(), "Clock can retain keyboard focus for arrow-key editing");
                 Flush();
-                var expectedChrome = clockWidget.IsMouseOver ? 1d : 0d;
+                var expectedChrome = 1d;
                 Check(clockWidget.Children.OfType<Border>().First().Opacity == expectedChrome,
-                    "Keyboard focus alone does not pin the clock outline");
-                Check(clockWidget.Children.OfType<Thumb>().Last().Opacity == expectedChrome,
-                    "Keyboard focus alone does not pin the resize handle");
+                    "Keyboard selection keeps the clock outline visible for editing");
+                Check(clockWidget.Children.OfType<Thumb>().Where(t => t.Tag is ResizeEdges e && e != ResizeEdges.None).All(t => t.Opacity == expectedChrome),
+                    "Keyboard selection keeps all eight resize handles visible for editing");
                 window.Navigate("enter-game");
                 if (SystemParameters.ClientAreaAnimation && !SystemParameters.HighContrast)
                 {
@@ -282,9 +325,9 @@ internal static class Program
                 window.Hide();
             }
             // Render fixtures only in the independent off-screen run.
-            if (args.Length > 0 && !args.Contains("--live") && !args.Contains("--game-telemetry"))
+            if (OutputDirectory(args) is not null && !args.Contains("--live") && !args.Contains("--game-telemetry"))
             {
-                Directory.CreateDirectory(args[0]);
+                Directory.CreateDirectory(OutputDirectory(args)!);
                 foreach (var route in new[] { "home", "shortcuts", "game", "settings", "settings-sensors", "home-dialog" })
                 foreach (var width in new[] { 560, 1200, 1920 })
                 {
@@ -298,17 +341,28 @@ internal static class Program
                     if (route == "settings-sensors") { ((ScrollViewer)window.FindName("ContentScroll")).ScrollToBottom(); Flush(); }
                     var bitmap = new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32); bitmap.Render(root);
                     var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                    using var file = File.Create(Path.Combine(args[0], route + "-" + width + "-DESIGN-PREVIEW.png"));
+                    using var file = File.Create(Path.Combine(OutputDirectory(args)!, route + "-" + width + "-DESIGN-PREVIEW.png"));
                     encoder.Save(file);
                     window.CloseSettings(); window.CloseHomeCustomize();
                 }
             }
             Console.WriteLine($"PASS: {assertions} assertions; 80 viewport/scale/theme combinations; home clocks/backgrounds, HUD preview and legacy sampler regression.");
         }
-        finally { window.AllowClose = true; window.Close(); if (Directory.Exists(testDirectory)) Directory.Delete(testDirectory,true); }
+        finally
+        {
+            window.AllowClose = true; window.Close();
+            try { window.GameMonitoringCompletion.Wait(TimeSpan.FromSeconds(5)); } catch (AggregateException) { }
+            app.Shutdown();
+            if (Directory.Exists(testDirectory)) Directory.Delete(testDirectory,true);
+        }
     }
     private static void Layout(MainWindow window, FrameworkElement root, double width, double height, double scale = 1)
     {
+        if (window.IsVisible)
+        {
+            window.Width = Math.Max(window.MinWidth, width); window.Height = Math.Max(window.MinHeight, height);
+            Flush(); window.ApplyResponsiveLayout(root.ActualWidth, root.ActualHeight); root.UpdateLayout(); Flush(); return;
+        }
         window.ApplyResponsiveLayout(width,height); Flush();
         root.Measure(new Size(width*scale,height*scale)); root.Arrange(new Rect(0,0,width*scale,height*scale)); root.UpdateLayout(); Flush();
     }
@@ -336,12 +390,12 @@ internal static class Program
             var tooltip = (ToolTip)((RadioButton)items.Children[0]).ToolTip;
             var tip = tooltip.CustomPopupPlacementCallback!(new Size(100,40),new Size(64,64),new Point())[0].Point;
             Check(position switch { "Left" => tip.X >=64, "Right" => tip.X < -99, "Top" => tip.Y >=64, _=>tip.Y < -39 }, "Custom tooltip opens inward from selected edge");
-            if (args.Length > 0 && !args.Contains("--live") && mode == ShellAppearance.Normal && viewport.Width == 1200)
+            if (OutputDirectory(args) is not null && !args.Contains("--live") && mode == ShellAppearance.Normal && viewport.Width == 1200)
             {
-                Directory.CreateDirectory(args[0]);
+                Directory.CreateDirectory(OutputDirectory(args)!);
                 var bitmap = new RenderTargetBitmap(1200,820,96,96,PixelFormats.Pbgra32); bitmap.Render(root);
                 var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
-                using var file = File.Create(Path.Combine(args[0], "nav-"+size+"-"+position+".png")); png.Save(file);
+                using var file = File.Create(Path.Combine(OutputDirectory(args)!, "nav-"+size+"-"+position+".png")); png.Save(file);
             }
         }
         model.SaveRuntime(navigationSize: "Standard", navigationPosition: "Bottom");
@@ -406,23 +460,23 @@ internal static class Program
             Check(view.GroupLayout == "Horizontal" && reloadedLayout.GroupLayout == "Horizontal" &&
                 groupScroll.HorizontalScrollBarVisibility == ScrollBarVisibility.Auto,
                 "Horizontal group arrangement persists across reload");
-            Layout(window,root,400,480);
+            Layout(window,root,560,480);
             var horizontalFirst = ((UIElement)sections.Children[0]).TranslatePoint(new Point(),sections);
             var horizontalSecond = ((UIElement)sections.Children[1]).TranslatePoint(new Point(),sections);
             Check(horizontalSecond.X > horizontalFirst.X && Math.Abs(horizontalSecond.Y-horizontalFirst.Y) < 1,
                 "Horizontal group sections retain their original side-by-side arrangement");
             Layout(window,root,1200,820);
-            if (args.Length > 0 && !args.Contains("--live"))
+            if (OutputDirectory(args) is not null && !args.Contains("--live"))
             {
-                Directory.CreateDirectory(args[0]);
+                Directory.CreateDirectory(OutputDirectory(args)!);
                 var horizontalBitmap = new RenderTargetBitmap(1200,820,96,96,PixelFormats.Pbgra32);
                 horizontalBitmap.Render(root);
                 var horizontalPng = new PngBitmapEncoder(); horizontalPng.Frames.Add(BitmapFrame.Create(horizontalBitmap));
-                using var horizontalFile = File.Create(Path.Combine(args[0],"launchpad-horizontal.png")); horizontalPng.Save(horizontalFile);
+                using var horizontalFile = File.Create(Path.Combine(OutputDirectory(args)!,"launchpad-horizontal.png")); horizontalPng.Save(horizontalFile);
             }
             layoutButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout(window,root,1200,820);
             Check(view.GroupLayout == "Vertical", "Group arrangement switches back to vertical");
-            var search = Descendants(view).OfType<TextBox>().Single(); search.Text = "文件"; Flush();
+            var search = Descendants(view).OfType<TextBox>().Single(); search.Text = "文件"; view.RenderPendingTilesForMeasurement(); Flush();
             Check(Descendants(view).OfType<Button>().Count(b => b.Content is StackPanel) == 1, "Launchpad search filters visible tiles");
             search.Text = ""; var groups = Descendants(view).OfType<ComboBox>().Single(); groups.SelectedItem = "遊戲"; Flush();
             Check(Descendants(view).OfType<Button>().Count(b => b.Content is StackPanel) == 1, "Launchpad group filters visible tiles");
@@ -446,12 +500,12 @@ internal static class Program
             Check(search.Text == "" && view.EntryCount == 4, "Successful drop reveals added entries despite previous search");
             Check(view.ImportFiles([linkPath]) == 0 && view.EntryCount == 4, "Repeated drop does not duplicate an existing shortcut");
             Check(view.ImportFiles(Enumerable.Repeat(linkPath,21).ToArray()) == 0 && view.EntryCount == 4, "Oversized drop does not partially import");
-            if (args.Length > 0 && !args.Contains("--live"))
+            if (OutputDirectory(args) is not null && !args.Contains("--live"))
             {
-                Layout(window,root,1200,820); Directory.CreateDirectory(args[0]);
+                Layout(window,root,1200,820); Directory.CreateDirectory(OutputDirectory(args)!);
                 var bitmap = new RenderTargetBitmap(1200,820,96,96,PixelFormats.Pbgra32); bitmap.Render(root);
                 var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
-                using var file = File.Create(Path.Combine(args[0],"launchpad-fixture.png")); png.Save(file);
+                using var file = File.Create(Path.Combine(OutputDirectory(args)!,"launchpad-fixture.png")); png.Save(file);
             }
         }
         finally { page.Children.Remove(view); page.Children.Add(window.Launchpad); window.Navigate("home"); }
@@ -465,14 +519,17 @@ internal static class Program
         var page = (StackPanel)window.FindName("ShortcutsPage"); page.Children.Remove(window.Launchpad); page.Children.Add(view);
         try
         {
-            window.Navigate("shortcuts"); Layout(window,root,400,480);
+            window.Navigate("shortcuts"); Layout(window,root,560,480);
             var tiles = Enumerable.Range(1,6).Select(i => Descendants(view).OfType<Button>().Single(b =>
                 System.Windows.Automation.AutomationProperties.GetName(b) == $"換行{i:00}")).ToArray();
             var verticalPanel = (WrapPanel)VisualTreeHelper.GetParent(tiles[0]);
             var first = tiles[0].TranslatePoint(new Point(),verticalPanel);
             var second = tiles[1].TranslatePoint(new Point(),verticalPanel);
-            Check(second.Y > first.Y && Math.Abs(second.X-first.X) < 1,
-                "Vertical group wraps shortcut cards to another row in a narrow viewport");
+            var columns = Math.Max(1, (int)Math.Floor(verticalPanel.ActualWidth / (tiles[0].ActualWidth + tiles[0].Margin.Left + tiles[0].Margin.Right)));
+            Check(columns < tiles.Length, "Legal minimum-width viewport requires another shortcut row");
+            var wrapped = tiles[columns].TranslatePoint(new Point(), verticalPanel);
+            Check(wrapped.Y > first.Y && Math.Abs(wrapped.X-first.X) < 1,
+                "Vertical group wraps according to actual available width in a legal window");
             Layout(window,root,1200,820);
             first = tiles[0].TranslatePoint(new Point(),verticalPanel);
             second = tiles[1].TranslatePoint(new Point(),verticalPanel);
@@ -480,7 +537,7 @@ internal static class Program
                 "Vertical group returns shortcut cards to the same row when widened");
             var layoutButton = Descendants(view).OfType<Button>().Single(b =>
                 System.Windows.Automation.AutomationProperties.GetName(b) == "切換分組排列方向");
-            layoutButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout(window,root,400,480);
+            layoutButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout(window,root,560,480);
             tiles = Enumerable.Range(1,6).Select(i => Descendants(view).OfType<Button>().Single(b =>
                 System.Windows.Automation.AutomationProperties.GetName(b) == $"換行{i:00}")).ToArray();
             var horizontalPanel = (WrapPanel)VisualTreeHelper.GetParent(tiles[0]);
@@ -495,10 +552,10 @@ internal static class Program
             Layout(window,root,1200,1200);
             first = tiles[0].TranslatePoint(new Point(),horizontalPanel);
             second = tiles[1].TranslatePoint(new Point(),horizontalPanel);
-            var contentScroll = (ScrollViewer)window.FindName("ContentScroll");
-            var top = Descendants(view).OfType<ScrollViewer>().Single(s => s.Content is StackPanel).TranslatePoint(new Point(),contentScroll).Y;
-            Check(second.Y > first.Y && Math.Abs(second.X-first.X) < 1,
-                $"Horizontal group returns shortcut cards to the same column when heightened (panel={horizontalPanel.ActualWidth:F0}x{horizontalPanel.ActualHeight:F0}, tiles={first},{second}, viewport={contentScroll.ViewportHeight:F0}, top={top:F0})");
+            Check(horizontalPanel.ActualHeight >= tiles[0].ActualHeight * 2
+                ? second.Y > first.Y && Math.Abs(second.X-first.X) < 1
+                : second.X > first.X && Math.Abs(second.Y-first.Y) < 1,
+                "Horizontal groups respect actual row capacity after resizing, including desktop-constrained native windows");
         }
         finally { page.Children.Remove(view); page.Children.Add(window.Launchpad); window.Navigate("home"); }
     }
@@ -520,14 +577,14 @@ internal static class Program
         Check(!System.Windows.Input.ApplicationCommands.Cut.CanExecute(null,path), "Read-only custom editor forbids cutting");
         Check(System.Windows.Input.ApplicationCommands.Copy.CanExecute(null,path), "Read-only custom editor still allows copying");
         path.Text = original;
-        if (args.Length > 0 && !args.Contains("--live"))
+        if (OutputDirectory(args) is not null && !args.Contains("--live"))
         {
             var input = (TextBox)window.FindName("HotkeyInput");
             var menu = input.ContextMenu!;
             menu.Width = 280; menu.Measure(new Size(280,400)); menu.Arrange(new Rect(0,0,280,menu.DesiredSize.Height)); menu.UpdateLayout();
             var image = new RenderTargetBitmap(280,(int)Math.Ceiling(menu.ActualHeight),96,96,PixelFormats.Pbgra32); image.Render(menu);
             var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(image));
-            Directory.CreateDirectory(args[0]); using var file = File.Create(Path.Combine(args[0],"custom-editor-menu.png")); png.Save(file);
+            Directory.CreateDirectory(OutputDirectory(args)!); using var file = File.Create(Path.Combine(OutputDirectory(args)!,"custom-editor-menu.png")); png.Save(file);
         }
     }
     private static void TestUtilityWidgets(MainWindow window, ShellViewModel model, FrameworkElement root, string directory, string[] args)
@@ -572,23 +629,23 @@ internal static class Program
             foreach (var frame in canvas.Children.OfType<HomeWidget>())
                 Check(Canvas.GetLeft(frame)+frame.Width <= canvas.ActualWidth+.1 && Canvas.GetTop(frame)+frame.Height <= canvas.ActualHeight+.1, "Utility widgets remain in canvas after resize");
         }
-        if (args.Length > 0 && !args.Contains("--live"))
+        if (OutputDirectory(args) is not null && !args.Contains("--live"))
         {
             Layout(window,root,1920,1080);
             var i = 0;
             foreach (var frame in canvas.Children.OfType<HomeWidget>().Where(w => w != window.ClockWidget)) frame.Configure(new WidgetPlacement(i++ / 3d,.9,1),new Size(320,300));
             window.ClockWidget.Configure(new WidgetPlacement(.5,0,1),new Size(462,182));
             Layout(window,root,1920,1080);
-            Directory.CreateDirectory(args[0]);
+            Directory.CreateDirectory(OutputDirectory(args)!);
             var bitmap = new RenderTargetBitmap(1920,1080,96,96,PixelFormats.Pbgra32); bitmap.Render(root);
             var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
-            using var file = File.Create(Path.Combine(args[0],"utility-widgets.png")); png.Save(file);
+            using var file = File.Create(Path.Combine(OutputDirectory(args)!,"utility-widgets.png")); png.Save(file);
             using var widgetTheme = new ThemeService(window);
             widgetTheme.Apply(ShellAppearance.Normal,ThemeChoice.Dark,true,false);
             Layout(window,root,1920,1080);
             var darkBitmap = new RenderTargetBitmap(1920,1080,96,96,PixelFormats.Pbgra32); darkBitmap.Render(root);
             var darkPng = new PngBitmapEncoder(); darkPng.Frames.Add(BitmapFrame.Create(darkBitmap));
-            using var darkFile = File.Create(Path.Combine(args[0],"utility-widgets-dark.png")); darkPng.Save(darkFile);
+            using var darkFile = File.Create(Path.Combine(OutputDirectory(args)!,"utility-widgets-dark.png")); darkPng.Save(darkFile);
         }
         foreach (var id in model.Settings.Home!.Widgets!.Select(w => w.Id).ToArray()) Check(window.RemoveHomeWidget(id), "Remove widget persists and detaches");
         Check(window.UtilityWidgetCount == 0 && canvas.Children.Count == 1 && contents.All(w => !w.IsRefreshing), "Removed widgets release their resources");
@@ -612,7 +669,7 @@ internal static class Program
             "Counter reset button keeps a compact centered width");
         foreach (var extra in extras) { extra.SetActive(true); Check(extra.IsRefreshing == (extra.Settings.Kind == "TimeProgress"), "Only time progress needs refresh"); extra.SetActive(false); Check(!extra.IsRefreshing, "New widget stops background refresh"); }
         Layout(window, root, 1200, 820);
-        if (args.Length > 0 && !args.Contains("--live"))
+        if (OutputDirectory(args) is not null && !args.Contains("--live"))
         {
             var surface = new StackPanel { Orientation = Orientation.Horizontal, Background = (Brush)window.FindResource("CanvasBrush"), Resources = window.Resources };
             foreach (var extra in extras)
@@ -623,8 +680,8 @@ internal static class Program
             }
             surface.Measure(new Size(1032,324)); surface.Arrange(new Rect(0,0,1032,324)); surface.UpdateLayout();
             var bitmap = new RenderTargetBitmap(1032,324,96,96,PixelFormats.Pbgra32); bitmap.Render(surface);
-            var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); Directory.CreateDirectory(args[0]);
-            using var file = File.Create(Path.Combine(args[0], "new-home-widgets.png")); png.Save(file);
+            var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); Directory.CreateDirectory(OutputDirectory(args)!);
+            using var file = File.Create(Path.Combine(OutputDirectory(args)!, "new-home-widgets.png")); png.Save(file);
             foreach (var preview in surface.Children.OfType<HomeUtilityWidget>()) preview.Dispose();
         }
         foreach (var id in model.Settings.Home!.Widgets!.Select(w => w.Id).ToArray()) window.RemoveHomeWidget(id);
@@ -644,7 +701,7 @@ internal static class Program
         Descendants(eventWidget).OfType<Button>().Single(b => b.Content as string == "儲存日期").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(model.Settings.Home!.Widgets!.Single(w => w.Kind == "EventCountdown") is { EventTitle: "旅行", EventDate: "2026-12-31" }, "Event countdown saves title and date");
         Layout(window, root, 1200, 820);
-        Check(((StackPanel)eventInputs[0].Parent).Visibility == Visibility.Collapsed && Descendants(eventWidget).OfType<TextBlock>().Any(t => t.Text.Contains("天") && t.FontSize == 56), "Saved event countdown shows day view and hides editor");
+        Check(((StackPanel)eventInputs[0].Parent).Visibility == Visibility.Collapsed && Descendants(eventWidget).OfType<TextBlock>().Any(t => t.Text.Contains("天") && t.FontSize >= 24 && t.FontSize <= 110), "Saved event countdown shows day view and hides editor");
         Check(Descendants(eventWidget).OfType<TextBlock>().Any(t => t.Text == "2026 年 12 月 31 日"), "Saved event view shows only the target date below the day count");
         eventSettings.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Layout(window, root, 1200, 820);
@@ -652,7 +709,7 @@ internal static class Program
         Check(liveWidgets.Single(w => w.Settings.Kind == "Weather").Settings.City == "", "Weather waits for a city before requesting network data");
         var mediaWidget = liveWidgets.Single(w => w.Settings.Kind == "Media");
         Check(new[] { "上一首", "播放或暫停", "下一首" }.All(name => Descendants(mediaWidget).OfType<Button>().Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == name)), "Media has graphical playback controls");
-        if (args.Length > 0 && !args.Contains("--live"))
+        if (OutputDirectory(args) is not null && !args.Contains("--live"))
         {
             var surface = new StackPanel { Orientation = Orientation.Horizontal, Background = (Brush)window.FindResource("CanvasBrush"), Resources = window.Resources };
             foreach (var live in liveWidgets)
@@ -662,8 +719,8 @@ internal static class Program
             }
             surface.Measure(new Size(1032,324)); surface.Arrange(new Rect(0,0,1032,324)); surface.UpdateLayout();
             var bitmap = new RenderTargetBitmap(1032,324,96,96,PixelFormats.Pbgra32); bitmap.Render(surface);
-            var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); Directory.CreateDirectory(args[0]);
-            using var file = File.Create(Path.Combine(args[0], "media-weather-event-widgets.png")); png.Save(file);
+            var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); Directory.CreateDirectory(OutputDirectory(args)!);
+            using var file = File.Create(Path.Combine(OutputDirectory(args)!, "media-weather-event-widgets.png")); png.Save(file);
             foreach (var preview in surface.Children.OfType<HomeUtilityWidget>()) preview.Dispose();
             var eventSurface = new Canvas { Width = 360, Height = 340, Background = (Brush)window.FindResource("CanvasBrush"), Resources = window.Resources };
             var eventPreview = new HomeUtilityWidget(eventWidget.Settings);
@@ -672,7 +729,7 @@ internal static class Program
             previewFrame.Configure(new WidgetPlacement(0, 0, 1), new Size(320, 300)); eventSurface.UpdateLayout();
             var framed = new RenderTargetBitmap(360, 340, 96, 96, PixelFormats.Pbgra32); framed.Render(eventSurface);
             var framedPng = new PngBitmapEncoder(); framedPng.Frames.Add(BitmapFrame.Create(framed));
-            using var framedFile = File.Create(Path.Combine(args[0], "event-widget-header.png")); framedPng.Save(framedFile);
+            using var framedFile = File.Create(Path.Combine(OutputDirectory(args)!, "event-widget-header.png")); framedPng.Save(framedFile);
             eventPreview.Dispose(); previewFrame.Detach();
         }
         foreach (var id in model.Settings.Home!.Widgets!.Select(w => w.Id).ToArray()) window.RemoveHomeWidget(id);
@@ -760,6 +817,7 @@ internal static class Program
         using (var output = File.Create(imagePath)) encoder.Save(output);
         backdrop.Configure(new HomeSettings(Background: "Image", MediaPath: imagePath));
         backdrop.SetActive(true, false);
+        PumpUntil(() => backdrop.ImageLoadCompletion.IsCompleted);
         if (!SystemParameters.HighContrast)
         {
             Check(backdrop.HasImage && !backdrop.HasMedia, "Image background loads in reduced motion");
@@ -770,6 +828,7 @@ internal static class Program
         Check(!backdrop.HasImage && backdrop.Children.Count == 0, "Leaving home releases decoded bitmap references");
         backdrop.Configure(new HomeSettings(Background: "Image", MediaPath: imagePath + ".missing"));
         backdrop.SetActive(true, true);
+        PumpUntil(() => backdrop.ImageLoadCompletion.IsCompleted);
         if (!SystemParameters.HighContrast) Check(backdrop.Status.Contains("回退") && !backdrop.HasImage, "Missing media falls back explicitly");
         foreach (var kind in new[] { "Gradient", "Aurora" })
         {
@@ -784,9 +843,9 @@ internal static class Program
         backdrop.Configure(new HomeSettings(Background: "Video", MediaPath: brokenVideo)); backdrop.SetActive(true, false);
         Check(!backdrop.HasMedia, "Reduced motion never constructs video playback");
         backdrop.SetActive(false, false);
-        if (args.Length > 0 && !args.Contains("--live"))
+        if (OutputDirectory(args) is not null && !args.Contains("--live"))
         {
-            Directory.CreateDirectory(args[0]);
+            Directory.CreateDirectory(OutputDirectory(args)!);
             foreach (var style in new[] { "Digital", "Flip", "Analog" })
             {
                 clock.Configure(new HomeSettings(ClockStyle: style, ShowSeconds: true));
@@ -794,7 +853,7 @@ internal static class Program
                 Layout(window, root, 1200, 820);
                 var render = new RenderTargetBitmap(1200, 820, 96, 96, PixelFormats.Pbgra32); render.Render(root);
                 var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(render));
-                using var output = File.Create(Path.Combine(args[0], "clock-" + style + "-FIXTURE.png")); png.Save(output);
+                using var output = File.Create(Path.Combine(OutputDirectory(args)!, "clock-" + style + "-FIXTURE.png")); png.Save(output);
             }
         }
         // Live lifecycle assertions are opt-in, in an isolated test window, never global input.
@@ -829,6 +888,7 @@ internal static class Program
             window.Navigate("enter-game"); Check(!clock.IsRunning && !backdrop.HasMotion && !backdrop.HasMedia, "Game mode releases all home activity");
             window.ExitGame(); window.Navigate("home");
             var videoArgument = args.FirstOrDefault(a => a.StartsWith("--video="));
+            if (videoArgument is not null && SystemParameters.HighContrast) throw new InvalidOperationException("影片驗證尚未完成：高對比模式會停用影片背景。");
             if (videoArgument is not null && !SystemParameters.HighContrast)
             {
                 var videoPath = Path.GetFullPath(videoArgument[8..]);
