@@ -9,6 +9,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using Secondary.Shared;
+using Secondary.Monitoring;
 
 namespace Secondary.App.Monitoring;
 
@@ -17,11 +19,11 @@ public sealed record PerformanceRequest(string Report, string Scene, int Seconds
 // An explicit, isolated measurement window. Includes this process and only its descendants.
 public static class PerformanceRun
 {
-    private static readonly string[] scenes = ["Home", "HomeWidgets", "Shortcuts", "GameLow", "GameHigh", "GameSensors", "Hidden", "Minimized", "Image", "Video", "Gradient", "Aurora"];
+    private static readonly string[] scenes = ["Home", "HomeWidgets", "Shortcuts", "GameLow", "GameHigh", "GameSensors", "Hidden", "Minimized", "Image", "Video"];
     public static PerformanceRequest Parse(string[] args)
     {
         if (args.Length < 3 || args[0] != "--measure" || !scenes.Contains(args[2]))
-            throw new ArgumentException("量測方式：--measure <新報告路徑> <Home|HomeWidgets|Shortcuts|GameLow|GameHigh|GameSensors|Hidden|Minimized|Image|Video|Gradient|Aurora> [--seconds=60] [--warmup=10] [--media=本機檔案]");
+            throw new ArgumentException("量測方式：--measure <新報告路徑> <Home|HomeWidgets|Shortcuts|GameLow|GameHigh|GameSensors|Hidden|Minimized|Image|Video> [--seconds=60] [--warmup=10] [--media=本機檔案]");
         var report = Path.GetFullPath(args[1]);
         if (File.Exists(report) || Directory.Exists(report)) throw new ArgumentException("報告已存在；請指定新的檔案名稱。");
         var seconds = 60; var warmup = 10; string? media = null;

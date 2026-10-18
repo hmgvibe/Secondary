@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Home','HomeWidgets','Shortcuts','GameLow','GameHigh','GameSensors','Hidden','Minimized','Image','Video','Gradient','Aurora')][string]$Mode = 'GameLow',
+    [ValidateSet('Home','HomeWidgets','Shortcuts','GameLow','GameHigh','GameSensors','Hidden','Minimized','Image','Video')][string]$Mode = 'GameLow',
     [string]$Report = ('artifacts/performance/' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-performance.json'),
     [ValidateRange(5,86400)][int]$Seconds = 60,
     [ValidateRange(0,300)][int]$Warmup = 10,

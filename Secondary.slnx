@@ -1,9 +1,13 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Secondary.Core/Secondary.Core.csproj" />
+    <Project Path="src/Secondary.Shared/Secondary.Shared.csproj" />
+    <Project Path="src/Secondary.Windows/Secondary.Windows.csproj" />
     <Project Path="src/Secondary.App/Secondary.App.csproj" />
+    <Project Path="src/Secondary.Connect/Secondary.Connect.csproj" />
     <Project Path="src/Secondary.Diagnostics/Secondary.Diagnostics.csproj" />
     <Project Path="src/Secondary.SensorHelper/Secondary.SensorHelper.csproj" />
+    <Project Path="src/Secondary.Linux/Secondary.Linux.csproj" />
   </Folder>
-  <Folder Name="/tests/"><Project Path="tests/Secondary.Tests/Secondary.Tests.csproj" /><Project Path="tests/Secondary.UiTests/Secondary.UiTests.csproj" /></Folder>
+  <Folder Name="/tests/"><Project Path="tests/Secondary.Tests/Secondary.Tests.csproj" /><Project Path="tests/Secondary.UiTests/Secondary.UiTests.csproj" /><Project Path="tests/Secondary.Linux.Tests/Secondary.Linux.Tests.csproj" /></Folder>
 </Solution>

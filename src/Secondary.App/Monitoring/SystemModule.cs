@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using Secondary.Core;
+using Secondary.Monitoring;
 
 namespace Secondary.App.Monitoring;
 

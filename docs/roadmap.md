@@ -13,4 +13,26 @@
 
 技術沿用 Windows 11 x64、C#、WPF、.NET 10。日常只有首頁與快捷導航，遊戲為獨立手動模式，不再有全能／輕量模式。日常底部導航固定為「首頁｜快捷導航｜遊戲模式｜設定」。遊戲中底部提供監測、退出、設定；設定為獨立頁面，不改變分區或返回位置。
 
+## Linux 版
+
+以 Avalonia 新增 Ubuntu／GNOME（Wayland）版本，Windows 暫維持 WPF。規格與取捨見 [Linux 版計劃](linux-plan.md)。
+
+| 階段 | 內容 | 狀態 |
+|---|---|---|
+| L1 | 共用層抽出、Avalonia 外殼、設定、副屏、系統匣、快捷鍵、CI 與 AppImage 骨架 | 已確認，使用者指示進入 L2；實體鍵盤、外接螢幕與系統匣選單點擊留待日後；見 linux-stage-1.md |
+| L2 | 首頁組件、時鐘、媒體、天氣與背景 | 已確認，使用者指示進入 L3；見 linux-stage-2.md |
+| L3 | 快捷導航、.desktop 與巨集 | 已確認，使用者指示進入 L4；見 linux-stage-3.md |
+| L4 | 遊戲模式與 Linux 監測來源 | 已完成，等待確認；見 linux-stage-4.md（真正的 MangoHud 記錄待 Surface 安裝後實測） |
+| L5 | 發布、量測、無障礙與實機驗收 | AppImage 與 .deb 已隨 v1.1.0 發布；量測、無障礙與長時間實機驗收未開始 |
+
+## 連線模式
+
+沒有副屏時，用另一臺 Windows 或 Linux 設備顯示並操作主電腦的資料；主電腦只執行輕量的「連接助手」。規格見 [連線模式計劃](connection-plan.md)。
+
+| 階段 | 內容 | 狀態 |
+|---|---|---|
+| C1 | Windows 共用庫、連接助手、搜尋、配對、加密連線、設定卡片 | 已完成並確認；見 connection-stage-1.md |
+| C2 | 遠端遊戲監測、遠端程序選擇、快捷鍵同步進出 | 已完成並確認（使用者實機遊戲測試通過）；見 connection-stage-2.md |
+| C3 | 主電腦媒體控制與主電腦捷徑 | 已實作並隨 v1.1.0 發布，自動測試通過，實機播放器與捷徑待驗證；見 connection-stage-3.md |
+
 新計劃見 [新版規格](redesign-plan.md)，第一階段狀態見 [新版第一階段](redesign-stage-1.md)。原 stage-1 至 stage-4 文件及 artifacts/stage-4 是舊版歷史紀錄，不代表新版功能、效能或驗收狀態。

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Secondary.App.Monitoring;
+using Secondary.Monitoring;
 using Secondary.Core;
 using Secondary.Diagnostics;
 

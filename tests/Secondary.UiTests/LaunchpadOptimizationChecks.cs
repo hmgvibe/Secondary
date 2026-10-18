@@ -12,6 +12,7 @@ using System.Windows.Threading;
 using Secondary.App;
 using Secondary.App.Presentation;
 using Secondary.Core;
+using Secondary.Desktop;
 
 internal static class LaunchpadOptimizationChecks
 {
@@ -32,20 +33,11 @@ internal static class LaunchpadOptimizationChecks
             ]), "Launchpad optimization fixtures save without executing targets");
             using var view = new LaunchpadView(path) { Resources = window.Resources };
             Layout(view);
-            var search = Descendants(view).OfType<TextBox>().Single();
-            var initialTile = Tile(view, "Alpha");
-            search.Text = "A"; search.Text = "Al"; search.Text = "Alpha";
-            Pump(TimeSpan.FromMilliseconds(210));
-            check(view.HasPendingSearch && !view.IsSearchDebouncing && Tiles(view).Length == 3 && ReferenceEquals(initialTile, Tile(view, "Alpha")),
-                "Hidden search bursts keep the existing tiles and avoid scheduling background rebuilds");
-            view.RenderPendingTilesForMeasurement();
-            check(!view.HasPendingSearch && Tiles(view).Length == 1 && AutomationProperties.GetName(Tiles(view)[0]) == "Alpha",
-                "Explicit offscreen measurement renders the final search query once");
-            search.Text = "Beta";
+            check(!Descendants(view).OfType<TextBox>().Any() && Tiles(view).Length == 3, "The launchpad has no search box and shows every tile");
             var groups = Descendants(view).OfType<ComboBox>().Single(); groups.SelectedItem = "Play";
-            check(!view.HasPendingSearch && Tiles(view).Length == 1 && AutomationProperties.GetName(Tiles(view)[0]) == "Beta",
-                "A group change immediately applies the current search and supersedes its debounce");
-            groups.SelectedIndex = 0; search.Clear(); view.RenderPendingTilesForMeasurement();
+            check(Tiles(view).Length == 1 && AutomationProperties.GetName(Tiles(view)[0]) == "Beta",
+                "A group change immediately filters the tiles");
+            groups.SelectedIndex = 0;
 
             Tile(view, "Safe wait").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var cancelled = view.ExecutionCompletion;
@@ -104,9 +96,8 @@ internal static class LaunchpadOptimizationChecks
             check(guardView.ExecutionStatus.Contains("找不到唯一"),
                 "Worker key validation rejects a nonexistent target before attempting focus or input");
 
-            search.Text = "Alpha"; view.Dispose();
-            Pump(TimeSpan.FromMilliseconds(180));
-            check(!view.IsSearchDebouncing && !view.IsExecuting, "Disposing the launchpad stops its debounce and execution lifetime");
+            view.Dispose();
+            check(!view.IsExecuting, "Disposing the launchpad ends its execution lifetime");
         }
         finally { Directory.Delete(directory, true); }
     }
@@ -130,31 +121,11 @@ internal static class LaunchpadOptimizationChecks
         try
         {
             window.Navigate("shortcuts"); window.UpdateLayout(); Pump(TimeSpan.FromMilliseconds(30));
-            var search = Descendants(view).OfType<TextBox>().Single();
-            var initial = Tile(view, "Alpha");
-            search.Text = "A"; search.Text = "Al"; search.Text = "Alpha";
-            Pump(TimeSpan.FromMilliseconds(70));
-            check(view.IsSearchDebouncing && view.HasPendingSearch && Tiles(view).Length == 2 && ReferenceEquals(initial, Tile(view, "Alpha")),
-                "Visible rapid typing retains the current tiles during the 150 ms debounce");
-            WaitUntil(() => !view.HasPendingSearch);
-            check(Tiles(view).Length == 1 && AutomationProperties.GetName(Tiles(view)[0]) == "Alpha",
-                "Visible search applies the final query after the debounce");
-            var filtered = Tiles(view)[0];
-            search.Text = "Beta"; window.Navigate("home");
-            check(view.HasPendingSearch && !view.IsSearchDebouncing, "Leaving shortcuts stops the debounce while retaining its latest query");
-            Pump(TimeSpan.FromMilliseconds(190));
-            check(ReferenceEquals(filtered, Tiles(view)[0]), "A hidden pending search performs no tile rebuild");
-            window.Navigate("shortcuts"); window.UpdateLayout();
-            check(!view.HasPendingSearch && Tiles(view).Length == 1 && AutomationProperties.GetName(Tiles(view)[0]) == "Beta",
-                "Returning to shortcuts flushes the latest hidden query immediately");
-            search.Text = "Alpha";
             var groups = Descendants(view).OfType<ComboBox>().Single(); groups.SelectedItem = "Work";
-            var grouped = Tiles(view)[0]; Pump(TimeSpan.FromMilliseconds(180));
-            check(!view.IsSearchDebouncing && ReferenceEquals(grouped, Tiles(view)[0]) && AutomationProperties.GetName(grouped) == "Alpha",
-                "Immediate group filtering cancels the pending timer so it does not rebuild the same result again");
-            search.Text = "Beta"; view.Dispose(); Pump(TimeSpan.FromMilliseconds(180));
-            check(!view.IsSearchDebouncing && ReferenceEquals(grouped, Tiles(view)[0]),
-                "Disposal removes the live search timer before its pending callback fires");
+            check(Tiles(view).Length == 1 && AutomationProperties.GetName(Tiles(view)[0]) == "Alpha",
+                "Visible group filtering applies immediately");
+            var grouped = Tiles(view)[0]; window.Navigate("home"); window.Navigate("shortcuts"); window.UpdateLayout();
+            check(ReferenceEquals(grouped, Tiles(view)[0]), "Returning to shortcuts keeps the tiles without a rebuild");
         }
         finally
         {

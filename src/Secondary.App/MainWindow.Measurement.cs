@@ -26,7 +26,6 @@ public partial class MainWindow
         if (scene == "Shortcuts" && Launchpad.EntryCount != 200) return "快捷導航沒有指定的二百筆入口。";
         if (scene == "Image" && (!HomeBackground.HasImage || HomeBackground.IsImageLoading || HomeBackground.Status.Length != 0)) return "圖片背景尚未載入或已回退。";
         if (scene == "Video" && (!HomeBackground.HasMedia || !HomeBackground.MediaReady || HomeBackground.Status.Length != 0)) return "影片背景尚未播放或已回退。";
-        if (scene is "Gradient" or "Aurora" && !HomeBackground.HasMotion) return "內建背景沒有動態效果；請檢查系統動畫或高對比設定。";
         return null;
     }
     internal void PrepareMeasurement(string scene, string? media)
@@ -46,7 +45,7 @@ public partial class MainWindow
             if (scene == "HomeWidgets")
                 for (var i = 0; i < 12; i++) AddHomeWidget(HomeWidgetSettings.Kinds[i % HomeWidgetSettings.Kinds.Length]);
             else if (scene == "Shortcuts") { Launchpad.PrepareMeasurementEntries(); Navigate("shortcuts"); }
-            else if (scene is "Image" or "Video" or "Gradient" or "Aurora")
+            else if (scene is "Image" or "Video")
             {
                 var options = new HomeSettings(Background: scene, MediaPath: media);
                 model.SaveHome(options); ClockView.Configure(options); HomeBackground.Configure(options);

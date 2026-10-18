@@ -6,9 +6,22 @@ public sealed record ShortcutStep(string Kind = "Open", string Target = "", stri
 public sealed record ShortcutEntry(string Id, string Name, string Group = "日常", string Icon = "↗", ShortcutStep[]? Steps = null, string? ApprovedFingerprint = null);
 public sealed record ShortcutDocument(int Version = 1, ShortcutEntry[]? Entries = null, string GroupLayout = "Vertical");
 
+// What each platform can run. Windows keeps its original rules; Linux runs .sh scripts through
+// /bin/sh, passes arguments to executables, and cannot send keys to other windows under Wayland.
+public sealed record ShortcutRules(string[] ScriptExtensions, string[] OpenBlocked, string[] ArgumentExtensions,
+    string ScriptMessage, string OpenBlockedMessage, string ArgumentsMessage, string? KeysUnsupported)
+{
+    public static readonly ShortcutRules Windows = new([".ps1", ".bat", ".cmd"], [".ps1", ".bat", ".cmd", ".vbs", ".js", ".wsf", ".hta"], [".exe"],
+        "外部腳本只支援本機 .ps1／.bat／.cmd。", "請將受支援的腳本改用「腳本」步驟；不支援其他脚本類型。", "啟動參數只適用於 .exe 程式。", null);
+    public static readonly ShortcutRules Linux = new([".sh"], [".sh", ".bash", ".zsh", ".py", ".pl", ".rb"], ["", ".appimage"],
+        "外部腳本只支援本機 .sh（以 /bin/sh 執行）。", "請將 .sh 改用「腳本」步驟；不支援其他腳本類型。", "啟動參數只適用於可執行程式或 AppImage。",
+        "Wayland 不允許程式向其他視窗送出按鍵；Linux 版沒有「視窗快捷鍵」步驟。");
+}
+
 public static class ShortcutPolicy
 {
-    public static string? Validate(ShortcutEntry entry)
+    public static string? Validate(ShortcutEntry entry) => Validate(entry, ShortcutRules.Windows);
+    public static string? Validate(ShortcutEntry entry, ShortcutRules rules)
     {
         if (string.IsNullOrWhiteSpace(entry.Id) || string.IsNullOrWhiteSpace(entry.Name) || entry.Name.Length > 80 || entry.Group.Length > 40 || entry.Icon.Length > 8) return "請填寫名稱（最多 80 字）、分組（最多 40 字）、圖示（最多 8 字）。";
         if (entry.Steps is not { Length: > 0 and <= 20 }) return "每個捷徑需要 1–20 個步驟。";
@@ -19,6 +32,7 @@ public static class ShortcutPolicy
             if (step.Kind == "Wait") { if (step.Seconds is < 1 or > 3600) return "等待時間需為 1–3600 秒。"; continue; }
             if (step.Kind == "Keys")
             {
+                if (rules.KeysUnsupported is { } unsupported) return unsupported;
                 if (!HotkeyGesture.TryParse(step.Target,out _) || string.IsNullOrWhiteSpace(step.ProcessName) || string.IsNullOrWhiteSpace(step.WindowTitle)) return "按鍵步驟需填 Ctrl／Alt 組合鍵、程序名稱及完整視窗標題。";
                 continue;
             }
@@ -26,11 +40,11 @@ public static class ShortcutPolicy
             var web = Uri.TryCreate(step.Target,UriKind.Absolute,out var uri) && uri.Scheme is "http" or "https";
             if (!web && !HomeSettings.IsLocalPath(step.Target)) return "目標需為本機絕對路徑或 HTTP／HTTPS 網址。";
             var extension = Path.GetExtension(step.Target).ToLowerInvariant();
-            if (step.Kind == "Script" && (web || extension is not (".ps1" or ".bat" or ".cmd"))) return "外部腳本只支援本機 .ps1／.bat／.cmd。";
-            if (step.Kind == "Open" && extension is ".ps1" or ".bat" or ".cmd" or ".vbs" or ".js" or ".wsf" or ".hta") return "請將受支援的腳本改用「腳本」步驟；不支援其他脚本類型。";
+            if (step.Kind == "Script" && (web || !rules.ScriptExtensions.Contains(extension))) return rules.ScriptMessage;
+            if (step.Kind == "Open" && rules.OpenBlocked.Contains(extension)) return rules.OpenBlockedMessage;
             if (step.WorkingDirectory.Length > 0 && !HomeSettings.IsLocalPath(step.WorkingDirectory)) return "工作目錄需為本機絕對路徑。";
             if (web && (step.Arguments.Length > 0 || step.WorkingDirectory.Length > 0)) return "網站不接受參數或工作目錄。";
-            if (step.Kind == "Open" && step.Arguments.Length > 0 && extension != ".exe") return "啟動參數只適用於 .exe 程式。";
+            if (step.Kind == "Open" && step.Arguments.Length > 0 && (web || !rules.ArgumentExtensions.Contains(extension))) return rules.ArgumentsMessage;
             if (step.Target.Contains('"') || step.Target.Contains('\r') || step.Target.Contains('\n')) return "目標包含無效字元。";
             if (step.Kind == "Script" && step.Arguments.Length > 0) return "本階段腳本不接受額外參數；請在腳本內設定。";
         }
@@ -55,8 +69,10 @@ public static class ShortcutPolicy
     }
 }
 
-public sealed class ShortcutLibrary(string path)
+public sealed class ShortcutLibrary(string path, ShortcutRules? rules = null)
 {
+    private readonly ShortcutRules rules = rules ?? ShortcutRules.Windows;
+    public ShortcutRules Rules => rules;
     public const int MaximumBytes = 4_000_000;
     public string? Error { get; private set; }
     public bool ReadOnly { get; private set; }
@@ -68,7 +84,7 @@ public sealed class ShortcutLibrary(string path)
             Error = null; ReadOnly = false; GroupLayout = "Vertical";
             if (!File.Exists(path)) return [];
             var doc = BoundedJson.Read<ShortcutDocument>(path, MaximumBytes, "捷徑資料過大。");
-            if (doc?.Version != 1 || doc.Entries is null || doc.Entries.Length > 200 || doc.Entries.Any(e => e is null || ShortcutPolicy.Validate(e) is not null) || doc.Entries.Select(e => e.Id).Distinct().Count() != doc.Entries.Length)
+            if (doc?.Version != 1 || doc.Entries is null || doc.Entries.Length > 200 || doc.Entries.Any(e => e is null || ShortcutPolicy.Validate(e, rules) is not null) || doc.Entries.Select(e => e.Id).Distinct().Count() != doc.Entries.Length)
                 throw new InvalidDataException("捷徑資料格式不正確；保留原檔，未覆寫。");
             GroupLayout = doc.GroupLayout == "Horizontal" ? "Horizontal" : "Vertical";
             return doc.Entries;
@@ -79,7 +95,7 @@ public sealed class ShortcutLibrary(string path)
     public bool Save(ShortcutEntry[] entries)
     {
         if (ReadOnly) return false;
-        if (entries.Length > 200 || entries.Any(e => ShortcutPolicy.Validate(e) is not null) || entries.Select(e => e.Id).Distinct().Count() != entries.Length) { Error = "捷徑內容無效或超過 200 筆。"; return false; }
+        if (entries.Length > 200 || entries.Any(e => ShortcutPolicy.Validate(e, rules) is not null) || entries.Select(e => e.Id).Distinct().Count() != entries.Length) { Error = "捷徑內容無效或超過 200 筆。"; return false; }
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
@@ -106,9 +122,10 @@ public sealed class ShortcutRunner(IShortcutExecutor executor)
 {
     private int running;
     public bool IsRunning => Volatile.Read(ref running) != 0;
+    public ShortcutRules Rules { get; init; } = ShortcutRules.Windows;
     public async Task Run(ShortcutEntry entry, Action<int> progress, CancellationToken cancellation)
     {
-        if (ShortcutPolicy.Validate(entry) is { } error) throw new InvalidOperationException(error);
+        if (ShortcutPolicy.Validate(entry, Rules) is { } error) throw new InvalidOperationException(error);
         if (Interlocked.CompareExchange(ref running,1,0) != 0) throw new InvalidOperationException("已有巨集正在執行。");
         try
         {

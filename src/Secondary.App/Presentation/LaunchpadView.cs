@@ -10,16 +10,17 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Secondary.Core;
+using Secondary.Desktop;
+using Secondary.Shared;
 
 namespace Secondary.App.Presentation;
 
-public sealed class LaunchpadView : StackPanel, IDisposable
+public sealed partial class LaunchpadView : StackPanel, IDisposable
 {
     private readonly ShortcutLibrary library;
     private readonly ShortcutExecutor executor = new();
     private readonly ShortcutRunner runner;
     private ShortcutEntry[] entries;
-    private readonly TextBox search = new() { MinHeight = 44, Margin = new Thickness(0,0,0,12) };
     private readonly ComboBox groups = new() { MinWidth = 140, Margin = new Thickness(0,0,8,8) };
     private readonly ScrollViewer groupViewport = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, PanningMode = PanningMode.HorizontalOnly };
@@ -30,14 +31,11 @@ public sealed class LaunchpadView : StackPanel, IDisposable
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,12,0,0) };
     private CancellationTokenSource? execution;
     private readonly Button cancel;
-    private readonly DispatcherTimer searchDebounce = new(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(150) };
-    private bool filtering, searchDirty, reviewing, disposed;
+    private bool filtering, reviewing, disposed;
     private Point dragStart;
     public Func<bool> CanRun { get; set; } = () => true;
     public int EntryCount => entries.Length;
     public string GroupLayout => library.GroupLayout;
-    public bool HasPendingSearch => searchDirty;
-    public bool IsSearchDebouncing => searchDebounce.IsEnabled;
     public bool IsExecuting => execution is not null;
     public bool IsReviewing => reviewing;
     public string ExecutionStatus => status.Text;
@@ -47,30 +45,27 @@ public sealed class LaunchpadView : StackPanel, IDisposable
     public LaunchpadView(string path)
     {
         library = new(path); entries = library.Load(); runner = new(executor);
+        EditDialog = (entry,mainName,main,canChoose) => ShortcutDialogs.Edit(Owner,entry,mainName,main,canChoose);
         Children.Add(new TextBlock { Text = "YOUR LAUNCHPAD", FontSize = 11 });
         Children.Add(new TextBlock { Text = "快捷導航", FontSize = 34, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,6,0,8) });
         Children.Add(new TextBlock { Text = "拖入桌面快捷方式、檔案或資料夾即可新增；拖動現有捷徑可排序。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,20) });
-        System.Windows.Automation.AutomationProperties.SetName(search,"搜尋快捷方式");
-        Children.Add(new TextBlock { Text = "搜尋名稱、分組或目標", FontSize = 12, Margin = new Thickness(0,0,0,6) });
-        var searchTip = new ToolTip { Content = "搜尋名稱、分組或目標" }; searchTip.SetResourceReference(StyleProperty,"NavigationToolTip"); search.ToolTip = searchTip; Children.Add(search);
         var toolbar = new WrapPanel(); toolbar.Children.Add(groups);
         System.Windows.Automation.AutomationProperties.SetName(groups,"快捷方式分組");
         layoutToggle = ShortcutDialogs.Button("",ToggleGroupLayout);
         layoutToggle.Margin = new Thickness(0,0,8,8);
         System.Windows.Automation.AutomationProperties.SetName(layoutToggle,"切換分組排列方向");
         toolbar.Children.Add(layoutToggle);
-        toolbar.Children.Add(ShortcutDialogs.Button("＋ 新增",() => Edit(new(Guid.NewGuid().ToString("N"),"新快捷方式",Steps:[new()]))));
+        toolbar.Children.Add(ShortcutDialogs.Button("＋ 新增",Add));
         toolbar.Children.Add(ShortcutDialogs.Button("名稱排序",() => Save(entries.OrderBy(e => e.Name,StringComparer.CurrentCultureIgnoreCase).ToArray())));
         cancel = ShortcutDialogs.Button("取消執行",Cancel); cancel.IsEnabled = false;
         toolbar.Children.Add(cancel); Children.Add(toolbar);
         groupViewport.Content = groupSections; Children.Add(groupViewport); Children.Add(status);
         Loaded += (_, _) => AttachViewport();
-        Unloaded += (_, _) => { searchDebounce.Stop(); if (reviewing) Cancel(); DetachViewport(); };
+        Unloaded += (_, _) => { if (reviewing) Cancel(); DetachViewport(); };
         IsVisibleChanged += OnVisibilityChanged;
-        searchDebounce.Tick += OnSearchDebounceTick;
         groupViewport.SizeChanged += (_, _) => UpdateHorizontalExtent();
         status.FontSize = 13; status.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");
-        search.TextChanged += OnSearchChanged; groups.SelectionChanged += (_, _) => { if (!filtering) RenderTiles(); };
+        groups.SelectionChanged += (_, _) => { if (!filtering) RenderTiles(); };
         Background = Brushes.Transparent;
         AllowDrop = true; Drop += OnDrop; DragOver += (_, e) => HandleExternalDrag(e,false);
         Refresh(); status.Text = library.Error ?? "尚未執行任何捷徑。首次使用請按「＋ 新增」，也可拖入檔案或網址。";
@@ -90,42 +85,30 @@ public sealed class LaunchpadView : StackPanel, IDisposable
     private void Refresh()
     {
         filtering = true; var selected = groups.SelectedIndex > 0 ? groups.SelectedItem as string : null;
-        groups.Items.Clear(); groups.Items.Add("全部"); foreach (var group in entries.Select(e => e.Group).Distinct().Order()) groups.Items.Add(group);
+        groups.Items.Clear(); groups.Items.Add("全部"); foreach (var group in entries.Select(e => e.Group).Concat(RemoteGroups).Distinct().Order()) groups.Items.Add(group);
         groups.SelectedIndex = selected is not null && groups.Items.Contains(selected) ? groups.Items.IndexOf(selected) : 0;
         filtering = false; layoutToggle.IsEnabled = !library.ReadOnly; RenderTiles();
-    }
-    private void OnSearchChanged(object sender, TextChangedEventArgs e)
-    {
-        if (disposed) return;
-        searchDirty = true; searchDebounce.Stop();
-        if (IsVisible) searchDebounce.Start();
-    }
-    private void OnSearchDebounceTick(object? sender, EventArgs e)
-    {
-        searchDebounce.Stop();
-        if (!disposed && IsVisible && searchDirty) RenderTiles();
     }
     private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (disposed) return;
-        if (!IsVisible) { searchDebounce.Stop(); if (reviewing) Cancel(); }
-        else if (searchDirty) RenderTiles();
+        if (!IsVisible && reviewing) Cancel();
+        if (IsVisible && remoteConnected) _ = RefreshRemoteAsync();
     }
-    // Offscreen screenshots and explicit layout measurements need the latest query
-    // without pretending that an invisible window is receiving live text input.
-    public void RenderPendingTilesForMeasurement() { if (searchDirty && !disposed) RenderTiles(); }
     private void RenderTiles()
     {
         if (disposed) return;
-        searchDebounce.Stop(); searchDirty = false;
         groupSections.Children.Clear();
         horizontalTilePanels.Clear();
         var horizontal = library.GroupLayout == "Horizontal";
         layoutToggle.Content = horizontal ? "分組：橫向  ↔" : "分組：縱向  ↕";
         groupSections.Orientation = horizontal ? Orientation.Horizontal : Orientation.Vertical;
         groupViewport.HorizontalScrollBarVisibility = horizontal ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
-        var visible = ShortcutPolicy.Filter(entries,search.Text.Trim(),groups.SelectedIndex > 0 ? groups.SelectedItem as string : null).ToArray();
-        foreach (var group in visible.GroupBy(e => e.Group).OrderBy(g => g.Key,StringComparer.CurrentCultureIgnoreCase))
+        // Main-computer shortcuts share the groups, marked on their tiles.
+        var selectedGroup = groups.SelectedIndex > 0 ? groups.SelectedItem as string : null;
+        var visible = ShortcutPolicy.Filter(entries,"",selectedGroup).Select(e => (Entry: e, Remote: (RemoteTile?)null))
+            .Concat(VisibleRemote(selectedGroup).Select(r => (r.Entry, Remote: (RemoteTile?)r))).ToArray();
+        foreach (var group in visible.GroupBy(e => e.Entry.Group).OrderBy(g => g.Key,StringComparer.CurrentCultureIgnoreCase))
         {
             var section = new StackPanel { MinWidth = horizontal ? 200 : 0,
                 Margin = horizontal ? new Thickness(0,0,20,0) : new Thickness(0,4,0,18), AllowDrop = true };
@@ -140,7 +123,7 @@ public sealed class LaunchpadView : StackPanel, IDisposable
             divider.SetResourceReference(Border.BorderBrushProperty,"LineBrush");
             section.Children.Add(divider);
             var tilePanel = new WrapPanel { Orientation = horizontal ? Orientation.Vertical : Orientation.Horizontal };
-            foreach (var entry in group) tilePanel.Children.Add(CreateTile(entry,horizontal));
+            foreach (var item in group) tilePanel.Children.Add(item.Remote is { } remoteTile ? CreateRemoteTile(remoteTile,horizontal) : CreateTile(item.Entry,horizontal));
             if (horizontal) horizontalTilePanels.Add((tilePanel,group.Count()));
             section.Children.Add(tilePanel);
             section.DragOver += (_, e) => { if (e.Data.GetDataPresent("Secondary.ShortcutId")) { e.Effects = DragDropEffects.Move; e.Handled = true; } };
@@ -151,7 +134,7 @@ public sealed class LaunchpadView : StackPanel, IDisposable
             };
             groupSections.Children.Add(section);
         }
-        if (groupSections.Children.Count == 0) groupSections.Children.Add(new TextBlock { Text = entries.Length == 0 ? "還沒有快捷方式\n新增常用程式、資料夾、網站，或建立自己的步驟式巨集。" : "沒有符合條件的快捷方式", TextWrapping = TextWrapping.Wrap, MaxWidth = 320, Margin = new Thickness(8,24,8,24) });
+        if (groupSections.Children.Count == 0) groupSections.Children.Add(new TextBlock { Text = entries.Length == 0 && RemoteGroups.Length == 0 ? "還沒有快捷方式\n新增常用程式、資料夾、網站，或建立自己的步驟式巨集。" : "沒有符合條件的快捷方式", TextWrapping = TextWrapping.Wrap, MaxWidth = 320, Margin = new Thickness(8,24,8,24) });
         Dispatcher.BeginInvoke(UpdateHorizontalExtent,DispatcherPriority.Loaded);
     }
     private void AttachViewport()
@@ -240,9 +223,23 @@ public sealed class LaunchpadView : StackPanel, IDisposable
     private void Edit(ShortcutEntry entry)
     {
         if (library.ReadOnly) { status.Text = library.Error; return; }
-        if (ShortcutDialogs.Edit(Owner,entry) is not { } changed) return;
-        Save(entries.Any(e => e.Id == changed.Id) ? entries.Select(e => e.Id == changed.Id ? changed : e).ToArray() : entries.Append(changed).ToArray());
+        if (EditDialog(entry,null,false,false) is not { } changed) return;
+        SaveLocal(changed.Entry);
     }
+    private void SaveLocal(ShortcutEntry changed) =>
+        Save(entries.Any(e => e.Id == changed.Id) ? entries.Select(e => e.Id == changed.Id ? changed : e).ToArray() : entries.Append(changed).ToArray());
+    // While connected, a new shortcut is stored and run either here or on the main computer, chosen in the editor.
+    public void Add()
+    {
+        var mainName = remote is { State: Secondary.Shared.Connection.LinkState.Connected } link ? link.ConnectedName ?? "主電腦" : null;
+        if (mainName is null && library.ReadOnly) { status.Text = library.Error; return; }
+        if (EditDialog(new(Guid.NewGuid().ToString("N"),"新快捷方式",SelectedGroup,Steps:[new()]),mainName,false,mainName is not null) is not { } result) return;
+        if (result.Main) _ = SaveRemoteAsync(result.Entry);
+        else if (library.ReadOnly) status.Text = library.Error;
+        else SaveLocal(result.Entry);
+    }
+    // The editor: entry, main computer's name (null when not connected), stored on the main computer, location can be chosen.
+    public Func<ShortcutEntry,string?,bool,bool,(ShortcutEntry Entry, bool Main)?> EditDialog { get; set; }
     private void OnDrop(object sender, DragEventArgs e)
     {
         HandleExternalDrag(e,true);
@@ -285,8 +282,7 @@ public sealed class LaunchpadView : StackPanel, IDisposable
             next.Add(entry); added++;
         }
         if (added > 0 && !Save(next.ToArray())) return 0;
-        if (added > 0) { search.Clear(); RenderTiles(); }
-        status.Text = $"已新增 {added} 個；略過 {skipped} 個（重複、不存在、不支援或已達上限）。沒有啟動任何目標；可右鍵編輯。";
+                status.Text = $"已新增 {added} 個；略過 {skipped} 個（重複、不存在、不支援或已達上限）。沒有啟動任何目標；可右鍵編輯。";
         return added;
     }
     private bool MatchesCurrentExecution(ShortcutEntry snapshot, out ShortcutEntry current)
@@ -312,8 +308,8 @@ public sealed class LaunchpadView : StackPanel, IDisposable
     private async Task Launch(ShortcutEntry entry)
     {
         if (disposed || execution is not null || !CanRun()) { status.Text = "目前不能執行；請先取消正在進行的巨集或退出遊戲模式。"; return; }
-        // A tile may remain on screen during a search debounce. Resolve its current
-        // entry before review and copy the immutable steps for this launch attempt.
+        // A tile may outlive an edit made elsewhere. Resolve its current entry
+        // before review and copy the immutable steps for this launch attempt.
         var currentEntry = entries.FirstOrDefault(e => e.Id == entry.Id);
         if (currentEntry is null) { status.Text = "快捷方式已移除，這次未執行。"; return; }
         entry = currentEntry with { Steps = currentEntry.Steps?.ToArray() };
@@ -390,7 +386,7 @@ public sealed class LaunchpadView : StackPanel, IDisposable
     }
     public void Dispose()
     {
-        disposed = true; Cancel(); searchDebounce.Stop(); searchDebounce.Tick -= OnSearchDebounceTick;
-        search.TextChanged -= OnSearchChanged; IsVisibleChanged -= OnVisibilityChanged; DetachViewport();
+        disposed = true; Cancel();
+        IsVisibleChanged -= OnVisibilityChanged; DetachViewport(); DetachRemote();
     }
 }

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The connection helper: a tray-only program on the main computer that answers devices in connection mode. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><TargetFramework>net10.0-windows10.0.22621.0</TargetFramework><WindowsSdkPackageVersion>10.0.22621.57</WindowsSdkPackageVersion>
+    <UseWindowsForms>true</UseWindowsForms><Nullable>enable</Nullable><PlatformTarget>x64</PlatformTarget>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Secondary.Core/Secondary.Core.csproj" />
+    <ProjectReference Include="../Secondary.Shared/Secondary.Shared.csproj" />
+    <ProjectReference Include="../Secondary.Windows/Secondary.Windows.csproj" />
+  </ItemGroup>
+  <!-- Game monitoring uses the same verified PresentMon and sensor helper as the WPF app, next to the helper. -->
+  <ItemGroup>
+    <Content Include="../../.tools/monitoring/PresentMon-2.6.0-x64.exe" Condition="Exists('../../.tools/monitoring/PresentMon-2.6.0-x64.exe')" Link="Monitoring/PresentMon-2.6.0-x64.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../third-party/PresentMon-LICENSE.txt" Link="Monitoring/PresentMon-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../Secondary.SensorHelper/Secondary.SensorHelper.csproj" ReferenceOutputAssembly="false" /></ItemGroup>
+  <Target Name="CopySensorHelper" AfterTargets="Build">
+    <ItemGroup><SensorHelperFiles Include="../Secondary.SensorHelper/bin/$(Configuration)/net10.0-windows/**/*" /></ItemGroup>
+    <Copy SourceFiles="@(SensorHelperFiles)" DestinationFiles="@(SensorHelperFiles->'$(OutDir)SensorHelper/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

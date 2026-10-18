@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using Secondary.App;
 using Secondary.App.Monitoring;
 using Secondary.Core;
+using Secondary.Shared;
+using Secondary.Monitoring;
 
 internal static class UiDataOptimizationChecks
 {

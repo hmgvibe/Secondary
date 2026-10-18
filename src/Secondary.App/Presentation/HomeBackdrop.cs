@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using Secondary.Core;
+using Secondary.Shared;
 
 namespace Secondary.App.Presentation;
 
@@ -19,7 +20,6 @@ public sealed class HomeBackdrop : Grid, IDisposable
     private HomeSettings options = new();
     private bool active, motionAllowed = true, highContrast;
     private MediaElement? media;
-    private TranslateTransform? movement;
     private CancellationTokenSource? imageLoadCancellation;
     private int imageGeneration;
     private bool disposed;
@@ -34,7 +34,6 @@ public sealed class HomeBackdrop : Grid, IDisposable
     public bool HasImage => Children.Count > 0 && Children[0] is Image;
     public bool IsImageLoading => imageLoadCancellation is not null;
     public Task ImageLoadCompletion { get; private set; } = Task.CompletedTask;
-    public bool HasMotion => movement?.HasAnimatedProperties == true;
     public bool HasVisualBackground => Background is not null || HasImage || HasMedia;
     public string Status { get; private set; } = "";
     public HomeBackdrop()
@@ -64,7 +63,6 @@ public sealed class HomeBackdrop : Grid, IDisposable
         var cancellation = imageLoadCancellation; imageLoadCancellation = null;
         cancellation?.Cancel(); cancellation?.Dispose();
         MediaReady = false;
-        movement?.BeginAnimation(TranslateTransform.XProperty, null); movement = null;
         if (media is not null)
         {
             var old = media; media = null;
@@ -100,21 +98,6 @@ public sealed class HomeBackdrop : Grid, IDisposable
                 }
                 else { Report("系統已減少動畫，影片背景暫停，使用靜態背景。"); return; }
                 Children.Add(new Rectangle { Fill = Brushes.Black, Opacity = .25 });
-            }
-            else if (options.Background is "Gradient" or "Aurora")
-            {
-                Background = new SolidColorBrush(Color.FromRgb(12, 22, 34));
-                var glow = new Ellipse { Width = 1800, Height = 1200, Opacity = .8, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-                glow.Fill = options.Background == "Gradient"
-                    ? new LinearGradientBrush(Color.FromRgb(44, 87, 117), Color.FromRgb(83, 51, 91), 35)
-                    : new RadialGradientBrush(Color.FromRgb(42, 139, 135), Color.FromArgb(0, 18, 29, 51));
-                movement = new TranslateTransform(-180, 0); glow.RenderTransform = movement; Children.Add(glow);
-                if (motionAllowed)
-                {
-                    var drift = new DoubleAnimation(-180, 180, TimeSpan.FromSeconds(options.Background == "Gradient" ? 36 : 24)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever };
-                    Timeline.SetDesiredFrameRate(drift, 24);
-                    movement.BeginAnimation(TranslateTransform.XProperty, drift);
-                }
             }
             Report("");
         }

@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Windows;
 using Secondary.Core;
+using Secondary.Shared;
+using Secondary.Shared.Connection;
 
 namespace Secondary.App;
 
@@ -10,6 +12,8 @@ public partial class App : Application
     private TrayService? tray;
     private DisplayService? displays;
     private SingleInstanceCoordinator? instance;
+    private ConnectionIdentity? connectionIdentity;
+    private ConnectionController? connection;
     private string? benchmarkDirectory;
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -46,14 +50,36 @@ public partial class App : Application
             shortcutsPath: benchmarkDirectory is null ? null : Path.Combine(benchmarkDirectory, "shortcuts.json"));
         MainWindow = window;
         tray = new TrayService(window, () => Shutdown());
+        if (!benchmark) StartConnection(window, Path.GetDirectoryName(settingsPath)!);
         window.Show();
         instance?.Listen(() => Dispatcher.BeginInvoke(() => window.ShowInterface()));
-        if (!benchmark) _ = Monitoring.PresentMonStream.RecoverAbandonedSessionsAsync(message =>
+        if (!benchmark) _ = Secondary.Monitoring.PresentMonStream.RecoverAbandonedSessionsAsync(message =>
             Dispatcher.BeginInvoke(() => model.Status = message));
         if (measurement is not null) _ = Monitoring.PerformanceRun.Run(window, model, measurement);
     }
+    // Connection mode on this device; a failure here leaves the card explaining why and nothing else affected.
+    private void StartConnection(MainWindow window, string dataDirectory)
+    {
+        string? problem = null;
+        try
+        {
+            var folder = Path.Combine(dataDirectory, "Connection");
+            connectionIdentity = ConnectionIdentity.LoadOrCreate(Path.Combine(folder, "identity.pfx"), Environment.MachineName);
+            connection = new ConnectionController(connectionIdentity, new PairedStore(Path.Combine(folder, "helpers.json")), Environment.MachineName);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
+        {
+            AppDiagnostics.Write("connection-identity", error);
+            problem = "連線模式無法啟用：無法建立本機連線身分（" + error.Message + "）。";
+        }
+        window.AttachConnection(connection, problem);
+        connection?.Start();
+    }
     protected override void OnExit(ExitEventArgs e)
     {
+        try { connection?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)); }
+        catch (AggregateException) { }
+        connectionIdentity?.Dispose();
         if (MainWindow is MainWindow window)
         {
             window.DisposeGameTelemetry();

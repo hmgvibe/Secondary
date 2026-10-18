@@ -1,0 +1,328 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:Secondary.Linux" xmlns:core="using:Secondary.Core" xmlns:home="using:Secondary.Linux.Home" xmlns:game="using:Secondary.Linux.Game"
+        x:Class="Secondary.Linux.MainWindow" x:DataType="local:ShellModel"
+        Title="Secondary" Width="1200" Height="820" MinWidth="480" MinHeight="420"
+        Background="{DynamicResource CanvasBrush}" Foreground="{DynamicResource TextBrush}">
+ <Grid x:Name="ShellRoot">
+  <Panel x:Name="Ambient" IsHitTestVisible="False" ClipToBounds="True">
+   <Ellipse Width="1300" Height="900" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-340,-430" Opacity=".3"><Ellipse.Fill><RadialGradientBrush><GradientStop Color="#789BA4"/><GradientStop Color="#00789BA4" Offset="1"/></RadialGradientBrush></Ellipse.Fill></Ellipse>
+   <Ellipse Width="900" Height="700" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-300,-350,0,0" Opacity=".25"><Ellipse.Fill><RadialGradientBrush><GradientStop Color="#B4AAC0"/><GradientStop Color="#00B4AAC0" Offset="1"/></RadialGradientBrush></Ellipse.Fill></Ellipse>
+  </Panel>
+  <home:Backdrop x:Name="HomeBackground"/>
+  <Grid x:Name="HomeLayer" RowDefinitions="Auto,*">
+   <Grid Margin="8">
+    <TextBlock x:Name="BrandLabel" Text="S E C O N D A R Y" FontSize="12" FontWeight="SemiBold"/>
+    <TextBlock x:Name="StageLabel" Text="HOME" FontSize="10" HorizontalAlignment="Right"/>
+   </Grid>
+   <Grid x:Name="HomePage" Grid.Row="1">
+    <Canvas x:Name="WidgetCanvas" Margin="16,16,16,72" ClipToBounds="False" Background="Transparent"/>
+    <TextBlock x:Name="HomeHint" Text="拖動標題移位 · 拖四角或四邊縮放 · 右鍵或長按移除" TextWrapping="Wrap" VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="16,0,280,12" FontSize="12" Foreground="{DynamicResource MutedBrush}" IsHitTestVisible="False"/>
+    <TextBlock x:Name="HomeMediaStatus" VerticalAlignment="Bottom" MaxWidth="600" HorizontalAlignment="Left" Margin="16,0,280,8" TextWrapping="Wrap" FontSize="12"/>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,8" Spacing="8">
+     <Button x:Name="AddHomeWidgetButton" Content="＋ 組件" Click="OnAddWidget"/>
+     <Button x:Name="CustomizeHomeButton" Content="自訂首頁  ↗" Click="OnHomeCustomize"/>
+    </StackPanel>
+   </Grid>
+  </Grid>
+  <ScrollViewer x:Name="Frame" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" IsVisible="False">
+   <Panel x:Name="ContentArea" HorizontalAlignment="Center" MaxWidth="1600">
+
+    <StackPanel x:Name="ShortcutsPage" IsVisible="False" Margin="0,32"/>
+
+    <StackPanel x:Name="GamePage" IsVisible="False" Margin="0,32">
+     <Grid x:Name="GameHeader" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+      <StackPanel>
+       <TextBlock Text="S E C O N D A R Y   /   T A C T I C A L" Classes="eyebrow"/>
+       <WrapPanel x:Name="GameHeaderControls" Margin="0,7,0,0">
+        <TextBlock x:Name="GameTitle" Text="性能指揮介面" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,24,8"/>
+        <ComboBox x:Name="SamplingPicker" Width="210" HorizontalAlignment="Left" SelectionChanged="OnGameSamplingChanged" Margin="0,0,12,8" AutomationProperties.Name="遊戲模式採樣率"><ComboBoxItem Content="低採樣率 · 預設"/><ComboBoxItem Content="高採樣率"/></ComboBox>
+        <ComboBox x:Name="GameGpuPicker" Width="280" HorizontalAlignment="Left" IsVisible="False" SelectionChanged="OnGameGpuChanged" Margin="0,0,12,8" AutomationProperties.Name="GPU 裝置"/>
+        <Button x:Name="RemoteProcessPicker" Content="選擇主電腦遊戲程序  ⌄" IsVisible="False" Click="OnPickRemoteProcess" Margin="0,0,12,8" VerticalAlignment="Center"/>
+        <CheckBox x:Name="RemoteSensorsToggle" Content="主電腦硬體感測" IsVisible="False" IsCheckedChanged="OnRemoteSensorsChanged" Margin="0,0,0,8" VerticalAlignment="Center"/>
+       </WrapPanel>
+      </StackPanel>
+      <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
+       <TextBlock x:Name="GameSourceState" Text="STANDBY" FontFamily="monospace" Foreground="{DynamicResource AccentBrush}" FontSize="12" TextAlignment="Right"/>
+       <TextBlock x:Name="GameSourceCaption" Text="整機監測 / MangoHud 幀率" Classes="label" FontSize="11" TextAlignment="Right"/>
+      </StackPanel>
+     </Grid>
+     <StackPanel x:Name="CompactGameSummary" IsVisible="False">
+      <Grid Margin="0,0,0,10"><TextBlock Text="遊戲監測" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="{Binding #GameSourceState.Text}" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource AccentBrush}"/></Grid>
+      <UniformGrid Columns="3" Rows="2">
+        <StackPanel Margin="0,0,12,12"><TextBlock Text="FPS" Foreground="{DynamicResource AccentBrush}" FontSize="12"/><TextBlock Text="{Binding #FpsValue.Text}" FontSize="30"/></StackPanel>
+        <StackPanel Margin="0,0,12,12"><TextBlock Text="1% LOW" Foreground="{DynamicResource AccentBrush}" FontSize="12"/><TextBlock Text="{Binding #LowValue.Text}" FontSize="30"/></StackPanel>
+        <StackPanel Margin="0,0,0,12"><TextBlock Text="幀間隔 · ms" Foreground="{DynamicResource AccentBrush}" FontSize="12"/><TextBlock Text="{Binding #FrameValue.Text}" FontSize="30"/></StackPanel>
+        <StackPanel Margin="0,0,12,12"><TextBlock Text="CPU · 整機" Foreground="{DynamicResource AccentBrush}" FontSize="12"/><TextBlock Text="{Binding #CpuValue.Text}" FontSize="28"/></StackPanel>
+        <StackPanel Margin="0,0,12,12"><TextBlock Text="GPU" Foreground="{DynamicResource AccentBrush}" FontSize="12"/><TextBlock Text="{Binding #GpuValue.Text}" FontSize="28"/></StackPanel>
+        <StackPanel Margin="0,0,0,12"><TextBlock Text="記憶體 · 整機" Foreground="{DynamicResource AccentBrush}" FontSize="12"/><TextBlock Text="{Binding #MemoryValue.Text}" FontSize="28"/></StackPanel>
+      </UniformGrid>
+      <Border Height="1" Background="{DynamicResource AccentBrush}" Opacity=".4"/>
+      <WrapPanel Margin="0,8,0,6"><TextBlock Text="{Binding #DownloadValue.Text}" FontSize="14" Margin="0,0,14,0"/><TextBlock Text="{Binding #UploadValue.Text}" FontSize="14"/></WrapPanel>
+      <TextBlock x:Name="CompactSourceText" Text="等待監測資料" Classes="label" FontSize="11" Margin="0,0,0,6"/>
+     </StackPanel>
+     <Border x:Name="GameHeaderDivider" Height="1" Background="{DynamicResource AccentBrush}" Opacity=".5" Margin="0,0,0,14"/>
+     <TextBlock x:Name="GameNotice" Text="等待監測；不可用的讀數顯示 —。" Classes="label" FontSize="11" Margin="0,0,0,14"/>
+     <WrapPanel x:Name="FpsOverview" Margin="0,0,0,20">
+      <Panel Width="250" Height="164" Margin="0,0,24,0">
+       <Ellipse Width="154" Height="154" HorizontalAlignment="Left" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1" StrokeDashArray="2,5" Opacity=".4"/>
+       <Ellipse Width="134" Height="134" HorizontalAlignment="Left" Margin="10,0,0,0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeDashArray="14,6" Opacity=".6"/>
+       <StackPanel VerticalAlignment="Center" Margin="32,0,0,0"><TextBlock x:Name="FpsValue" Text="—" FontSize="64"/><TextBlock Text="FPS / 遊戲幀率" FontSize="10" FontFamily="monospace" Foreground="{DynamicResource AccentBrush}"/></StackPanel>
+      </Panel>
+      <StackPanel Width="170" Margin="0,28,24,0"><TextBlock Text="01 / 1% LOW" FontFamily="monospace" FontSize="11" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="LowValue" Text="—" FontSize="42" Margin="0,8,0,5"/><TextBlock x:Name="LowCaption" Text="最近 60 秒 · 至少 100 幀" Classes="label" FontSize="11"/></StackPanel>
+      <StackPanel Width="170" Margin="0,28,0,0"><TextBlock Text="02 / FRAME TIME" FontFamily="monospace" FontSize="11" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="FrameValue" Text="—" FontSize="42" Margin="0,8,0,5"/><TextBlock Text="遊戲幀間隔 / ms" Classes="label" FontSize="11"/></StackPanel>
+     </WrapPanel>
+     <Grid x:Name="TelemetryLayout" ColumnDefinitions="300,*" RowDefinitions="Auto,Auto">
+      <StackPanel x:Name="HardwarePreview" Margin="0,0,28,0">
+        <Grid ColumnDefinitions="96,*" Margin="0,0,0,24">
+         <Panel Width="88" Height="88" VerticalAlignment="Top" Margin="0,0,8,0">
+          <game:HudGauge x:Name="CpuGauge" Stroke="{DynamicResource AccentBrush}" AutomationProperties.Name="CPU 使用率，不可用時顯示空儀表"/>
+          <TextBlock x:Name="CpuValue" Text="—" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+         </Panel>
+         <StackPanel Grid.Column="1"><TextBlock Text="A1 / CPU" FontFamily="monospace" FontSize="12" Foreground="{DynamicResource AccentBrush}"/>
+          <TextBlock x:Name="CpuDetails" Text="整機 CPU · 等待基準" Classes="label" FontSize="11" Margin="0,10,0,0"/>
+          <game:TelemetryTrace x:Name="CpuTrace" Height="32" Stroke="{DynamicResource AccentBrush}" Margin="0,4,0,0"/>
+          <Border Height="1" Background="{DynamicResource LineBrush}" Margin="0,8,0,0"/></StackPanel>
+        </Grid>
+        <Grid ColumnDefinitions="96,*" Margin="0,0,0,24">
+         <Panel Width="88" Height="88" VerticalAlignment="Top" Margin="0,0,8,0">
+          <game:HudGauge x:Name="GpuGauge" Stroke="{DynamicResource AccentBrush}" AutomationProperties.Name="GPU 使用率，不可用時顯示空儀表"/>
+          <TextBlock x:Name="GpuValue" Text="—" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+         </Panel>
+         <StackPanel Grid.Column="1"><TextBlock Text="A2 / GPU" FontFamily="monospace" FontSize="12" Foreground="{DynamicResource AccentBrush}"/>
+          <TextBlock x:Name="GpuDetails" Text="GPU · 等待基準" Classes="label" FontSize="11" Margin="0,10,0,0"/>
+          <game:TelemetryTrace x:Name="GpuTrace" Height="32" Stroke="{DynamicResource AccentBrush}" Margin="0,4,0,0"/>
+          <Border Height="1" Background="{DynamicResource LineBrush}" Margin="0,8,0,0"/></StackPanel>
+        </Grid>
+        <Grid x:Name="GpuMemoryPreview" ColumnDefinitions="96,*" Margin="0,0,0,24">
+         <Panel Width="88" Height="88" VerticalAlignment="Top" Margin="0,0,8,0">
+          <game:HudGauge x:Name="VramGauge" Stroke="{DynamicResource AccentBrush}" AutomationProperties.Name="顯存使用率，不可用時顯示空儀表"/>
+          <TextBlock x:Name="VramValue" Text="—" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+         </Panel>
+         <StackPanel Grid.Column="1"><TextBlock Text="↳ VRAM / 顯存" FontFamily="monospace" FontSize="11" Foreground="{DynamicResource AccentBrush}"/>
+          <TextBlock x:Name="VramDetails" Text="— / —" FontSize="22" Margin="0,8,0,6"/>
+          <TextBlock x:Name="VramCaption" Text="等待硬體採樣" Classes="label" FontSize="11"/></StackPanel>
+        </Grid>
+        <Grid ColumnDefinitions="96,*" Margin="0,0,0,24">
+         <Panel Width="88" Height="88" VerticalAlignment="Top" Margin="0,0,8,0">
+          <game:HudGauge x:Name="MemoryGauge" Stroke="{DynamicResource AccentBrush}" AutomationProperties.Name="實體記憶體使用率，不可用時顯示空儀表"/>
+          <TextBlock x:Name="MemoryValue" Text="—" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+         </Panel>
+         <StackPanel Grid.Column="1"><TextBlock Text="A3 / MEMORY" FontFamily="monospace" FontSize="12" Foreground="{DynamicResource AccentBrush}"/>
+          <TextBlock x:Name="MemoryDetails" Text="— / —" FontSize="22" Margin="0,10,0,8"/>
+          <TextBlock Text="整機實體記憶體" Classes="label" FontSize="11"/>
+          <Border Height="1" Background="{DynamicResource LineBrush}" Margin="0,12,0,0"/></StackPanel>
+        </Grid>
+      </StackPanel>
+      <StackPanel x:Name="AnalysisPreview" Grid.Column="1">
+       <Grid><TextBlock Text="B1 / FRAME PACING" FontFamily="monospace" Foreground="{DynamicResource AccentBrush}" FontSize="12"/><TextBlock x:Name="FrameScale" Text="幀間隔 · ms" HorizontalAlignment="Right" Foreground="{DynamicResource MutedBrush}" FontSize="11"/></Grid>
+       <Panel Height="190" Margin="0,14,0,8">
+        <game:HudGrid Stroke="{DynamicResource AccentBrush}"/>
+        <game:TelemetryTrace x:Name="FrameTrace" Margin="24,16" Stroke="{DynamicResource AccentBrush}"/>
+       </Panel>
+       <Grid Margin="24,0,24,22"><TextBlock Text="T − 60s" FontFamily="monospace" Classes="label" FontSize="10"/><TextBlock Text="T + 00" FontFamily="monospace" HorizontalAlignment="Right" Classes="label" FontSize="10"/></Grid>
+       <Border Height="1" Background="{DynamicResource LineBrush}" Margin="0,0,0,18"/>
+       <StackPanel x:Name="NetworkPreview">
+        <Grid><TextBlock Text="B2 / NETWORK LINK" FontFamily="monospace" Foreground="{DynamicResource AccentBrush}" FontSize="12"/><TextBlock x:Name="NetworkScale" Text="整機網路 · 共用刻度" HorizontalAlignment="Right" Foreground="{DynamicResource MutedBrush}" FontSize="11"/></Grid>
+        <WrapPanel Margin="0,10,0,0">
+         <TextBlock x:Name="DownloadValue" Text="━  ↓ —" FontSize="20" Foreground="{DynamicResource AccentBrush}" Margin="0,0,24,0"/>
+         <TextBlock x:Name="UploadValue" Text="┄  ↑ —" FontSize="20" Foreground="{DynamicResource MutedBrush}"/>
+        </WrapPanel>
+        <Panel x:Name="NetworkChart" Height="190" Margin="0,14,0,8" AutomationProperties.Name="網路下載實線與上傳虛線，最近 60 秒實測折線圖">
+         <game:HudGrid Stroke="{DynamicResource AccentBrush}"/>
+         <game:TelemetryTrace x:Name="DownloadTrace" Margin="24,16" Stroke="{DynamicResource AccentBrush}"/>
+         <game:TelemetryTrace x:Name="UploadTrace" Margin="24,16" Dashed="True" Stroke="{DynamicResource MutedBrush}"/>
+        </Panel>
+        <Grid Margin="24,0,24,22"><TextBlock Text="T − 60s" FontFamily="monospace" Classes="label" FontSize="10"/><TextBlock Text="T + 00" FontFamily="monospace" HorizontalAlignment="Right" Classes="label" FontSize="10"/></Grid>
+       </StackPanel>
+      </StackPanel>
+     </Grid>
+     <Border x:Name="MangoHudCard" Classes="card" Margin="0,0,0,16" HorizontalAlignment="Left">
+      <StackPanel>
+       <TextBlock Text="C1 / MANGOHUD 幀率來源" FontFamily="monospace" FontSize="12" Foreground="{DynamicResource AccentBrush}"/>
+       <TextBlock x:Name="MangoHudStatus" Classes="label" FontSize="12" Margin="0,8,0,8"/>
+       <TextBlock Text="在 Steam 遊戲「內容 → 啟動選項」貼上下方內容；其他啟動器請設定同一個 MANGOHUD_CONFIG 再用 mangohud 執行遊戲。Secondary 只讀取記錄檔，不注入遊戲。刪掉 no_display 可在遊戲內也顯示 MangoHud。" Classes="label" FontSize="12"/>
+       <DockPanel Margin="0,10,0,0">
+        <Button Content="複製啟動選項" Click="OnCopyMangoHud" DockPanel.Dock="Right" Margin="12,0,0,0" VerticalAlignment="Top"/>
+        <TextBox x:Name="MangoHudOption" IsReadOnly="True" FontFamily="monospace" TextWrapping="Wrap" AutomationProperties.Name="MangoHud 啟動選項"/>
+       </DockPanel>
+      </StackPanel>
+     </Border>
+     <Border x:Name="GameFooterDivider" Height="1" Background="{DynamicResource AccentBrush}" Opacity=".4" Margin="0,4,0,12"/>
+     <TextBlock x:Name="TelemetryStatus" Text="未啟動採樣" TextWrapping="Wrap" FontFamily="monospace" FontSize="10" Foreground="{DynamicResource MutedBrush}"/>
+     <Expander x:Name="CompactGameOptions" Header="監測設定" IsVisible="False" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,4"/>
+     <Expander x:Name="CompactGameDetails" Header="曲線與感測詳細資料" IsVisible="False" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,4"/>
+    </StackPanel>
+
+    <StackPanel x:Name="SettingsPage" IsVisible="False" Margin="0,32" MaxWidth="816">
+     <Grid ColumnDefinitions="*,Auto" Margin="8,0,8,20">
+      <StackPanel><TextBlock Text="PREFERENCES" Classes="eyebrow"/><TextBlock Text="設定" FontSize="34" FontWeight="SemiBold" Margin="0,6,0,0"/></StackPanel>
+      <Button x:Name="BackSettingsButton" Grid.Column="1" Content="返回" Click="OnCloseSettings" VerticalAlignment="Center" Margin="16,0,0,0"/>
+     </Grid>
+     <TextBlock Text="顯示器、明暗主題、快捷鍵與導航欄。首頁外觀會在 L2 由首頁「自訂首頁」調整。" Classes="label" Margin="8,0,8,24"/>
+     <DockPanel Margin="8,0,8,16" MaxWidth="800">
+      <Button Content="重試儲存" Click="OnRetrySaveSettings" IsEnabled="{Binding HasUnsavedSettings}" DockPanel.Dock="Right" Margin="12,0,0,0"/>
+      <TextBlock Text="{Binding Status}" Classes="label" VerticalAlignment="Center"/>
+     </DockPanel>
+     <StackPanel x:Name="SettingsPanels">
+      <Border Classes="card"><StackPanel>
+       <TextBlock Text="導航欄" Classes="title"/>
+       <TextBlock Text="大小與位置立即套用，日常與遊戲模式共用。" Classes="label" Margin="0,6,0,16"/>
+       <TextBlock Text="大小" Classes="label"/>
+       <ComboBox x:Name="NavigationSizePicker" SelectionChanged="OnNavigationPreference" Margin="0,6,0,16" AutomationProperties.Name="導航欄大小">
+        <ComboBoxItem Content="標準 · 100%" Tag="Standard"/><ComboBoxItem Content="小 · 80%（操作區至少 44）" Tag="Small"/>
+       </ComboBox>
+       <TextBlock Text="位置" Classes="label"/>
+       <ComboBox x:Name="NavigationPositionPicker" SelectionChanged="OnNavigationPreference" Margin="0,6,0,0" AutomationProperties.Name="導航欄位置">
+        <ComboBoxItem Content="下" Tag="Bottom"/><ComboBoxItem Content="上" Tag="Top"/><ComboBoxItem Content="左" Tag="Left"/><ComboBoxItem Content="右" Tag="Right"/>
+       </ComboBox>
+      </StackPanel></Border>
+      <Border Classes="card"><StackPanel>
+       <TextBlock Text="顯示器" Classes="title"/><TextBlock Text="選擇這個空間所在的螢幕。" Classes="label" Margin="0,6,0,16"/>
+       <ComboBox x:Name="DisplayPicker" ItemsSource="{Binding Displays}" SelectedItem="{Binding Selected}" AutomationProperties.Name="目標顯示器">
+        <ComboBox.ItemTemplate><DataTemplate x:DataType="core:DisplayInfo"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"/></DataTemplate></ComboBox.ItemTemplate>
+       </ComboBox>
+       <WrapPanel Margin="0,16,0,0"><Button Content="進入副屏全螢幕" Click="OnFullscreen" Margin="0,0,12,8"/><Button Content="返回一般視窗" Click="OnWindowed" Margin="0,0,0,8"/></WrapPanel>
+       <TextBlock Text="Wayland 可能不允許程式自行移動視窗；若全螢幕出現在錯誤的螢幕，請先把視窗拖到副屏再按全螢幕。" Classes="label" FontSize="12" Margin="0,8,0,0"/>
+      </StackPanel></Border>
+      <Border Classes="card"><StackPanel>
+       <TextBlock Text="色彩與外觀" Classes="title"/><TextBlock Text="明暗預設跟隨系統，遊戲外觀固定深色。" Classes="label" Margin="0,6,0,16"/>
+       <ComboBox x:Name="ThemePicker" SelectionChanged="OnThemeChoice" AutomationProperties.Name="明暗主題">
+        <ComboBoxItem Content="跟隨系統" Tag="System"/><ComboBoxItem Content="淺色" Tag="Light"/><ComboBoxItem Content="深色" Tag="Dark"/>
+       </ComboBox>
+       <TextBlock x:Name="AccessibilityStatus" Classes="label" FontSize="12" Margin="0,16,0,0"/>
+      </StackPanel></Border>
+      <Border Classes="card"><StackPanel>
+       <TextBlock Text="遊戲模式快捷鍵" Classes="title"/>
+       <TextBlock Text="手動進出，不偵測遊戲或自動切換。桌面會詢問是否允許；可隨時改用下方指令。" Classes="label" Margin="0,6,0,16"/>
+       <TextBox x:Name="HotkeyInput" FontSize="16" AutomationProperties.Name="遊戲模式全域快捷鍵"/>
+       <WrapPanel Margin="0,12,0,0"><Button Content="套用快捷鍵" Click="OnSaveHotkey" Margin="0,0,12,8"/><Button Content="恢復 Ctrl+Alt+G" Click="OnResetHotkey" Margin="0,0,0,8"/></WrapPanel>
+       <TextBlock x:Name="HotkeyStatus" Classes="label" Text="等待桌面入口服務。" Margin="0,8,0,16"/>
+       <TextBlock Text="指令（可在 GNOME 設定 → 鍵盤 → 自訂快捷鍵中綁定）" Classes="label"/>
+       <DockPanel Margin="0,6,0,0">
+        <Button Content="複製指令" Click="OnCopyCommand" DockPanel.Dock="Right" Margin="12,0,0,0"/>
+        <TextBox x:Name="ToggleCommand" IsReadOnly="True" FontFamily="monospace" AutomationProperties.Name="切換遊戲模式指令"/>
+       </DockPanel>
+      </StackPanel></Border>
+      <Border Classes="card"><StackPanel>
+       <TextBlock Text="桌面整合" Classes="title"/>
+       <TextBlock Text="加入應用程式選單後，可從 GNOME 活動總覽啟動 Secondary，GNOME 也才允許它綁定全域快捷鍵。只寫入你自己的 ~/.local/share，不需要管理員權限。" Classes="label" Margin="0,6,0,16"/>
+       <WrapPanel><Button x:Name="InstallLauncherButton" Content="加入應用程式選單" Click="OnInstallLauncher" Margin="0,0,12,8"/><Button x:Name="RemoveLauncherButton" Content="從選單移除" Click="OnRemoveLauncher" Margin="0,0,0,8"/></WrapPanel>
+       <TextBlock x:Name="LauncherStatus" Classes="label" Margin="0,8,0,0"/>
+      </StackPanel></Border>
+      <Border Classes="card"><StackPanel>
+       <TextBlock Text="遊戲進場動畫" Classes="title" Margin="0,0,0,12"/>
+       <CheckBox x:Name="GameAnimationToggle" Content="播放短暫啟動動畫" IsCheckedChanged="OnAnimationPreference"/>
+       <TextBlock Text="約 1.2 秒，完成後停止特效；系統關閉動畫或使用高對比時不播放。" Classes="label" FontSize="12" Margin="0,10,0,0"/>
+      </StackPanel></Border>
+     </StackPanel>
+    </StackPanel>
+
+   </Panel>
+  </ScrollViewer>
+  <Grid x:Name="GameTransition" ZIndex="15" IsVisible="False" Background="{DynamicResource CanvasBrush}" IsHitTestVisible="False" ClipToBounds="True">
+   <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+    <TextBlock Text="S E C O N D A R Y" Classes="eyebrow" FontSize="12" HorizontalAlignment="Center"/>
+    <TextBlock Text="GAME MODE" FontSize="48" Margin="0,16,0,12" HorizontalAlignment="Center"/>
+    <TextBlock Text="正在啟動性能監測" Classes="label" HorizontalAlignment="Center"/>
+   </StackPanel>
+   <Border x:Name="ScanLine" Height="2" Background="{DynamicResource AccentBrush}" VerticalAlignment="Top" Opacity=".8"><Border.RenderTransform><TranslateTransform/></Border.RenderTransform></Border>
+  </Grid>
+  <LayoutTransformControl x:Name="NavigationScale" ZIndex="20" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="16">
+   <Border x:Name="NavigationBar" Background="{DynamicResource RailBrush}" BorderBrush="{DynamicResource RailBorderBrush}" BorderThickness="1" CornerRadius="43" Padding="10">
+    <StackPanel x:Name="NavigationItems" Orientation="Horizontal" AutomationProperties.Name="主要導航"/>
+   </Border>
+  </LayoutTransformControl>
+
+  <Grid x:Name="HomeCustomizeOverlay" ZIndex="30" IsVisible="False" Background="#99000000">
+   <Border x:Name="HomeCustomizeDialog" Width="720" Height="720" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource SheetBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="18" Padding="20" AutomationProperties.Name="自訂首頁彈窗">
+    <Grid RowDefinitions="Auto,*,Auto">
+     <Grid Margin="0,0,0,16"><TextBlock Text="自訂首頁" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center"/><Button x:Name="CloseHomeCustomizeButton" Content="關閉" Click="OnCloseHomeCustomize" HorizontalAlignment="Right" AutomationProperties.Name="關閉自訂首頁，不儲存變更"/></Grid>
+     <ScrollViewer x:Name="HomeEditorScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel x:Name="HomePreferences" Margin="4">
+       <TextBlock Text="首頁 · 時鐘與背景" Classes="title"/>
+       <TextBlock Text="調整後按「套用並查看首頁」。位置、大小會套用至整組時鐘與日期。" Classes="label" Margin="0,6,0,18"/>
+       <TextBlock Text="時鐘樣式" Classes="label"/>
+       <ComboBox x:Name="ClockStylePicker" SelectedIndex="0" Margin="0,6,0,14" AutomationProperties.Name="時鐘樣式">
+        <ComboBoxItem Content="簡潔數字" Tag="Digital"/><ComboBoxItem Content="翻頁時鐘" Tag="Flip"/><ComboBoxItem Content="指針時鐘" Tag="Analog"/>
+       </ComboBox>
+       <WrapPanel Margin="0,0,0,14"><CheckBox x:Name="Clock24Toggle" Content="24 小時制" Margin="0,0,24,8"/><CheckBox x:Name="ClockSecondsToggle" Content="顯示秒數" Margin="0,0,24,8"/><CheckBox x:Name="ClockDateToggle" Content="顯示日期" Margin="0,0,0,8"/></WrapPanel>
+       <Grid><TextBlock Text="組件大小 · 30%–300%" Classes="label"/><TextBlock x:Name="ClockSizeReadout" HorizontalAlignment="Right" FontFamily="monospace" Foreground="{DynamicResource AccentBrush}"/></Grid>
+       <Slider x:Name="ClockSizeSlider" Minimum="0.3" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True" SmallChange="0.1" LargeChange="0.1" Margin="0,4,0,12" AutomationProperties.Name="時鐘整組大小"/>
+       <Grid><TextBlock Text="水平位置 · 左 → 右" Classes="label"/><TextBlock x:Name="ClockXReadout" HorizontalAlignment="Right" FontFamily="monospace" Foreground="{DynamicResource AccentBrush}"/></Grid>
+       <Slider x:Name="ClockXSlider" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.1" Margin="0,4,0,12" AutomationProperties.Name="時鐘水平位置"/>
+       <Grid><TextBlock Text="垂直位置 · 上 → 下" Classes="label"/><TextBlock x:Name="ClockYReadout" HorizontalAlignment="Right" FontFamily="monospace" Foreground="{DynamicResource AccentBrush}"/></Grid>
+       <Slider x:Name="ClockYSlider" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.1" Margin="0,4,0,8" AutomationProperties.Name="時鐘垂直位置"/>
+       <Button x:Name="CenterClockButton" Content="位置歸中" Click="OnCenterClock" HorizontalAlignment="Left" Margin="0,0,0,14"/>
+       <TextBlock Text="時鐘顏色 · Auto 或 #RRGGBB" Classes="label"/><TextBox x:Name="ClockColorInput" Margin="0,6,0,16" MaxLength="7" AutomationProperties.Name="時鐘顏色"/>
+       <TextBlock Text="背景" Classes="label"/>
+       <ComboBox x:Name="BackgroundPicker" SelectedIndex="0" Margin="0,6,0,12" AutomationProperties.Name="首頁背景" SelectionChanged="OnBackgroundKindChanged">
+        <ComboBoxItem Content="靜態 · 跟隨主題" Tag="Static"/><ComboBoxItem Content="本機圖片" Tag="Image"/><ComboBoxItem Content="本機影片 · MP4 H.264，循環靜音" Tag="Video"/>
+       </ComboBox>
+       <StackPanel x:Name="BackgroundFileFields" IsVisible="False">
+        <TextBox x:Name="BackgroundPathInput" IsReadOnly="True" TextWrapping="Wrap" Margin="0,0,0,8" AutomationProperties.Name="背景檔案路徑"/>
+        <Button Content="選擇圖片或影片…" Click="OnBrowseBackground" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+       </StackPanel>
+       <TextBlock x:Name="BackgroundHelp" Classes="label" FontSize="12" Margin="0,0,0,14"/>
+       <Button Content="恢復首頁預設" Click="OnResetHome" HorizontalAlignment="Left"/>
+      </StackPanel>
+     </ScrollViewer>
+     <Grid x:Name="HomeDialogActions" Grid.Row="2" Margin="0,16,0,0" ColumnDefinitions="*,Auto">
+      <TextBlock x:Name="HomeSettingsStatus" Text="套用後儲存；關閉不會保留本次變更。" Classes="label" FontSize="12" VerticalAlignment="Center" Margin="0,0,16,0"/>
+      <Button x:Name="HomeApplyButton" Grid.Column="1" Content="套用並查看首頁" Click="OnApplyHome" VerticalAlignment="Center"/>
+     </Grid>
+    </Grid>
+   </Border>
+  </Grid>
+
+  <Grid x:Name="ShortcutEditorOverlay" ZIndex="35" IsVisible="False" Background="#99000000">
+   <Border x:Name="ShortcutEditorDialog" MaxWidth="800" MaxHeight="840" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource SheetBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="18" Padding="24" AutomationProperties.Name="編輯快捷方式">
+    <Grid RowDefinitions="Auto,*,Auto">
+     <StackPanel Margin="0,0,0,20">
+      <TextBlock Text="編輯快捷方式" FontSize="26" FontWeight="SemiBold"/>
+      <TextBlock Text="自訂入口與執行步驟 · 儲存不會啟動任何操作" Classes="label" FontSize="12" Margin="0,6,0,0"/>
+     </StackPanel>
+     <ScrollViewer x:Name="ShortcutEditorHost" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,0,0,16"/>
+     <StackPanel Grid.Row="2">
+      <ContentControl x:Name="ShortcutEditorError"/>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+       <Button Content="取消" Click="OnCancelShortcutEditor"/>
+       <Button x:Name="SaveShortcutButton" Content="儲存" Click="OnSaveShortcutEditor"/>
+      </StackPanel>
+     </StackPanel>
+    </Grid>
+   </Border>
+  </Grid>
+
+  <Grid x:Name="AppPickerOverlay" ZIndex="35" IsVisible="False" Background="#99000000">
+   <Border x:Name="AppPickerDialog" MaxWidth="640" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="{DynamicResource SheetBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="18" Padding="24" AutomationProperties.Name="選擇 App">
+    <Grid RowDefinitions="Auto,*,Auto">
+     <StackPanel Margin="0,0,0,16">
+      <TextBlock Text="選擇 App" FontSize="26" FontWeight="SemiBold"/>
+      <TextBlock Text="勾選要加入快捷導航的應用程式；加入時不會啟動它們，首次執行前仍會請你確認。" Classes="label" FontSize="12" Margin="0,6,0,0"/>
+     </StackPanel>
+     <ContentControl x:Name="AppPickerHost" Grid.Row="1"/>
+     <DockPanel Grid.Row="2" Margin="0,16,0,0">
+      <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" Spacing="8">
+       <Button Content="取消" Click="OnCancelAppPicker"/>
+       <Button x:Name="AddAppsButton" Content="加入" Click="OnAcceptAppPicker" IsEnabled="False"/>
+      </StackPanel>
+      <TextBlock x:Name="AppPickerStatus" Classes="label" FontSize="12" VerticalAlignment="Center"/>
+     </DockPanel>
+    </Grid>
+   </Border>
+  </Grid>
+
+  <Grid x:Name="ConfirmOverlay" ZIndex="40" IsVisible="False" Background="#99000000">
+   <Border MaxWidth="440" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource SheetBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="18" Padding="24">
+    <StackPanel>
+     <TextBlock x:Name="ConfirmTitle" Classes="title"/>
+     <ScrollViewer MaxHeight="420" Margin="0,10,0,20" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ConfirmMessage" Classes="label"/></ScrollViewer>
+     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+      <Button x:Name="ConfirmCancel" Content="取消" Click="OnConfirmCancel"/>
+      <Button x:Name="ConfirmAccept" Click="OnConfirmAccept"/>
+     </StackPanel>
+    </StackPanel>
+   </Border>
+  </Grid>
+ </Grid>
+</Window>

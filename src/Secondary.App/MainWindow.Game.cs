@@ -9,6 +9,9 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using Secondary.App.Monitoring;
 using Secondary.Core;
+using Secondary.Shared;
+using Secondary.Shared.Connection;
+using Secondary.Monitoring;
 
 namespace Secondary.App;
 
@@ -16,8 +19,13 @@ public partial class MainWindow
 {
     private CancellationTokenSource? gameCancellation;
     private Task gameCompletion = Task.CompletedTask;
-    private GameTelemetrySession? gameSession;
+    private IGameTelemetry? gameSession;
     private GameTarget? gameTarget;
+    // In connection mode the target is a process on the main computer; switching sources forgets it.
+    private bool gameTargetRemote, lastGameRemote;
+    private string? connectionNote;
+    private ConnectionController? connection;
+    public bool GameRemote => gameSession is RemoteGameTelemetry;
     private string? gameConfiguration;
     private DispatcherTimer? gameTimer;
     private bool gameDisposed;
@@ -42,7 +50,9 @@ public partial class MainWindow
     {
         if (initializing || gameDisposed || GameSensorsToggle is null) return;
         var active = IsLoaded && IsVisible && WindowState != WindowState.Minimized && CurrentPage == "game" && !sessionLocked && !suspended;
-        var configuration = active ? $"{SamplingPicker.SelectedIndex}:{GameSensorsToggle.IsChecked}:{gameTarget?.Id}:{gameTarget?.StartedUtcTicks}" : null;
+        var remote = connection?.State == LinkState.Connected;
+        if (gameTarget is not null && gameTargetRemote != remote) { gameTarget = null; GameProcessPicker.Content = "選擇遊戲程序  ⌄"; }
+        var configuration = active ? $"{remote}:{SamplingPicker.SelectedIndex}:{GameSensorsToggle.IsChecked}:{gameTarget?.Id}:{gameTarget?.StartedUtcTicks}" : null;
         if (configuration == gameConfiguration) return;
         gameConfiguration = configuration;
         var old = gameCancellation;
@@ -52,14 +62,19 @@ public partial class MainWindow
         gameTimer?.Stop();
         gameSession = null;
         ClearGameReadings();
-        if (!active) { GameSourceState.Text = "PAUSED"; GameNotice.Text = "監測已暫停；返回可見遊戲頁後重新建立採樣基準。"; return; }
+        if (!active) { connectionNote = null; GameSourceState.Text = "PAUSED"; GameNotice.Text = "監測已暫停；返回可見遊戲頁後重新建立採樣基準。"; return; }
+        // Losing the main computer falls back to this device's own data and says why.
+        connectionNote = remote ? null : lastGameRemote ? "已與主電腦中斷連線（" + connection?.Status + "），改用這臺設備的資料。" : connectionNote;
+        lastGameRemote = remote;
         var previous = gameCompletion;
         var owner = new CancellationTokenSource();
         gameCancellation = owner;
-        var session = new GameTelemetrySession(SamplingPicker.SelectedIndex == 1, GameSensorsToggle.IsChecked == true, gameTarget);
+        IGameTelemetry session = remote
+            ? new RemoteGameTelemetry(connection!, SamplingPicker.SelectedIndex == 1, GameSensorsToggle.IsChecked == true, gameTarget)
+            : new GameTelemetrySession(SamplingPicker.SelectedIndex == 1, GameSensorsToggle.IsChecked == true, gameTarget);
         gameSession = session;
-        GameSourceState.Text = "LIVE / WARMUP";
-        GameNotice.Text = "正在建立採樣基準；CPU、記憶體與網路為整機數據。";
+        GameSourceState.Text = remote ? "REMOTE · WARMUP" : "LIVE / WARMUP";
+        GameNotice.Text = remote ? $"正在等待主電腦「{connection!.ConnectedName}」的資料。" : (connectionNote is { } note ? note + "\n" : "") + "正在建立採樣基準；CPU、記憶體與網路為整機數據。";
         gameCompletion = Task.Run(async () =>
         {
             try
@@ -106,6 +121,7 @@ public partial class MainWindow
         if (gameSession is null) return;
         GameMonitoringUpdateCount++;
         var snapshot = gameSession.Read();
+        var remote = gameSession as RemoteGameTelemetry;
         var sample = snapshot.System;
         var time = gameClock.Elapsed.TotalSeconds;
         var memory = sample is { TotalMemory: > 0 } && sample.AvailableMemory <= sample.TotalMemory
@@ -166,10 +182,12 @@ public partial class MainWindow
         NetworkScale.Text = "0–" + Rate(DownloadTrace.Maximum);
         DownloadTrace.Update(down); UploadTrace.Update(up);
         static string State(TelemetrySourceState state) => state switch { TelemetrySourceState.Available => "正常", TelemetrySourceState.Stale => "過期", TelemetrySourceState.Failed => "失敗", TelemetrySourceState.Stopped => "停止", TelemetrySourceState.Disabled => "未啟用", _ => "等待" };
-        GameSourceState.Text = (snapshot.CpuState == TelemetrySourceState.Available && snapshot.MemoryState == TelemetrySourceState.Available
+        GameSourceState.Text = (remote is not null ? "REMOTE · " : "") + (snapshot.CpuState == TelemetrySourceState.Available && snapshot.MemoryState == TelemetrySourceState.Available
             ? "LIVE / " : snapshot.SystemState == TelemetrySourceState.Stale ? "STALE / " : "PARTIAL / ") + (SamplingPicker.SelectedIndex == 1 ? "HIGH" : "LOW");
-        CompactSourceText.Text = snapshot.SystemState is TelemetrySourceState.Failed or TelemetrySourceState.Stale ? snapshot.SystemStatus : snapshot.FrameStatus;
-        GameNotice.Text = snapshot.FrameStatus + (snapshot.Frames.SwapChain is { } chain ? " · " + chain : "") + "\nCPU／記憶體／網路為整機數據；FPS 為應用程式幀率，非顯示器刷新率。";
+        CompactSourceText.Text = (remote is not null ? "主電腦「" + remote.LastView.HelperName + "」· " : "") + (snapshot.SystemState is TelemetrySourceState.Failed or TelemetrySourceState.Stale ? snapshot.SystemStatus : snapshot.FrameStatus);
+        GameNotice.Text = (remote is not null ? remote.LastView.Status + "\n" : connectionNote is { } note ? note + "\n" : "") +
+            snapshot.FrameStatus + (snapshot.Frames.SwapChain is { } chain ? " · " + chain : "") +
+            (remote is not null ? "\nCPU／記憶體／網路為主電腦的整機數據；FPS 為主電腦上應用程式的幀率。" : "\nCPU／記憶體／網路為整機數據；FPS 為應用程式幀率，非顯示器刷新率。");
         TelemetryStatus.Text = $"{sample?.Time.ToLocalTime():HH:mm:ss} / 基本 {(SamplingPicker.SelectedIndex == 1 ? "1" : "3")}s · GPU／硬體 {(SamplingPicker.SelectedIndex == 1 ? "2" : "10")}s · UI 1 Hz\n{snapshot.SensorStatus}";
         TelemetryStatus.Text += $"\nCPU：{State(snapshot.CpuState)} · 記憶體：{State(snapshot.MemoryState)} · 網路：{State(snapshot.NetworkState)} · GPU：{State(snapshot.GpuState)} · 幀：{State(snapshot.FrameState)}";
         CpuValue.ToolTip = snapshot.SystemStatus;
@@ -185,22 +203,18 @@ public partial class MainWindow
         GameProcessPicker.IsEnabled = false;
         try
         {
-            var targets = await Task.Run(() => Process.GetProcesses().Select(process =>
-            {
-                using (process)
-                {
-                    try { return !process.HasExited && process.Id != Environment.ProcessId
-                        ? new GameTarget(process.Id, process.StartTime.ToUniversalTime().Ticks, process.ProcessName) : null; }
-                    catch (Exception) { return null; }
-                }
-            }).Where(p => p is not null).Cast<GameTarget>().OrderBy(p => p.Name).ThenBy(p => p.Id).Take(1000).ToArray());
+            // In connection mode the list comes from the main computer.
+            var remote = connection is { State: LinkState.Connected } link ? link : null;
+            var targets = remote is not null
+                ? (await RemoteGame.ListProcessesAsync(remote)).Select(p => new GameTarget(p.Id, p.Started, p.Name)).ToArray()
+                : await Task.Run(ProcessCatalog.List);
             if (CurrentPage != "game" || !IsVisible || gameDisposed) return;
             var menu = new ContextMenu { PlacementTarget = GameProcessPicker };
             menu.Resources = Resources;
             var search = new TextBox { Width = 260, MinHeight = 38, Padding = new Thickness(8) };
             System.Windows.Automation.AutomationProperties.SetName(search, "搜尋遊戲程序名稱或 PID");
             var searchPanel = new StackPanel();
-            searchPanel.Children.Add(new TextBlock { Text = "搜尋名稱 / PID · 最多顯示 80 筆", FontSize = 12, Margin = new Thickness(0,0,0,6) });
+            searchPanel.Children.Add(new TextBlock { Text = (remote is not null ? "主電腦「" + remote.ConnectedName + "」的程序 · " : "") + "搜尋名稱 / PID · 最多顯示 80 筆", FontSize = 12, Margin = new Thickness(0,0,0,6) });
             searchPanel.Children.Add(search);
             menu.Items.Add(new MenuItem { Header = searchPanel, StaysOpenOnClick = true, Focusable = false });
             var none = new MenuItem { Header = "不追蹤程序（只監測整機）" };
@@ -212,7 +226,7 @@ public partial class MainWindow
                 foreach (var target in targets.Where(t => t.Name.Contains(search.Text, StringComparison.OrdinalIgnoreCase) || t.Id.ToString().Contains(search.Text, StringComparison.Ordinal)).Take(80))
                 {
                     var item = new MenuItem { Header = target.Name + " · PID " + target.Id };
-                    item.Click += (_, _) => { gameTarget = target; GameProcessPicker.Content = target.Name + " · " + target.Id; gameConfiguration = "restart"; ConfigureGameTelemetry(); };
+                    item.Click += (_, _) => { gameTarget = target; gameTargetRemote = remote is not null; GameProcessPicker.Content = target.Name + " · " + target.Id; gameConfiguration = "restart"; ConfigureGameTelemetry(); };
                     menu.Items.Add(item);
                 }
                 if (menu.Items.Count == 2) menu.Items.Add(new MenuItem { Header = "沒有符合條件且可讀取的程序", IsEnabled = false });
@@ -223,7 +237,7 @@ public partial class MainWindow
             menu.IsOpen = true;
             search.Focus();
         }
-        catch (Exception error) { GameNotice.Text = "無法列舉程序：" + error.Message; }
+        catch (Exception error) { GameNotice.Text = (connection?.State == LinkState.Connected ? "無法取得主電腦的程序：" : "無法列舉程序：") + error.Message; }
         finally { GameProcessPicker.IsEnabled = true; }
     }
     internal void DisposeGameTelemetry()

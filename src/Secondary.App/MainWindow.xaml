@@ -233,7 +233,7 @@
        <Button x:Name="CenterClockButton" Content="位置歸中" Click="OnCenterClock" HorizontalAlignment="Left" Margin="0,0,0,14"/>
        <TextBlock Text="時鐘顏色 · Auto 或 #RRGGBB" Style="{StaticResource Label}"/><TextBox x:Name="ClockColorInput" Margin="0,6,0,16" MaxLength="7" AutomationProperties.Name="時鐘顏色"/>
        <TextBlock Text="背景" Style="{StaticResource Label}"/>
-       <ComboBox x:Name="BackgroundPicker" SelectedIndex="0" Margin="0,6,0,12" AutomationProperties.Name="首頁背景"><ComboBoxItem Content="靜態 · 跟隨主題" Tag="Static"/><ComboBoxItem Content="本機圖片" Tag="Image"/><ComboBoxItem Content="本機影片 · MP4 H.264，循環靜音" Tag="Video"/><ComboBoxItem Content="動態 · 緩慢漸層" Tag="Gradient"/><ComboBoxItem Content="動態 · 柔和流光" Tag="Aurora"/></ComboBox>
+       <ComboBox x:Name="BackgroundPicker" SelectedIndex="0" Margin="0,6,0,12" AutomationProperties.Name="首頁背景"><ComboBoxItem Content="靜態 · 跟隨主題" Tag="Static"/><ComboBoxItem Content="本機圖片" Tag="Image"/><ComboBoxItem Content="本機影片 · MP4 H.264，循環靜音" Tag="Video"/></ComboBox>
        <StackPanel x:Name="BackgroundFileFields" Visibility="Collapsed">
         <TextBox x:Name="BackgroundPathInput" IsReadOnly="True" TextWrapping="Wrap" Margin="0,0,0,8" AutomationProperties.Name="背景檔案路徑"/>
         <Button Content="選擇圖片或影片…" Click="OnBrowseBackground" HorizontalAlignment="Left" Margin="0,0,0,8"/>

@@ -10,10 +10,12 @@ using System.Windows.Threading;
 using Secondary.App;
 using Secondary.App.Presentation;
 using Secondary.Core;
+using Secondary.Desktop;
 using Secondary.App.Monitoring;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using Secondary.Monitoring;
 
 internal static class Program
 {
@@ -232,6 +234,7 @@ internal static class Program
             RootOptimizationChecks.Run(window, model, Check);
             LaunchpadOptimizationChecks.Run(window, model, Check, OutputDirectory(args));
             ShortcutPathOptimizationChecks.Run(Check, OutputDirectory(args));
+            ConnectionUiChecks.Run(window, Check, OutputDirectory(args));
             if (args.Contains("--live"))
             {
                 LiveOptimizationChecks.Run(window, model, Check, OutputDirectory(args));
@@ -476,9 +479,8 @@ internal static class Program
             }
             layoutButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout(window,root,1200,820);
             Check(view.GroupLayout == "Vertical", "Group arrangement switches back to vertical");
-            var search = Descendants(view).OfType<TextBox>().Single(); search.Text = "文件"; view.RenderPendingTilesForMeasurement(); Flush();
-            Check(Descendants(view).OfType<Button>().Count(b => b.Content is StackPanel) == 1, "Launchpad search filters visible tiles");
-            search.Text = ""; var groups = Descendants(view).OfType<ComboBox>().Single(); groups.SelectedItem = "遊戲"; Flush();
+            Check(!Descendants(view).OfType<TextBox>().Any(), "The launchpad has no search box");
+            var groups = Descendants(view).OfType<ComboBox>().Single(); groups.SelectedItem = "遊戲"; Flush();
             Check(Descendants(view).OfType<Button>().Count(b => b.Content is StackPanel) == 1, "Launchpad group filters visible tiles");
             groups.SelectedIndex = 0; Layout(window,root,560,820);
             Check(Descendants(view).OfType<Button>().Where(b => b.Content is StackPanel).All(b => b.ActualWidth <= view.ActualWidth), "Shortcut tiles fit narrow content");
@@ -492,12 +494,11 @@ internal static class Program
             var linkPath = Path.Combine(directory,"拖入測試.lnk"); File.WriteAllText(linkPath,"inert shell-link fixture, never executed");
             var urlPath = Path.Combine(directory,"網站.url"); File.WriteAllText(urlPath,"[InternetShortcut]\nURL=https://example.com/imported\n");
             var badUrl = Path.Combine(directory,"blocked.url"); File.WriteAllText(badUrl,"[InternetShortcut]\nURL=javascript:alert(1)\n");
-            search.Text = "no match";
             Check(view.ImportFiles([linkPath,urlPath,linkPath,badUrl,Path.Combine(directory,"missing.lnk")]) == 2, "Drop imports valid shortcuts directly and skips duplicate missing or unsafe entries");
             var imported = new ShortcutLibrary(path).Load();
             Check(imported.Length == 4 && imported.Single(e => e.Name == "拖入測試").Steps![0].Target == linkPath, "Lnk import preserves original link path and name");
             Check(imported.Where(e => e.Name is "拖入測試" or "網站").All(e => e.ApprovedFingerprint is null), "Dropped shortcuts still require first-run confirmation");
-            Check(search.Text == "" && view.EntryCount == 4, "Successful drop reveals added entries despite previous search");
+            Check(view.EntryCount == 4, "Successful drop adds the entries");
             Check(view.ImportFiles([linkPath]) == 0 && view.EntryCount == 4, "Repeated drop does not duplicate an existing shortcut");
             Check(view.ImportFiles(Enumerable.Repeat(linkPath,21).ToArray()) == 0 && view.EntryCount == 4, "Oversized drop does not partially import");
             if (OutputDirectory(args) is not null && !args.Contains("--live"))
@@ -755,7 +756,7 @@ internal static class Program
         window.ExitGame(); window.Navigate("home");
         var clock = (HomeClock)window.FindName("ClockView");
         var backdrop = (HomeBackdrop)window.FindName("HomeBackground");
-        Check(!clock.IsRunning && !backdrop.HasMedia && !backdrop.HasMotion, "Unshown home has no live resources");
+        Check(!clock.IsRunning && !backdrop.HasMedia, "Unshown home has no live resources");
         foreach (var style in new[] { "Digital", "Flip", "Analog" })
         foreach (var seconds in new[] { false, true })
         foreach (var width in new[] { 560, 1200, 1920 })
@@ -788,7 +789,8 @@ internal static class Program
         window.CloseHomeCustomize(); window.OpenHomeCustomize();
         Check(((TextBox)window.FindName("ClockColorInput")).Text == (model.Settings.Home?.Color ?? "Auto"), "Closing discards unsaved changes");
         var backgroundPicker = (ComboBox)window.FindName("BackgroundPicker");
-        foreach (var index in new[] { 0, 1, 2, 3, 4 })
+        Check(backgroundPicker.Items.OfType<ComboBoxItem>().Select(i => (string)i.Tag).SequenceEqual(new[] { "Static", "Image", "Video" }), "The background picker offers only static, image and video");
+        foreach (var index in new[] { 0, 1, 2 })
         {
             backgroundPicker.SelectedIndex = index; Flush();
             Check(((FrameworkElement)window.FindName("BackgroundFileFields")).Visibility == (index is 1 or 2 ? Visibility.Visible : Visibility.Collapsed), "Only image and video options show file controls");
@@ -830,15 +832,6 @@ internal static class Program
         backdrop.SetActive(true, true);
         PumpUntil(() => backdrop.ImageLoadCompletion.IsCompleted);
         if (!SystemParameters.HighContrast) Check(backdrop.Status.Contains("回退") && !backdrop.HasImage, "Missing media falls back explicitly");
-        foreach (var kind in new[] { "Gradient", "Aurora" })
-        {
-            backdrop.Configure(new HomeSettings(Background: kind)); backdrop.SetActive(true, true);
-            if (!SystemParameters.HighContrast) Check(backdrop.HasMotion, "Built-in background owns a running animation");
-            backdrop.SetActive(true, false);
-            Check(!backdrop.HasMotion, "Reduced motion removes background clocks");
-            backdrop.SetActive(false, false);
-            Check(backdrop.Children.Count == 0, "Suspension clears built-in visuals");
-        }
         var brokenVideo = Path.Combine(directory, "broken.mp4"); File.WriteAllText(brokenVideo, "invalid media fixture");
         backdrop.Configure(new HomeSettings(Background: "Video", MediaPath: brokenVideo)); backdrop.SetActive(true, false);
         Check(!backdrop.HasMedia, "Reduced motion never constructs video playback");
@@ -885,7 +878,7 @@ internal static class Program
             window.Navigate("home");
             window.WindowState = WindowState.Minimized; Flush(); Check(!clock.IsRunning, "Minimizing suspends home");
             window.WindowState = WindowState.Normal; Flush(); Check(clock.IsRunning, "Restoring refreshes clock");
-            window.Navigate("enter-game"); Check(!clock.IsRunning && !backdrop.HasMotion && !backdrop.HasMedia, "Game mode releases all home activity");
+            window.Navigate("enter-game"); Check(!clock.IsRunning && !backdrop.HasMedia, "Game mode releases all home activity");
             window.ExitGame(); window.Navigate("home");
             var videoArgument = args.FirstOrDefault(a => a.StartsWith("--video="));
             if (videoArgument is not null && SystemParameters.HighContrast) throw new InvalidOperationException("影片驗證尚未完成：高對比模式會停用影片背景。");

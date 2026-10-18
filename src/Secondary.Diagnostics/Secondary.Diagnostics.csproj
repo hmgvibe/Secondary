@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Secondary.Core/Secondary.Core.csproj" />
-    <Compile Include="../Secondary.App/Monitoring/WindowsSampler.cs" Link="WindowsSampler.cs" />
-    <Compile Include="../Secondary.App/Monitoring/GpuCounter.cs" Link="GpuCounter.cs" />
+    <Compile Include="../Secondary.Windows/Monitoring/WindowsSampler.cs" Link="WindowsSampler.cs" />
+    <Compile Include="../Secondary.Windows/Monitoring/GpuCounter.cs" Link="GpuCounter.cs" />
   </ItemGroup>
 </Project>

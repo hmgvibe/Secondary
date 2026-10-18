@@ -19,6 +19,7 @@ using System.Windows.Threading;
 using Secondary.App;
 using Secondary.App.Presentation;
 using Secondary.Core;
+using Secondary.Shared;
 
 internal static class WidgetOptimizationChecks
 {

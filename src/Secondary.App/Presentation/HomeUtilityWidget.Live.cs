@@ -15,6 +15,9 @@ using System.Windows.Automation;
 using Windows.Storage.Streams;
 using Windows.Media.Control;
 using Secondary.Core;
+using Secondary.Desktop;
+using Secondary.Shared.Connection;
+using Secondary.Shared;
 
 namespace Secondary.App.Presentation;
 
@@ -27,7 +30,14 @@ public sealed partial class HomeUtilityWidget
     private TextBlock? mediaTitle, mediaArtist, mediaState, weatherReading, weatherDetails, weatherCity, weatherIcon, weatherMeta, weatherEditorStatus, eventReading, eventDescription, eventEditorStatus;
     private Button? mediaToggle, mediaPrevious, mediaNext;
     private Grid? mediaHero, weatherHero;
-    private IDisposable? mediaSubscription;
+    private IDisposable? mediaSubscription, remoteMediaWatch;
+    private RemoteMediaClient? watchedClient;
+    private Button? mediaSourceButton;
+    private TextBlock? mediaHeading;
+    private bool MainMedia => Settings.MediaSource == "Main";
+    public string MediaTitleText => mediaTitle?.Text ?? "";
+    public string MediaStateText => mediaState?.Text ?? "";
+    public Button? MediaSourceButton => mediaSourceButton;
     private int mediaRefreshQueued;
     private Border? mediaArtwork, mediaProgress;
     private TextBlock? mediaArtworkIcon, mediaTime;
@@ -68,9 +78,17 @@ public sealed partial class HomeUtilityWidget
 
     private void RenderMedia()
     {
-        var nowPlaying = Label("NOW PLAYING  /  SYSTEM AUDIO", 10);
-        nowPlaying.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
-        body.Children.Add(nowPlaying);
+        // The source switch: this computer's player, or the main computer's in connection mode.
+        var heading = new DockPanel();
+        mediaSourceButton = ActionButton("", ToggleMediaSource);
+        mediaSourceButton.FontSize = 11; mediaSourceButton.MinHeight = 28; mediaSourceButton.Padding = new Thickness(10, 2, 10, 2); mediaSourceButton.Margin = new Thickness(8, 0, 0, 0);
+        AutomationProperties.SetName(mediaSourceButton, "切換媒體來源：本機或主電腦");
+        DockPanel.SetDock(mediaSourceButton, Dock.Right); heading.Children.Add(mediaSourceButton);
+        mediaHeading = Label("", 10); mediaHeading.VerticalAlignment = VerticalAlignment.Center;
+        mediaHeading.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        heading.Children.Add(mediaHeading);
+        body.Children.Add(heading);
+        UpdateMediaHeading();
 
         var hero = mediaHero = new Grid { Margin = new Thickness(0, 12, 0, 10) };
         hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
@@ -122,6 +140,68 @@ public sealed partial class HomeUtilityWidget
         body.Children.Add(mediaState);
     }
 
+    private void UpdateMediaHeading()
+    {
+        mediaHeading!.Text = MainMedia ? "NOW PLAYING  /  主電腦" : "NOW PLAYING  /  SYSTEM AUDIO";
+        mediaSourceButton!.Content = MainMedia ? "來源：主電腦" : "來源：本機";
+    }
+    private void ToggleMediaSource()
+    {
+        if (disposed || !Commit(Settings with { MediaSource = MainMedia ? "Local" : "Main" })) return;
+        UpdateMediaHeading();
+        SetMediaSubscription(false);
+        artworkKey = null; mediaArtwork!.Child = mediaArtworkIcon;
+        if (widgetActive) { SetMediaSubscription(true); _ = RefreshMediaAsync(); }
+    }
+
+    // The main computer's player, as reported by the connection helper; values clear when the connection is lost.
+    private async Task RefreshMainMediaAsync(CancellationToken token)
+    {
+        var client = RemoteMediaClient.Current;
+        // Connection mode may start (or restart) after this widget became active.
+        if (client != watchedClient) { remoteMediaWatch?.Dispose(); remoteMediaWatch = null; watchedClient = null; }
+        if (client is not null && remoteMediaWatch is null && widgetActive) { remoteMediaWatch = client.Watch(OnMediaSourceChanged); watchedClient = client; }
+        if (client is null || !client.Connected || client.Media is not { } media)
+        {
+            mediaTitle!.Text = "尚未播放媒體";
+            mediaArtist!.Text = client is null ? "連線模式無法使用；可切回本機" : !client.Connected ? "主電腦未連線；連上後自動顯示，或切回本機" : client.Status;
+            mediaState!.Text = client?.Connected == true ? "主電腦「" + client.HelperName + "」" : "";
+            mediaTime!.Text = "—:—  /  —:—";
+            mediaFraction = 0; UpdateMediaProgress();
+            mediaPrevious!.IsEnabled = mediaToggle!.IsEnabled = mediaNext!.IsEnabled = false;
+            if (artworkKey is not null) { artworkKey = null; mediaArtwork!.Child = mediaArtworkIcon; }
+            return;
+        }
+        mediaTitle!.Text = string.IsNullOrWhiteSpace(media.Title) ? "未提供標題" : media.Title;
+        mediaArtist!.Text = string.IsNullOrWhiteSpace(media.Artist) ? "未提供演出者" : media.Artist;
+        mediaState!.Text = "主電腦 · " + (media.Playing ? "播放中" : "已暫停");
+        mediaToggle!.Content = media.Playing ? "\uE769" : "\uE768";
+        mediaPrevious!.IsEnabled = !mediaControlling && media.CanPrevious;
+        mediaNext!.IsEnabled = !mediaControlling && media.CanNext;
+        mediaToggle.IsEnabled = !mediaControlling && media.CanToggle;
+        if (media.Duration is > 0 and var duration)
+        {
+            var position = Math.Min(media.Position ?? 0, duration);
+            mediaFraction = position / duration;
+            mediaTime!.Text = $"{MediaClock(TimeSpan.FromSeconds(position))}  /  {MediaClock(TimeSpan.FromSeconds(duration))}";
+        }
+        else { mediaFraction = 0; mediaTime!.Text = "—:—  /  —:—"; }
+        UpdateMediaProgress();
+        var key = "main|" + media.ArtworkKey;
+        if (key != artworkKey)
+        {
+            if (media.ArtworkKey.Length == 0) { mediaArtwork!.Child = mediaArtworkIcon; artworkKey = key; }
+            else
+            {
+                var bytes = await client.ArtworkAsync(media.ArtworkKey, token).WaitAsync(TimeSpan.FromSeconds(8), token);
+                if (disposed || !widgetActive || token.IsCancellationRequested) return;
+                if (bytes is null) { mediaArtwork!.Child = mediaArtworkIcon; artworkKey = key; }
+                else ShowArtwork(bytes, key);
+            }
+        }
+        UpdateResponsiveLayout();
+    }
+
     private async Task RefreshMediaAsync()
     {
         if (mediaBusy || disposed || !widgetActive) return;
@@ -129,6 +209,7 @@ public sealed partial class HomeUtilityWidget
         var request = mediaRefreshRequest = new CancellationTokenSource();
         try
         {
+            if (MainMedia) { await RefreshMainMediaAsync(request.Token); return; }
             var snapshot = await MediaWidgetSource.Shared.ReadAsync().WaitAsync(TimeSpan.FromSeconds(5), request.Token);
             var session = snapshot.Session;
             if (disposed || !widgetActive || request.IsCancellationRequested) return;
@@ -189,10 +270,15 @@ public sealed partial class HomeUtilityWidget
 
     private void SetMediaSubscription(bool active)
     {
-        if (active && !disposed) mediaSubscription ??= MediaWidgetSource.Shared.Subscribe(OnMediaSourceChanged);
+        if (active && !disposed && MainMedia)
+        {
+            if (remoteMediaWatch is null && RemoteMediaClient.Current is { } client) { remoteMediaWatch = client.Watch(OnMediaSourceChanged); watchedClient = client; }
+        }
+        else if (active && !disposed) mediaSubscription ??= MediaWidgetSource.Shared.Subscribe(OnMediaSourceChanged);
         else
         {
             mediaSubscription?.Dispose(); mediaSubscription = null;
+            remoteMediaWatch?.Dispose(); remoteMediaWatch = null; watchedClient = null;
             var request = mediaRefreshRequest; mediaRefreshRequest = null; mediaBusy = false;
             request?.Cancel();
         }
@@ -229,6 +315,17 @@ public sealed partial class HomeUtilityWidget
             if (await reader.LoadAsync(size).AsTask(token).WaitAsync(TimeSpan.FromSeconds(5), token) != size) return;
             var bytes = new byte[size]; reader.ReadBytes(bytes);
             if (disposed || !widgetActive || token.IsCancellationRequested) return;
+            ShowArtwork(bytes, key);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception) { if (!disposed && widgetActive && !token.IsCancellationRequested) { artworkKey = null; mediaArtwork!.Child = mediaArtworkIcon; } }
+    }
+
+    // Decodes a cover from either source; an image that cannot be decoded falls back to the icon.
+    private void ShowArtwork(byte[] bytes, string key)
+    {
+        try
+        {
             using var input = new MemoryStream(bytes);
             var bitmap = new BitmapImage(); bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad;
             bitmap.DecodePixelWidth = 336; bitmap.StreamSource = input; bitmap.EndInit(); bitmap.Freeze();
@@ -238,19 +335,26 @@ public sealed partial class HomeUtilityWidget
                 Source = bitmap, Stretch = Stretch.UniformToFill, Width = cover, Height = cover,
                 Clip = new RectangleGeometry(new Rect(0, 0, cover, cover), 12, 12)
             };
-            artworkKey = key;
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception) { if (!disposed && widgetActive && !token.IsCancellationRequested) { artworkKey = null; mediaArtwork!.Child = mediaArtworkIcon; } }
+        catch (Exception error) when (error is NotSupportedException or FileFormatException or IOException or ArgumentException or InvalidOperationException) { mediaArtwork!.Child = mediaArtworkIcon; }
+        artworkKey = key;
     }
 
-    private async Task ControlMediaAsync(string command)
+    public async Task ControlMediaAsync(string command)
     {
         if (disposed || mediaControlling) return;
         mediaControlling = true;
         mediaPrevious!.IsEnabled = mediaToggle!.IsEnabled = mediaNext!.IsEnabled = false;
         try
         {
+            if (MainMedia)
+            {
+                if (RemoteMediaClient.Current is not { Connected: true } client) { mediaState!.Text = "主電腦未連線"; return; }
+                mediaState!.Text = "正在控制主電腦的播放器…";
+                var sent = await client.ControlAsync(command);
+                if (!disposed) mediaState!.Text = sent ? "指令已送到主電腦" : "主電腦的播放器不支援此操作";
+                return;
+            }
             var session = (await MediaWidgetSource.Shared.ManagerAsync().WaitAsync(TimeSpan.FromSeconds(5))).GetCurrentSession();
             if (session is null) { mediaState!.Text = "目前沒有可控制的媒體"; return; }
             mediaState!.Text = "正在控制播放器…";

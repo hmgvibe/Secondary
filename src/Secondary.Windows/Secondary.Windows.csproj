@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Windows collectors shared by the WPF app and the connection helper. Monitoring types live in Secondary.Monitoring,
+       the media session source and shortcut executor in Secondary.Desktop; there is deliberately no Secondary.Windows
+       namespace, which would shadow WinRT's Windows.* inside Secondary.App. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework><WindowsSdkPackageVersion>10.0.22621.57</WindowsSdkPackageVersion><Nullable>enable</Nullable><PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>Secondary.Monitoring</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Secondary.Core/Secondary.Core.csproj" /><ProjectReference Include="../Secondary.Shared/Secondary.Shared.csproj" /></ItemGroup>
+</Project>

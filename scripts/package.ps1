@@ -1,5 +1,5 @@
 param(
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '1.0.2',
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '1.1.0',
     [ValidateSet('Bundled','Installed')][string]$RuntimeMode = 'Bundled',
     [string]$OutputRoot = 'artifacts/release',
     [switch]$Offline
@@ -17,6 +17,7 @@ $sdk = Join-Path $projectRoot '.tools\dotnet\dotnet.exe'
 if (-not (Test-Path -LiteralPath $sdk)) { $sdk = 'dotnet' }
 $env:DOTNET_CLI_HOME = Join-Path $projectRoot '.tools\cli'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+$env:AVALONIA_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = '0'
 $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
 $name = "Secondary-v$Version-windows-x64" + $(if ($RuntimeMode -eq 'Installed') {'-requires-runtime'} else {''})

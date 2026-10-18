@@ -25,10 +25,36 @@ jobs:
       - name: Verify lightweight candidate package
         shell: pwsh
         run: ./scripts/package.ps1 -RuntimeMode Installed -OutputRoot artifacts/ci/package
+      - name: Verify connection helper package
+        shell: pwsh
+        run: ./scripts/package-connect.ps1 -OutputRoot artifacts/ci/package
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: windows-verification
+          path: artifacts/ci
+          retention-days: 14
+          if-no-files-found: warn
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install virtual display and fonts for headless checks
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb xauth fonts-noto-cjk
+      - name: Locked restore, dependency audit, Release build, core and Linux shell tests
+        run: ./scripts/build-linux.sh --output artifacts/ci/linux-verification
+      - name: Build AppImage and .deb candidates and start each once
+        run: xvfb-run -a ./scripts/package-linux.sh --output artifacts/ci/linux-package
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: linux-verification
           path: artifacts/ci
           retention-days: 14
           if-no-files-found: warn

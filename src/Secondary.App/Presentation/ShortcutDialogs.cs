@@ -33,10 +33,14 @@ public static class ShortcutDialogs
         dialog.Content = grid; return dialog.ShowDialog() == true;
     }
     public static bool Confirm(Window owner, string title, string details, string accept = "確認") => Show(owner,title,new TextBlock { Text = details, TextWrapping = TextWrapping.Wrap, FontSize = 15 },accept,() => true);
-    public static ShortcutEntry? Edit(Window owner, ShortcutEntry entry)
+    public static ShortcutEntry? Edit(Window owner, ShortcutEntry entry) => Edit(owner, entry, null, false, false)?.Entry;
+    // In connection mode a shortcut is stored and run either here or on the main computer (mainName). A new one can
+    // choose; an existing one shows where it is.
+    public static (ShortcutEntry Entry, bool Main)? Edit(Window owner, ShortcutEntry entry, string? mainName, bool main, bool canChoose)
     {
         var panel = new StackPanel();
         var basic = new StackPanel();
+        if (mainName is not null) basic.Children.Add(Placement(mainName, main, canChoose, value => main = value));
         basic.Children.Add(new TextBlock { Text = "基本資料", FontSize = 16, FontWeight = FontWeights.SemiBold });
         var name = Field(basic,"名稱",entry.Name,80);
         var metadata = new WrapPanel(); var groupPanel = new StackPanel { Width = 200, Margin = new Thickness(0,0,16,0) }; var iconPanel = new StackPanel { Width = 120 };
@@ -69,14 +73,36 @@ public static class ShortcutDialogs
         foreach (var (kind,title) in new[] { ("Open","＋ 開啟"),("Wait","＋ 等待"),("Keys","＋ 按鍵"),("Script","＋ 腳本") })
             add.Children.Add(Button(title,() => { if (steps.Count == 20) { error.Text = "最多 20 個步驟。"; error.Visibility = Visibility.Visible; return; } steps.Add(new StepEditor(new ShortcutStep(kind),owner)); Render(); }));
         panel.Children.Add(stepsPanel); panel.Children.Add(add); Render();
-        ShortcutEntry? result = null;
+        (ShortcutEntry, bool)? result = null;
         Show(owner,"編輯快捷方式",panel,"儲存",() =>
         {
             var candidate = entry with { Name = name.Text.Trim(), Group = string.IsNullOrWhiteSpace(group.Text) ? "未分組" : group.Text.Trim(), Icon = icon.Text, Steps = steps.Select(s => s.Value).ToArray() };
             var problem = ShortcutPolicy.Validate(candidate); if (problem is not null) { error.Text = problem; error.Visibility = Visibility.Visible; return false; }
-            result = candidate; return true;
+            result = (candidate, main); return true;
         },error);
         return result;
+    }
+    private static StackPanel Placement(string mainName, bool main, bool canChoose, Action<bool> changed)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0,0,0,18) };
+        panel.Children.Add(new TextBlock { Text = "儲存與執行位置", FontSize = 16, FontWeight = FontWeights.SemiBold });
+        var hint = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,6,0,0) }; hint.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");
+        void Describe(bool onMain) => hint.Text = onMain
+            ? "存在主電腦上並在主電腦執行；路徑請填主電腦上的位置。第一次執行或內容變更後，需要在主電腦上確認。"
+            : "存在這臺設備並在這臺設備執行。";
+        if (canChoose)
+        {
+            var choices = new WrapPanel { Margin = new Thickness(0,8,0,0) };
+            var local = new RadioButton { Content = "本機", IsChecked = !main, GroupName = "ShortcutPlacement", Margin = new Thickness(0,0,20,0), MinHeight = 32, VerticalContentAlignment = VerticalAlignment.Center };
+            var remote = new RadioButton { Content = "主電腦「" + mainName + "」", IsChecked = main, GroupName = "ShortcutPlacement", MinHeight = 32, VerticalContentAlignment = VerticalAlignment.Center };
+            local.SetResourceReference(Control.ForegroundProperty,"TextBrush"); remote.SetResourceReference(Control.ForegroundProperty,"TextBrush");
+            local.Checked += (_, _) => { changed(false); Describe(false); };
+            remote.Checked += (_, _) => { changed(true); Describe(true); };
+            choices.Children.Add(local); choices.Children.Add(remote); panel.Children.Add(choices);
+        }
+        else panel.Children.Add(new TextBlock { Text = main ? "主電腦「" + mainName + "」" : "本機", FontSize = 14, Margin = new Thickness(0,8,0,0) });
+        Describe(main); panel.Children.Add(hint);
+        return panel;
     }
     private static Border Surface(UIElement child)
     {

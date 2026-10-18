@@ -1,0 +1,41 @@
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Secondary.Linux.App" RequestedThemeVariant="Default">
+ <!-- One font for every top level: windows, menus, flyouts and tooltips are separate popups and do not inherit from the window. -->
+ <Application.Resources>
+  <FontFamily x:Key="ContentControlThemeFontFamily">Noto Sans CJK TC, Noto Sans TC, Noto Sans CJK SC, Noto Sans, sans-serif</FontFamily>
+ </Application.Resources>
+ <Application.Styles>
+  <FluentTheme/>
+  <Style Selector=":is(TopLevel)"><Setter Property="FontFamily" Value="{StaticResource ContentControlThemeFontFamily}"/></Style>
+  <Style Selector="TextBlock.label"><Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="FontSize" Value="14"/></Style>
+  <Style Selector="TextBlock.title"><Setter Property="FontSize" Value="20"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style Selector="TextBlock.eyebrow"><Setter Property="FontSize" Value="11"/><Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/><Setter Property="LetterSpacing" Value="1.5"/></Style>
+  <Style Selector="Border.card">
+   <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource LineBrush}"/>
+   <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="{DynamicResource PanelRadius}"/>
+   <Setter Property="Padding" Value="24"/><Setter Property="MaxWidth" Value="800"/><Setter Property="Margin" Value="8,0,8,16"/>
+  </Style>
+  <Style Selector="Button"><Setter Property="MinHeight" Value="44"/><Setter Property="Padding" Value="16,10"/><Setter Property="CornerRadius" Value="{DynamicResource ControlRadius}"/></Style>
+  <Style Selector="ComboBox"><Setter Property="MinHeight" Value="44"/><Setter Property="HorizontalAlignment" Value="Stretch"/></Style>
+  <Style Selector="TextBox"><Setter Property="MinHeight" Value="44"/><Setter Property="VerticalContentAlignment" Value="Center"/></Style>
+  <Style Selector="Button.tile">
+   <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource LineBrush}"/>
+   <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="{DynamicResource PanelRadius}"/>
+  </Style>
+  <Style Selector="Button.tile:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="{DynamicResource HoverBrush}"/></Style>
+  <Style Selector="RadioButton.nav">
+   <Setter Property="Template">
+    <ControlTemplate>
+     <Border x:Name="Chip" Background="{DynamicResource RailButtonBrush}" CornerRadius="999" BorderThickness="2" BorderBrush="Transparent">
+      <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+     </Border>
+    </ControlTemplate>
+   </Setter>
+  </Style>
+  <Style Selector="RadioButton.nav PathIcon"><Setter Property="Foreground" Value="{DynamicResource RailIconBrush}"/></Style>
+  <Style Selector="RadioButton.nav:pointerover /template/ Border#Chip"><Setter Property="Background" Value="{DynamicResource RailHoverBrush}"/></Style>
+  <Style Selector="RadioButton.nav:checked /template/ Border#Chip"><Setter Property="Background" Value="{DynamicResource RailSelectedBrush}"/></Style>
+  <Style Selector="RadioButton.nav:checked PathIcon"><Setter Property="Foreground" Value="{DynamicResource RailSelectedIconBrush}"/></Style>
+  <Style Selector="RadioButton.nav:focus-visible /template/ Border#Chip"><Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/></Style>
+ </Application.Styles>
+</Application>

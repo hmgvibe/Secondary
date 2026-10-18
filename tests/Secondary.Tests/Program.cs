@@ -186,6 +186,8 @@ try
     Check(store.Save(new AppSettings()) && store.Load().Home is null, "Existing V3 without Home retains compatible defaults");
     var invalidHome = new HomeSettings("Bad", double.NaN, "invalid", -4, 3, Background: "Unknown", MediaPath: "https://example.com/test.mp4").Normalize();
     Check(invalidHome.ClockStyle == "Digital" && invalidHome.Size == 1 && invalidHome.X == 0 && invalidHome.Y == 1 && invalidHome.Color == "Auto" && invalidHome.Background == "Static" && invalidHome.MediaPath is null, "Home invalid options sanitize safely");
+    Check(new HomeSettings(Background: "Gradient").Normalize().Background == "Static" && new HomeSettings(Background: "Aurora").Normalize().Background == "Static",
+        "Removed animated backgrounds load as the static background");
     Check(!HomeSettings.IsLocalPath(@"\\server\share\video.mp4") && !HomeSettings.IsLocalPath("relative.png") && HomeSettings.IsLocalPath(@"D:\Pictures\背景.png"), "Background restricts sources to local drive paths");
     Check(HomeSettings.ValidColor("Auto") && HomeSettings.ValidColor("#aAbB00") && !HomeSettings.ValidColor("#123") && !HomeSettings.ValidColor(null), "Clock color validation");
     var midnight = new DateTime(2026, 9, 15, 0, 0, 0);
@@ -208,6 +210,33 @@ try
     Check(ShortcutPolicy.Validate(link with { Steps = [new("Script",@"C:\x.ps1")] }) is null, "Explicit script step is supported");
     Check(ShortcutPolicy.Validate(link with { Steps = [new("Wait",Seconds:0)] }) is not null, "Macro wait duration bounded");
     Check(ShortcutPolicy.Validate(link with { Steps = [new("Keys","Ctrl+S",ProcessName:"notepad",WindowTitle:"Document")] }) is null, "Keys require a precise named target");
+    // Linux rules: .sh scripts, arguments for executables and AppImages, no key sending under Wayland.
+    var linux = ShortcutRules.Linux;
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Script",@"C:\tools\backup.sh")] }, linux) is null && ShortcutPolicy.Validate(link with { Steps = [new("Script",@"C:\x.ps1")] }, linux) is not null,
+        "Linux scripts are .sh only");
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\tools\backup.sh")] }, linux) is not null && ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\tools\run.py")] }, linux) is not null,
+        "Linux scripts cannot bypass the script step");
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\opt\game\launcher","--windowed")] }, linux) is null && ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\apps\Tool.AppImage","-v")] }, linux) is null,
+        "Linux passes arguments to executables and AppImages");
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\docs\note.txt","-x")] }, linux) is not null && ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\apps\tool.exe","-x")] }, linux) is not null,
+        "Linux refuses arguments for documents and Windows programs");
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Keys","Ctrl+S",ProcessName:"gedit",WindowTitle:"Document")] }, linux) is { } keys && keys.Contains("Wayland"),
+        "Linux explains that window key steps are unavailable");
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\apps\tool.exe","-x")] }) is null, "Windows rules are unchanged by default");
+    var desktopDirectory = Path.Combine(Path.GetTempPath(), "Secondary.Desktop-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(desktopDirectory);
+    try
+    {
+        var desktopFile = Path.Combine(desktopDirectory, "org.example.Editor.desktop");
+        File.WriteAllText(desktopFile, "[Desktop Entry]\nType=Application\nName=Text Editor\nName[zh_CN]=文本编辑器\nName[zh_TW]=文字編輯器\nExec=editor %U\n\n[Desktop Action New]\nName=Other\n");
+        var imported = ShortcutImport.FromPath(desktopFile, "日常", linux);
+        Check(imported.Name == "文字編輯器" && imported.Steps![0] is { Kind: "Open" } && imported.Steps[0].Target == desktopFile, "Linux imports a .desktop launcher under its Traditional Chinese name");
+        var script = Path.Combine(desktopDirectory, "backup.sh"); File.WriteAllText(script, "echo ok\n");
+        Check(ShortcutImport.FromPath(script, "日常", linux).Steps![0].Kind == "Script", "Dropped .sh files become script steps on Linux");
+        File.WriteAllText(desktopFile, "[Desktop Entry]\nType=Application\nExec=editor\n");
+        Check(ShortcutImport.FromPath(desktopFile, "日常", linux).Name == "org.example.Editor", "A launcher without a name falls back to its file name");
+    }
+    finally { Directory.Delete(desktopDirectory, true); }
     Check(ShortcutPolicy.Validate(link with { Steps = [new("Keys","Ctrl+S")] }) is not null, "Keys without window identity rejected");
     var fakeExecutor = new FakeShortcutExecutor(); var macroRunner = new ShortcutRunner(fakeExecutor);
     var macro = link with { Steps = [new("Open","https://example.com/1"),new("Open","https://example.com/2")] };
@@ -237,6 +266,9 @@ try
 }
 finally { Directory.Delete(directory, true); }
 DataOptimizationChecks.Run(Check);
+ConnectionChecks.Run(Check);
+RemoteGameChecks.Run(Check);
+RemoteDeviceChecks.Run(Check);
 Console.WriteLine($"{passed} tests passed.");
 
 sealed class TrackingModule : ISectionModule

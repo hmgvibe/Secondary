@@ -14,7 +14,8 @@ public sealed record WeatherLocation(string Name, string Country, string Region,
 }
 
 public sealed record HomeWidgetSettings(string Id, string Kind, WidgetPlacement? Placement = null, string Text = "", int Minutes = 5,
-    TodoItem[]? Tasks = null, int Count = 0, string City = "", string EventTitle = "", string EventDate = "", WeatherLocation? Location = null)
+    TodoItem[]? Tasks = null, int Count = 0, string City = "", string EventTitle = "", string EventDate = "", WeatherLocation? Location = null,
+    string MediaSource = "Local")
 {
     public static readonly string[] Kinds = ["Calendar", "Note", "Countdown", "Stopwatch", "Todo", "Counter", "TimeProgress", "Media", "Weather", "EventCountdown"];
     public static bool Supported(string? kind) => Kinds.Contains(kind);
@@ -26,6 +27,8 @@ public sealed record HomeWidgetSettings(string Id, string Kind, WidgetPlacement?
         Count = Math.Clamp(Count, -999999, 999999),
         City = (City ?? "").Trim()[..Math.Min((City ?? "").Trim().Length, 100)],
         Location = Location?.Normalize(),
+        // Media widgets show this computer's player, or the main computer's in connection mode.
+        MediaSource = MediaSource == "Main" ? "Main" : "Local",
         EventTitle = (EventTitle ?? "").Trim()[..Math.Min((EventTitle ?? "").Trim().Length, 80)],
         EventDate = DateOnly.TryParseExact(EventDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out var date) ? date.ToString("yyyy-MM-dd") : "",

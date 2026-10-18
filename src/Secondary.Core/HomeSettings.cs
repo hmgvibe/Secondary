@@ -14,7 +14,8 @@ public sealed record HomeSettings(string ClockStyle = "Digital", double Size = 1
         ClockWidthScale = ClockWidthScale is double w ? Bound(w,.3,3,1) : null,
         ClockHeightScale = ClockHeightScale is double h ? Bound(h,.3,3,1) : null,
         Color = ValidColor(Color) ? Color : "Auto",
-        Background = Background is "Image" or "Video" or "Gradient" or "Aurora" ? Background : "Static",
+        // "Gradient" and "Aurora" were removed; settings that still name them load as the static background.
+        Background = Background is "Image" or "Video" ? Background : "Static",
         MediaPath = IsLocalPath(MediaPath) ? MediaPath : null,
         Widgets = Widgets?.Where(w => w is not null && !string.IsNullOrWhiteSpace(w.Id) && HomeWidgetSettings.Supported(w.Kind))
             .DistinctBy(w => w.Id).Take(12).Select(w => w.Normalize()).ToArray()
@@ -23,6 +24,9 @@ public sealed record HomeSettings(string ClockStyle = "Digital", double Size = 1
         double.IsFinite(value) ? Math.Clamp(value, min, max) : fallback;
     public static bool ValidColor(string? color) => color == "Auto" ||
         (color is { Length: 7 } && color[0] == '#' && uint.TryParse(color.AsSpan(1), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out _));
-    public static bool IsLocalPath(string? path) => path is { Length: > 3 } && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] is '\\' or '/';
+    // A drive path, or on Linux an absolute non-network path. Network locations are never accepted.
+    public static bool IsLocalPath(string? path) =>
+        path is { Length: > 3 } && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] is '\\' or '/'
+        || !OperatingSystem.IsWindows() && path is { Length: > 1 } && path[0] == '/' && path[1] != '/';
     public string TimeText(DateTime time) => time.ToString((Use24Hours ? "HH:mm" : "hh:mm") + (ShowSeconds ? ":ss" : ""), CultureInfo.InvariantCulture);
 }

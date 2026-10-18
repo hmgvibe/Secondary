@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows;
 using Secondary.App.Monitoring;
 using Secondary.Core;
+using Secondary.Monitoring;
 
 namespace Secondary.App;
 

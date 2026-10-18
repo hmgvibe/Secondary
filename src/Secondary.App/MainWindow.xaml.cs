@@ -93,6 +93,30 @@ public partial class MainWindow : Window
         OpenSettings();
         DisplayPicker.Focus();
     }
+    public Presentation.ConnectionPanel? ConnectionCard { get; private set; }
+    // Connection mode sits after the hotkey card; tests attach a loopback controller.
+    public void AttachConnection(Secondary.Shared.Connection.ConnectionController? controller, string? unavailable = null, Func<string, string, string, bool>? confirm = null)
+    {
+        if (ConnectionCard is not null) SettingsPanels.Children.Remove(ConnectionCard);
+        if (connection is not null) { connection.Changed -= OnConnectionChanged; connection.ToggleGameRequested -= OnRemoteToggle; }
+        connection = controller;
+        // Media widgets set to the main computer and the launchpad's main-computer section use this connection.
+        Secondary.Shared.Connection.RemoteMediaClient.Current?.Dispose();
+        Secondary.Shared.Connection.RemoteMediaClient.Current = controller is null ? null : new(controller);
+        Launchpad.AttachRemote(controller);
+        if (controller is not null)
+        {
+            // The main computer uses this device's hotkey while connected, and its game page follows the connection.
+            controller.Hotkey = registeredHotkey ?? model.Settings.Hotkey;
+            controller.Changed += OnConnectionChanged;
+            controller.ToggleGameRequested += OnRemoteToggle;
+        }
+        ConnectionCard = new Presentation.ConnectionPanel(controller, confirm ?? ((title, text, accept) => Presentation.ShortcutDialogs.Confirm(this, title, text, accept)), unavailable);
+        var hotkey = SettingsPanels.Children.OfType<UIElement>().FirstOrDefault(p => p.IsAncestorOf(HotkeyInput));
+        SettingsPanels.Children.Insert(hotkey is null ? SettingsPanels.Children.Count : SettingsPanels.Children.IndexOf(hotkey) + 1, ConnectionCard);
+    }
+    private void OnConnectionChanged() => Dispatcher.BeginInvoke(ConfigureGameTelemetry);
+    private void OnRemoteToggle() => Dispatcher.BeginInvoke(ToggleGame);
     public void ShowInterface()
     {
         Show();
@@ -290,6 +314,7 @@ public partial class MainWindow : Window
         HotkeyInput.Text = canonical;
         HotkeyStatus.Text = "已啟用 " + canonical + "：手動進入／退出遊戲模式（背景也有效）。";
         model.SaveRuntime(hotkey: canonical);
+        if (connection is not null) connection.Hotkey = canonical;
     }
     private void OnThemeChoice(object sender, SelectionChangedEventArgs e)
     {

@@ -49,7 +49,7 @@ internal static class BackgroundOptimizationChecks
             var source = ((Image)backdrop.Children[0]).Source as BitmapSource;
             check(backdrop.HasImage && !backdrop.IsImageLoading && source is { IsFrozen: true, PixelWidth: 160, PixelHeight: 100 },
                 "Only the current frozen worker-decoded image is applied after a settings change");
-            check(backdrop.Status.Length == 0 && backdrop.Children.Count == 2 && !backdrop.HasMotion && !backdrop.HasMedia,
+            check(backdrop.Status.Length == 0 && backdrop.Children.Count == 2 && !backdrop.HasMedia,
                 "Image backgrounds retain the readability overlay and work with reduced motion");
             var firstImage = backdrop.Children[0];
             backdrop.Configure(new HomeSettings(Background: "Image", MediaPath: blue, ShowSeconds: true));
@@ -98,22 +98,6 @@ internal static class BackgroundOptimizationChecks
                 var decoded = ((Image)backdrop.Children[0]).Source as BitmapSource;
                 check(decoded is { IsFrozen: true } && decoded.PixelWidth <= 2560 && decoded.PixelHeight <= 1440,
                     "Landscape and portrait images both decode within 2560 by 1440 pixels");
-            }
-            foreach (var kind in new[] { "Gradient", "Aurora" })
-            {
-                backdrop.Configure(new HomeSettings(Background: kind)); backdrop.SetActive(true, true);
-                var glow = backdrop.Children.OfType<Ellipse>().Single();
-                var movement = (TranslateTransform)glow.RenderTransform;
-                for (var i = 0; i < 10; i++)
-                {
-                    backdrop.Configure(new HomeSettings(Background: kind, Size: 1 + i * .1));
-                    backdrop.SetActive(true, true);
-                }
-                check(ReferenceEquals(glow, backdrop.Children.OfType<Ellipse>().Single()) && backdrop.HasMotion,
-                    "Repeated activation and clock edits retain one controlled background animation");
-                backdrop.SetActive(false, false);
-                check(!backdrop.HasMotion && !movement.HasAnimatedProperties && backdrop.Children.Count == 0,
-                    "Background suspension removes its animation clock and visual");
             }
             backdrop.Configure(new HomeSettings(Background: "Image", MediaPath: red));
             backdrop.SetActive(true, false);

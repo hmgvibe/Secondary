@@ -13,6 +13,7 @@ $sdk = Join-Path $projectRoot '.tools\dotnet\dotnet.exe'
 if (-not (Test-Path -LiteralPath $sdk)) { $sdk = 'dotnet' }
 $env:DOTNET_CLI_HOME = Join-Path $projectRoot '.tools\cli'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+$env:AVALONIA_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = '0'
 $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
 $output = [IO.Path]::GetFullPath((Join-Path $projectRoot $OutputDirectory))
@@ -24,7 +25,7 @@ while ($cursor -and $cursor.StartsWith($projectRoot,[StringComparison]::OrdinalI
 }
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $receiptPath = Join-Path $output 'verification.json'
-$receipt = [ordered]@{ Status='Running'; Configuration=$Configuration; DependencyAuditCompleted=$false; CorePassed=$false; UiPassed=$false; LiveRequested=[bool]$Live; SensorsRequested=[bool]$Sensors; GameTelemetryRequested=[bool]$GameTelemetry; VideoRequested=[bool]$Video; StartedUtc=[DateTimeOffset]::UtcNow.ToString('O') }
+$receipt = [ordered]@{ Status='Running'; Configuration=$Configuration; DependencyAuditCompleted=$false; CorePassed=$false; UiPassed=$false; LinuxShellPassed=$false; LiveRequested=[bool]$Live; SensorsRequested=[bool]$Sensors; GameTelemetryRequested=[bool]$GameTelemetry; VideoRequested=[bool]$Video; StartedUtc=[DateTimeOffset]::UtcNow.ToString('O') }
 $receipt | ConvertTo-Json | Set-Content -LiteralPath $receiptPath -Encoding utf8
 $previousTemp = $env:TEMP
 $previousTmp = $env:TMP
@@ -57,6 +58,10 @@ try {
     & $sdk run --project tests/Secondary.UiTests -c $Configuration --no-build -- @uiArgs
     if ($LASTEXITCODE -ne 0) { throw 'UI or requested integration tests failed.' }
     $receipt.UiPassed = $true
+    # The Avalonia (Linux) shell runs headless here too, so Windows verification covers the shared layer.
+    & $sdk run --project tests/Secondary.Linux.Tests -c $Configuration --no-build -- (Join-Path $output 'linux-frames')
+    if ($LASTEXITCODE -ne 0) { throw 'Linux shell tests failed.' }
+    $receipt.LinuxShellPassed = $true
     $receipt.Status = 'Passed'
     $receipt.CompletedUtc = [DateTimeOffset]::UtcNow.ToString('O')
     $receipt | ConvertTo-Json | Set-Content -LiteralPath $receiptPath -Encoding utf8
