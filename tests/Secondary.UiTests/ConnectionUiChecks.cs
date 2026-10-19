@@ -351,6 +351,45 @@ internal static class ConnectionUiChecks
 
             var delete = launchpad.DeleteRemoteAsync(game.Id);
             check(Pump(() => delete.IsCompleted) && delete.Result && tray.Shortcuts.Entries.Length == 0, "A device can delete a main-computer shortcut");
+
+            // Editing moves a shortcut between this device and the main computer.
+            var docs = new ShortcutEntry("docs", "Docs", "工作", Steps: [new("Open", "https://example.com/")]);
+            launchpad.EditDialog = (entry, mainName, main, canChoose) => (docs with { Id = entry.Id }, false);
+            try { launchpad.Add(); } finally { launchpad.EditDialog = editor; }
+            var local = launchpad.LocalTiles.Single(t => System.Windows.Automation.AutomationProperties.GetName(t) == "Docs");
+            offered = null;
+            launchpad.EditDialog = (entry, mainName, main, canChoose) => { offered = (mainName, main, canChoose); return (entry, true); };
+            try { local.ContextMenu!.Items.OfType<MenuItem>().First().RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); } finally { launchpad.EditDialog = editor; }
+            check(offered is ("Main PC", false, true), "Editing a local shortcut while connected offers the main computer");
+            check(Pump(() => tray.Shortcuts.Entries.SingleOrDefault()?.Name == "Docs") && Pump(() => !launchpad.LocalTiles.Any(t => System.Windows.Automation.AutomationProperties.GetName(t) == "Docs")),
+                "Choosing 主電腦 moves it there and removes it here");
+            launchpad.EditDialog = (entry, mainName, main, canChoose) => { offered = (mainName, main, canChoose); return (entry, false); };
+            try { launchpad.EditRemote(tray.Shortcuts.Entries.Single()); } finally { launchpad.EditDialog = editor; }
+            check(offered is ("Main PC", true, true) && Pump(() => tray.Shortcuts.Entries.Length == 0) && launchpad.LocalTiles.Any(t => System.Windows.Automation.AutomationProperties.GetName(t) == "Docs"),
+                "Choosing 本機 moves a main-computer shortcut back here");
+
+            // A pending shortcut (here, one only Linux can run) cannot go to a Windows main computer; it can be edited into one.
+            var file = Path.Combine(Path.GetTempPath(), "Secondary.Pending-" + Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                File.WriteAllBytes(file, ShortcutTransfer.Export([], "Vertical", [new ShortcutEntry("files", "Files", "工作", Steps: [new("Open", "/usr/bin/nautilus")])]));
+                var confirm = launchpad.ConfirmImport; launchpad.ConfirmImport = _ => true;
+                try { check(launchpad.ImportFrom(file) && launchpad.PendingEntries.Single().Name == "Files", "An imported Linux shortcut shows as pending"); }
+                finally { launchpad.ConfirmImport = confirm; }
+                var pendingTile = launchpad.PendingTiles.Single();
+                var items = pendingTile.ContextMenu!.Items.OfType<MenuItem>().ToArray();
+                check(items.Select(i => ((string)i.Header, i.IsEnabled)).SequenceEqual([("移到主電腦執行", false), ("編輯", true), ("刪除", true)]),
+                    "A shortcut the Windows main computer cannot run is not offered for moving there");
+                Click(pendingTile);
+                check(launchpad.ExecutionStatus.Contains("無法在這臺設備執行", StringComparison.Ordinal) && launchpad.PendingEntries.Length == 1, "Pressing it runs nothing and explains the choices");
+                launchpad.EditDialog = (entry, mainName, main, canChoose) => { offered = (mainName, main, canChoose); return (entry with { Steps = [new("Open", @"C:\Windows\explorer.exe")] }, true); };
+                try { items[1].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); } finally { launchpad.EditDialog = editor; }
+                check(offered is ("Main PC", false, true) && Pump(() => tray.Shortcuts.Entries.SingleOrDefault()?.Name == "Files") && Pump(() => launchpad.PendingEntries.Length == 0),
+                    "Editing a pending shortcut can save it to the main computer, which removes it from pending");
+                var cleanup = launchpad.DeleteRemoteAsync(tray.Shortcuts.Entries.Single().Id);
+                Pump(() => cleanup.IsCompleted);
+            }
+            finally { File.Delete(file); }
         }
         finally
         {

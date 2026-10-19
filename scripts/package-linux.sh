@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # Builds the self-contained linux-x64 AppImage, a .deb and a tar.gz of the same files, then starts the
 # AppImage candidate once with an isolated profile. Usage: scripts/package-linux.sh [--version X.Y.Z] [--output DIR] [--offline]
+# [--prebuilt DIR] packages a self-contained linux-x64 publish made elsewhere (for example on Windows) instead of publishing here.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 version="$(sed -n 's:.*<Version Condition="[^"]*">\([0-9.]*\)</Version>.*:\1:p' "$root/Directory.Build.props")"
 output="artifacts/linux/release"
 offline=0
+prebuilt=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --version) version="$2"; shift ;;
     --output) output="$2"; shift ;;
     --offline) offline=1 ;;
+    --prebuilt) prebuilt="$(realpath "$2")"; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -30,8 +33,15 @@ trap 'rm -rf "$staging"' EXIT
 mkdir -p "$appdir/usr/bin" "$staging/tmp"
 audit=(-p:NuGetAudit=true -p:NuGetAuditMode=all)
 [[ $offline == 1 ]] && { audit=(-p:NuGetAudit=false); echo "WARNING: offline package: dependency vulnerability auditing is NOT completed." >&2; }
+if [[ -n "$prebuilt" ]]; then
+  [[ -x "$prebuilt/secondary" || -f "$prebuilt/secondary" ]] || { echo "No secondary build in $prebuilt" >&2; exit 2; }
+  cp -a "$prebuilt/." "$appdir/usr/bin/"
+  chmod 755 "$appdir/usr/bin/secondary"; [[ -f "$appdir/usr/bin/createdump" ]] && chmod 755 "$appdir/usr/bin/createdump"
+  echo "Packaging the prebuilt files in $prebuilt; their build and dependency audit happened where they were published." >&2
+else
 "$sdk" publish "$root/src/Secondary.Linux/Secondary.Linux.csproj" -c Release -r linux-x64 --self-contained true -o "$appdir/usr/bin" \
   -p:Version="$version" -p:PublishSingleFile=false -p:PublishReadyToRun=false -p:RestoreLockedMode=true -m:1 "${audit[@]}"
+fi
 [[ -x "$appdir/usr/bin/secondary" ]] || { echo "Missing package component: usr/bin/secondary" >&2; exit 1; }
 id=io.github.hmgvibe.Secondary
 cp "$root/src/Secondary.Linux/Assets/secondary.png" "$appdir/$id.png"

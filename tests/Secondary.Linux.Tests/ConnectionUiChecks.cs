@@ -222,7 +222,7 @@ internal static class ConnectionUiChecks
         Check(PumpUntil(() => keys.IsCompleted) && launchpad.ExecutionStatus.Contains("Windows 設備編輯", StringComparison.Ordinal) && !window.ShortcutEditorOpen,
             "Shortcuts with window-key steps are not edited on Linux");
         var edit = launchpad.EditRemote(helper.Shortcuts[0]);
-        Check(PumpUntil(() => window.ShortcutEditorOpen) && window.OpenShortcutEditor is { Main: true, MainChoice: null }, "An existing main-computer shortcut opens in the editor with its location fixed");
+        Check(PumpUntil(() => window.ShortcutEditorOpen) && window.OpenShortcutEditor is { Main: true, MainChoice: not null }, "An existing main-computer shortcut opens in the editor with 主電腦 chosen and 本機 offered");
         window.CloseShortcutEditor(null); PumpUntil(() => edit.IsCompleted);
         Press(launchpad.RemoteTiles.Single());
         Check(PumpUntil(() => launchpad.ExecutionStatus.StartsWith("等待主電腦確認", StringComparison.Ordinal)), "The Linux device shows that the main computer is asking its user");
@@ -234,6 +234,35 @@ internal static class ConnectionUiChecks
         }
         var delete = launchpad.DeleteRemoteAsync(helper.Shortcuts[0].Id);
         Check(PumpUntil(() => delete.IsCompleted) && delete.Result && PumpUntil(() => !launchpad.RemoteTiles.Any()) && helper.Shortcuts.Count == 0, "A Linux device can delete a main-computer shortcut");
+
+        // Editing moves a shortcut between this device and the main computer.
+        var docs = launchpad.Entries.Single(e => e.Name == "Docs");
+        var move = launchpad.Edit(docs);
+        Check(PumpUntil(() => window.ShortcutEditorOpen) && window.OpenShortcutEditor is { Main: false, MainChoice: not null }, "Editing a local shortcut while connected offers the main computer");
+        window.OpenShortcutEditor!.MainChoice!.IsChecked = true; Pump();
+        Check(window.SaveShortcutEditor() && PumpUntil(() => move.IsCompleted) && helper.Shortcuts.SingleOrDefault()?.Name == "Docs" && !launchpad.Entries.Any(e => e.Name == "Docs"),
+            "Choosing 主電腦 moves it there and removes it here");
+        var back = launchpad.EditRemote(helper.Shortcuts.Single());
+        PumpUntil(() => window.ShortcutEditorOpen);
+        window.OpenShortcutEditor!.LocalChoice!.IsChecked = true; Pump();
+        Check(window.SaveShortcutEditor() && PumpUntil(() => back.IsCompleted) && PumpUntil(() => helper.Shortcuts.Count == 0) && launchpad.Entries.Any(e => e.Name == "Docs"),
+            "Choosing 本機 moves a main-computer shortcut back here");
+
+        // A pending shortcut from Windows goes to the main computer when its tile is pressed, after asking.
+        var file = Path.Combine(Path.GetTempPath(), "Secondary.Pending-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            File.WriteAllBytes(file, ShortcutTransfer.Export([], "Vertical", [new ShortcutEntry("save", "Save", "工作", Steps: [new("Keys", "Ctrl+S", ProcessName: "notepad", WindowTitle: "a.txt - Notepad")])]));
+            var import = launchpad.ImportFrom(file);
+            PumpUntil(() => window.ConfirmOpen); window.AnswerConfirm(true);
+            Check(PumpUntil(() => import.IsCompleted) && import.Result && launchpad.PendingTiles.Count() == 1, "An imported Windows shortcut shows as pending");
+            Press(launchpad.PendingTiles.Single());
+            Check(PumpUntil(() => window.ConfirmOpen), "Pressing it while connected asks before moving it to the main computer");
+            window.AnswerConfirm(true);
+            Check(PumpUntil(() => helper.Shortcuts.Any(s => s.Name == "Save")) && PumpUntil(() => launchpad.PendingEntries.Length == 0) && PumpUntil(() => launchpad.RemoteTiles.Count() == 1),
+                "Accepting moves it to the main computer, where it can run");
+        }
+        finally { File.Delete(file); }
         window.Navigate("home"); Pump();
     }
 

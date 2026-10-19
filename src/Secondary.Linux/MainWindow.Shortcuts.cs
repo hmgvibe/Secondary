@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Secondary.Core;
 using Secondary.Linux.Shortcuts;
 
@@ -78,6 +79,24 @@ public partial class MainWindow
         if (shortcutEditor?.TryBuild() is not { } built) return false;
         CloseShortcutEditor(built);
         return true;
+    }
+    public async Task<string?> PickExportPathAsync(string suggestedName)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "匯出快捷導航設定", SuggestedFileName = suggestedName, DefaultExtension = "json",
+            FileTypeChoices = [new FilePickerFileType("Secondary 快捷導航設定") { Patterns = ["*.json"] }]
+        });
+        return file?.TryGetLocalPath();
+    }
+    public async Task<string?> PickImportPathAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "匯入快捷導航設定", AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("Secondary 快捷導航設定") { Patterns = ["*.json"] }]
+        });
+        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
     public async Task<AppSelection?> PickAppsAsync(System.Collections.Generic.ISet<string> existing, System.Collections.Generic.IReadOnlyList<string> groups, string group)
     {

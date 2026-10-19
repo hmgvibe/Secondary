@@ -1,5 +1,5 @@
 param(
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '1.1.0',
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '1.2.0',
     [ValidateSet('Bundled','Installed')][string]$RuntimeMode = 'Bundled',
     [string]$OutputRoot = 'artifacts/release',
     [switch]$Offline

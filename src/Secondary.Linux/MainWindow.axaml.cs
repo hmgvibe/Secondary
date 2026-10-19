@@ -275,11 +275,12 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
             LauncherState.Current => "已加入應用程式選單：" + launcher.Program,
             LauncherState.Elsewhere => "選單中的 Secondary 指向其他位置；按「更新應用程式選單」改為目前的程式。",
             LauncherState.Packaged => "安裝包已加入應用程式選單，不需要另外加入。",
+            LauncherState.Shadowed => "之前加入的選單項目蓋過了安裝包的項目，可能指向已刪除的檔案；按「從選單移除」改用安裝包的項目。",
             _ => "尚未加入應用程式選單。"
         };
         InstallLauncherButton.Content = state == LauncherState.Elsewhere ? "更新應用程式選單" : "加入應用程式選單";
         InstallLauncherButton.IsEnabled = state is LauncherState.Missing or LauncherState.Elsewhere;
-        RemoveLauncherButton.IsEnabled = state is LauncherState.Current or LauncherState.Elsewhere;
+        RemoveLauncherButton.IsEnabled = state is LauncherState.Current or LauncherState.Elsewhere or LauncherState.Shadowed;
     }
     private async void OnInstallLauncher(object? sender, RoutedEventArgs e)
     {

@@ -89,10 +89,24 @@ public sealed partial class LaunchpadView
         return tile;
     }
 
+    // Choosing 本機 in the editor moves the shortcut here: saved locally first, then removed from the main computer.
     public void EditRemote(ShortcutEntry entry)
     {
         if (remote is not { State: LinkState.Connected } link) { status.Text = "主電腦未連線，無法編輯主電腦的捷徑。"; return; }
-        if (EditDialog(entry, link.ConnectedName ?? "主電腦", true, false) is { } changed) _ = SaveRemoteAsync(changed.Entry);
+        if (EditDialog(entry, link.ConnectedName ?? "主電腦", true, true) is not { } changed) return;
+        if (changed.Main) { _ = SaveRemoteAsync(changed.Entry); return; }
+        if (library.ReadOnly) { status.Text = library.Error; return; }
+        if (!Save(entries.Append(changed.Entry with { ApprovedFingerprint = null }).ToArray())) return;
+        _ = MoveDoneAsync(DeleteRemoteAsync(changed.Entry.Id), "已移到本機；第一次執行時需要確認。");
+    }
+    private async Task MoveDoneAsync(Task<bool> step, string done) { if (await step && !disposed) status.Text = done; }
+    // Saved on the main computer first; only then is it removed here.
+    private async Task<bool> MoveToMainAsync(ShortcutEntry entry, Func<bool> removeHere)
+    {
+        if (!await SaveRemoteAsync(entry with { ApprovedFingerprint = null })) return false;
+        if (!removeHere()) return false;
+        status.Text = $"已移到主電腦「{remote?.ConnectedName}」；第一次在那裡執行時需要在主電腦上確認。";
+        return true;
     }
     public Task<bool> SaveRemoteAsync(ShortcutEntry entry) => ChangeRemoteAsync(link => RemoteShortcuts.SaveAsync(link, entry), "已儲存到主電腦；沒有執行任何操作。");
     public Task<bool> DeleteRemoteAsync(string id) => ChangeRemoteAsync(link => RemoteShortcuts.DeleteAsync(link, id), "已從主電腦刪除。");

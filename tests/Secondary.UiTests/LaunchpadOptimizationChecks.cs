@@ -98,6 +98,27 @@ internal static class LaunchpadOptimizationChecks
 
             view.Dispose();
             check(!view.IsExecuting, "Disposing the launchpad ends its execution lifetime");
+
+            // Export and import through the toolbar buttons, with the file pickers and confirmation substituted.
+            var exported = Path.Combine(directory, "export.json"); string? confirmText = null; var accept = false;
+            using var source = new LaunchpadView(path) { Resources = window.Resources, PickExportPath = () => exported };
+            Layout(source);
+            Click(source, "匯出設定");
+            check(File.Exists(exported) && source.ExecutionStatus.StartsWith("已匯出 3 個") && !File.ReadAllText(exported).Contains(wait.ApprovedFingerprint!),
+                "Export writes every shortcut without approvals and reports the count");
+            var targetPath = Path.Combine(directory, "target.json");
+            check(new ShortcutLibrary(targetPath).Save([new("other", "Other", "Misc", Steps: [new("Open", "https://example.invalid/other")])]), "Import target fixture saves");
+            using var target = new LaunchpadView(targetPath) { Resources = window.Resources, PickImportPath = () => exported, ConfirmImport = text => { confirmText = text; return accept; } };
+            Layout(target);
+            Click(target, "匯入設定");
+            check(target.EntryCount == 1 && confirmText!.Contains("3 個捷徑取代目前的 1 個") && target.ExecutionStatus.StartsWith("已取消匯入"),
+                "Declining the import confirmation changes nothing");
+            accept = true; Click(target, "匯入設定"); Layout(target);
+            check(target.EntryCount == 3 && Tiles(target).Length == 3 && new ShortcutLibrary(targetPath).Load().All(e => e.ApprovedFingerprint is null),
+                "Accepting replaces the launchpad and every imported shortcut needs confirmation again");
+            check(File.Exists(Path.Combine(directory, "target.before-import.json")), "Import keeps a backup of the replaced configuration");
+            File.WriteAllText(exported, "not a settings file");
+            check(!target.ImportFrom(exported) && target.ExecutionStatus.StartsWith("匯入失敗") && target.EntryCount == 3, "A broken file is refused without changes");
         }
         finally { Directory.Delete(directory, true); }
     }
@@ -133,6 +154,8 @@ internal static class LaunchpadOptimizationChecks
             Directory.Delete(directory, true);
         }
     }
+    private static void Click(LaunchpadView view, string label) =>
+        Descendants(view).OfType<Button>().Single(b => b.Content as string == label).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static Button[] Tiles(LaunchpadView view) => Descendants(view).OfType<Button>().Where(b => b.Content is StackPanel).ToArray();
     private static void Layout(FrameworkElement element)
     {

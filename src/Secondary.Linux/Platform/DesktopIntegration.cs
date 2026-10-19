@@ -46,7 +46,7 @@ public static class LaunchCommand
     private static string Quote(string path) => path.All(c => char.IsLetterOrDigit(c) || "/._-+".Contains(c)) ? path : "'" + path.Replace("'", "'\\''") + "'";
 }
 
-public enum LauncherState { Missing, Current, Elsewhere, Packaged }
+public enum LauncherState { Missing, Current, Elsewhere, Packaged, Shadowed }
 
 // GNOME only grants portal features such as global shortcuts to apps whose ID has an installed
 // .desktop file. Writing one is the user's choice and touches only their own XDG data directory.
@@ -71,9 +71,11 @@ public sealed class DesktopLauncher(string dataHome, string program, IReadOnlyLi
         {
             try
             {
-                if (!File.Exists(DesktopFile))
-                    return (systemDirectories ?? []).Any(d => File.Exists(Path.Combine(d, "applications", DesktopPortal.ApplicationId + ".desktop"))) ? LauncherState.Packaged : LauncherState.Missing;
-                return File.ReadAllText(DesktopFile) == Content(program) ? LauncherState.Current : LauncherState.Elsewhere;
+                var packaged = (systemDirectories ?? []).Any(d => File.Exists(Path.Combine(d, "applications", DesktopPortal.ApplicationId + ".desktop")));
+                if (!File.Exists(DesktopFile)) return packaged ? LauncherState.Packaged : LauncherState.Missing;
+                if (File.ReadAllText(DesktopFile) == Content(program)) return LauncherState.Current;
+                // An entry added from an older AppImage hides the .deb's menu item and may point at a deleted file.
+                return packaged ? LauncherState.Shadowed : LauncherState.Elsewhere;
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return LauncherState.Missing; }
         }
@@ -89,8 +91,8 @@ public sealed class DesktopLauncher(string dataHome, string program, IReadOnlyLi
 
     public void Remove()
     {
-        File.Delete(DesktopFile);
-        File.Delete(IconFile);
+        // An entry may have been written without its icon, so only delete what is there.
+        foreach (var file in new[] { DesktopFile, IconFile }) if (File.Exists(file)) File.Delete(file);
     }
 
     private static void WriteAtomically(string path, Action<string> write)

@@ -212,13 +212,13 @@ try
     Check(ShortcutPolicy.Validate(link with { Steps = [new("Keys","Ctrl+S",ProcessName:"notepad",WindowTitle:"Document")] }) is null, "Keys require a precise named target");
     // Linux rules: .sh scripts, arguments for executables and AppImages, no key sending under Wayland.
     var linux = ShortcutRules.Linux;
-    Check(ShortcutPolicy.Validate(link with { Steps = [new("Script",@"C:\tools\backup.sh")] }, linux) is null && ShortcutPolicy.Validate(link with { Steps = [new("Script",@"C:\x.ps1")] }, linux) is not null,
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Script",@"/tools/backup.sh")] }, linux) is null && ShortcutPolicy.Validate(link with { Steps = [new("Script",@"/x.ps1")] }, linux) is not null,
         "Linux scripts are .sh only");
-    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\tools\backup.sh")] }, linux) is not null && ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\tools\run.py")] }, linux) is not null,
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"/tools/backup.sh")] }, linux) is not null && ShortcutPolicy.Validate(link with { Steps = [new("Open",@"/tools/run.py")] }, linux) is not null,
         "Linux scripts cannot bypass the script step");
-    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\opt\game\launcher","--windowed")] }, linux) is null && ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\apps\Tool.AppImage","-v")] }, linux) is null,
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"/opt/game/launcher","--windowed")] }, linux) is null && ShortcutPolicy.Validate(link with { Steps = [new("Open",@"/apps/Tool.AppImage","-v")] }, linux) is null,
         "Linux passes arguments to executables and AppImages");
-    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\docs\note.txt","-x")] }, linux) is not null && ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\apps\tool.exe","-x")] }, linux) is not null,
+    Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"/docs/note.txt","-x")] }, linux) is not null && ShortcutPolicy.Validate(link with { Steps = [new("Open",@"/apps/tool.exe","-x")] }, linux) is not null,
         "Linux refuses arguments for documents and Windows programs");
     Check(ShortcutPolicy.Validate(link with { Steps = [new("Keys","Ctrl+S",ProcessName:"gedit",WindowTitle:"Document")] }, linux) is { } keys && keys.Contains("Wayland"),
         "Linux explains that window key steps are unavailable");
@@ -269,6 +269,7 @@ DataOptimizationChecks.Run(Check);
 ConnectionChecks.Run(Check);
 RemoteGameChecks.Run(Check);
 RemoteDeviceChecks.Run(Check);
+ShortcutTransferChecks.Run(Check);
 Console.WriteLine($"{passed} tests passed.");
 
 sealed class TrackingModule : ISectionModule

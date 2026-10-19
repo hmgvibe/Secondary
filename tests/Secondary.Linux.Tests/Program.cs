@@ -120,6 +120,11 @@ internal static class Program
             Directory.CreateDirectory(Path.Combine(system, "applications"));
             File.WriteAllText(Path.Combine(system, "applications", "io.github.hmgvibe.Secondary.desktop"), DesktopLauncher.Content("secondary"));
             Check(packaged.State == LauncherState.Packaged, "A system entry from the .deb counts as already added");
+            Directory.CreateDirectory(Path.Combine(data, "user", "applications"));
+            File.WriteAllText(packaged.DesktopFile, DesktopLauncher.Content("/old/Secondary-v1.0.2.AppImage"));
+            Check(packaged.State == LauncherState.Shadowed, "An old AppImage entry hiding the .deb's entry is reported for removal");
+            packaged.Remove();
+            Check(packaged.State == LauncherState.Packaged, "Removing the old entry brings back the .deb's entry");
             var dirs = DesktopLauncher.FromEnvironment(v => v == "XDG_DATA_DIRS" ? system + ":relative:" : null, home, "/opt/secondary/secondary");
             Check(dirs.State == (OperatingSystem.IsWindows() ? LauncherState.Missing : LauncherState.Packaged), "XDG_DATA_DIRS is searched, ignoring relative entries");
         }

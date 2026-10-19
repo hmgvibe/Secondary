@@ -4,7 +4,9 @@ namespace Secondary.Core;
 
 public sealed record ShortcutStep(string Kind = "Open", string Target = "", string Arguments = "", string WorkingDirectory = "", int Seconds = 1, string ProcessName = "", string WindowTitle = "");
 public sealed record ShortcutEntry(string Id, string Name, string Group = "日常", string Icon = "↗", ShortcutStep[]? Steps = null, string? ApprovedFingerprint = null);
-public sealed record ShortcutDocument(int Version = 1, ShortcutEntry[]? Entries = null, string GroupLayout = "Vertical");
+// Pending: imported shortcuts this system cannot run (another system's paths or steps), kept until the user
+// moves them to the main computer, edits them or deletes them. They are never run here.
+public sealed record ShortcutDocument(int Version = 1, ShortcutEntry[]? Entries = null, string GroupLayout = "Vertical", ShortcutEntry[]? Pending = null);
 
 // What each platform can run. Windows keeps its original rules; Linux runs .sh scripts through
 // /bin/sh, passes arguments to executables, and cannot send keys to other windows under Wayland.
@@ -15,12 +17,24 @@ public sealed record ShortcutRules(string[] ScriptExtensions, string[] OpenBlock
         "外部腳本只支援本機 .ps1／.bat／.cmd。", "請將受支援的腳本改用「腳本」步驟；不支援其他脚本類型。", "啟動參數只適用於 .exe 程式。", null);
     public static readonly ShortcutRules Linux = new([".sh"], [".sh", ".bash", ".zsh", ".py", ".pl", ".rb"], ["", ".appimage"],
         "外部腳本只支援本機 .sh（以 /bin/sh 執行）。", "請將 .sh 改用「腳本」步驟；不支援其他腳本類型。", "啟動參數只適用於可執行程式或 AppImage。",
-        "Wayland 不允許程式向其他視窗送出按鍵；Linux 版沒有「視窗快捷鍵」步驟。");
+        "Wayland 不允許程式向其他視窗送出按鍵；Linux 版沒有「視窗快捷鍵」步驟。") { UnixPaths = true };
+    public static ShortcutRules[] All => [Windows, Linux];
+    public bool UnixPaths { get; private init; }
+    // Windows runs drive paths; Linux runs absolute non-network paths. Each system's paths are invalid on the
+    // other, so an import can tell what this device can run. (Drive paths stay valid for the Linux rules on a
+    // Windows host only so the shared Linux test suite can run there; Linux builds never run on Windows.)
+    public bool IsLocalPath(string? path)
+    {
+        var drive = path is { Length: > 3 } && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] is '\\' or '/';
+        var unix = path is { Length: > 1 } && path[0] == '/' && path[1] != '/';
+        return UnixPaths ? unix || drive && OperatingSystem.IsWindows() : drive;
+    }
 }
 
 public static class ShortcutPolicy
 {
     public static string? Validate(ShortcutEntry entry) => Validate(entry, ShortcutRules.Windows);
+    public static bool ValidAnywhere(ShortcutEntry entry) => ShortcutRules.All.Any(r => Validate(entry, r) is null);
     public static string? Validate(ShortcutEntry entry, ShortcutRules rules)
     {
         if (string.IsNullOrWhiteSpace(entry.Id) || string.IsNullOrWhiteSpace(entry.Name) || entry.Name.Length > 80 || entry.Group.Length > 40 || entry.Icon.Length > 8) return "請填寫名稱（最多 80 字）、分組（最多 40 字）、圖示（最多 8 字）。";
@@ -38,11 +52,11 @@ public static class ShortcutPolicy
             }
             if (step.Kind is not ("Open" or "Script")) return "不支援的步驟。";
             var web = Uri.TryCreate(step.Target,UriKind.Absolute,out var uri) && uri.Scheme is "http" or "https";
-            if (!web && !HomeSettings.IsLocalPath(step.Target)) return "目標需為本機絕對路徑或 HTTP／HTTPS 網址。";
+            if (!web && !rules.IsLocalPath(step.Target)) return rules.UnixPaths ? "目標需為以 / 開頭的本機路徑或 HTTP／HTTPS 網址。" : "目標需為本機磁碟路徑（例如 C:\\）或 HTTP／HTTPS 網址。";
             var extension = Path.GetExtension(step.Target).ToLowerInvariant();
             if (step.Kind == "Script" && (web || !rules.ScriptExtensions.Contains(extension))) return rules.ScriptMessage;
             if (step.Kind == "Open" && rules.OpenBlocked.Contains(extension)) return rules.OpenBlockedMessage;
-            if (step.WorkingDirectory.Length > 0 && !HomeSettings.IsLocalPath(step.WorkingDirectory)) return "工作目錄需為本機絕對路徑。";
+            if (step.WorkingDirectory.Length > 0 && !rules.IsLocalPath(step.WorkingDirectory)) return "工作目錄需為本機絕對路徑。";
             if (web && (step.Arguments.Length > 0 || step.WorkingDirectory.Length > 0)) return "網站不接受參數或工作目錄。";
             if (step.Kind == "Open" && step.Arguments.Length > 0 && (web || !rules.ArgumentExtensions.Contains(extension))) return rules.ArgumentsMessage;
             if (step.Target.Contains('"') || step.Target.Contains('\r') || step.Target.Contains('\n')) return "目標包含無效字元。";
@@ -77,36 +91,57 @@ public sealed class ShortcutLibrary(string path, ShortcutRules? rules = null)
     public string? Error { get; private set; }
     public bool ReadOnly { get; private set; }
     public string GroupLayout { get; private set; } = "Vertical";
+    public ShortcutEntry[] Pending { get; private set; } = [];
     public ShortcutEntry[] Load()
     {
         try
         {
-            Error = null; ReadOnly = false; GroupLayout = "Vertical";
+            Error = null; ReadOnly = false; GroupLayout = "Vertical"; Pending = [];
             if (!File.Exists(path)) return [];
             var doc = BoundedJson.Read<ShortcutDocument>(path, MaximumBytes, "捷徑資料過大。");
-            if (doc?.Version != 1 || doc.Entries is null || doc.Entries.Length > 200 || doc.Entries.Any(e => e is null || ShortcutPolicy.Validate(e, rules) is not null) || doc.Entries.Select(e => e.Id).Distinct().Count() != doc.Entries.Length)
+            if (doc?.Version != 1 || doc.Entries is null || doc.Entries.Length > 200 || doc.Entries.Any(e => e is null || !ShortcutPolicy.ValidAnywhere(e)) || doc.Entries.Select(e => e.Id).Distinct().Count() != doc.Entries.Length)
                 throw new InvalidDataException("捷徑資料格式不正確；保留原檔，未覆寫。");
+            // Shortcuts saved by an earlier version that only another system can run become pending
+            // instead of making the whole file unreadable; the next save stores them that way.
+            var runnable = doc.Entries.Where(e => ShortcutPolicy.Validate(e, rules) is null).ToArray();
+            var pending = (doc.Pending ?? []).Concat(doc.Entries.Where(e => ShortcutPolicy.Validate(e, rules) is not null)).ToArray();
+            if (pending.Length > 200 || pending.Any(e => e is null || !ShortcutPolicy.ValidAnywhere(e)) || pending.Select(e => e.Id).Concat(runnable.Select(e => e.Id)).Distinct().Count() != pending.Length + runnable.Length)
+                throw new InvalidDataException("捷徑資料格式不正確；保留原檔，未覆寫。");
+            Pending = pending;
             GroupLayout = doc.GroupLayout == "Horizontal" ? "Horizontal" : "Vertical";
-            return doc.Entries;
+            return runnable;
         }
         catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or ArgumentException or NullReferenceException)
         { Error = e.Message; ReadOnly = true; return []; }
     }
-    public bool Save(ShortcutEntry[] entries)
+    public bool Save(ShortcutEntry[] entries) => Save(entries, Pending);
+    public bool Save(ShortcutEntry[] entries, ShortcutEntry[] pending)
     {
         if (ReadOnly) return false;
         if (entries.Length > 200 || entries.Any(e => ShortcutPolicy.Validate(e, rules) is not null) || entries.Select(e => e.Id).Distinct().Count() != entries.Length) { Error = "捷徑內容無效或超過 200 筆。"; return false; }
+        if (pending.Length > 200 || pending.Any(e => !ShortcutPolicy.ValidAnywhere(e)) || pending.Select(e => e.Id).Concat(entries.Select(e => e.Id)).Distinct().Count() != pending.Length + entries.Length) { Error = "待處理的捷徑內容無效。"; return false; }
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            var bytes = BoundedJson.Serialize(new ShortcutDocument(Entries:entries,GroupLayout:GroupLayout), MaximumBytes,
+            var bytes = BoundedJson.Serialize(new ShortcutDocument(Entries:entries,GroupLayout:GroupLayout,Pending:pending.Length > 0 ? pending : null), MaximumBytes,
                 "捷徑資料超過 4 MB，請縮減步驟或啟動參數；原檔未覆寫。");
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             File.WriteAllBytes(temp, bytes);
-            File.Move(temp,path,true); Error = null; return true;
+            File.Move(temp,path,true); Error = null; Pending = pending; return true;
         }
         catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException) { Error = e.Message; return false; }
         finally { try { if (File.Exists(temp)) File.Delete(temp); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+    }
+    public string BackupPath => Path.ChangeExtension(Path.GetFullPath(path), null) + ".before-import.json";
+    // Replaces everything with an import. The current file is copied aside first so the import can be undone by hand.
+    public bool Replace(ShortcutImportResult imported)
+    {
+        if (ReadOnly) { Error ??= "目前的捷徑資料無法讀取，未匯入。"; return false; }
+        try { if (File.Exists(path)) File.Copy(path, BackupPath, true); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Error = "無法備份目前設定，未匯入：" + e.Message; return false; }
+        var previous = GroupLayout; GroupLayout = imported.GroupLayout;
+        if (Save(imported.Entries, imported.Pending)) return true;
+        GroupLayout = previous; return false;
     }
     public bool SetGroupLayout(ShortcutEntry[] entries, string layout)
     {
@@ -114,6 +149,42 @@ public sealed class ShortcutLibrary(string path, ShortcutRules? rules = null)
         var previous = GroupLayout; GroupLayout = layout;
         if (Save(entries)) return true;
         GroupLayout = previous; return false;
+    }
+}
+
+// Export and import of the launchpad's whole configuration: this device's shortcuts, their groups and the
+// group layout. Approvals never travel: an imported macro is confirmed again before its first run.
+public sealed record ShortcutImportResult(ShortcutEntry[] Entries, string GroupLayout, int Skipped, ShortcutEntry[] Pending);
+public static class ShortcutTransfer
+{
+    public static byte[] Export(IEnumerable<ShortcutEntry> entries, string groupLayout, IEnumerable<ShortcutEntry>? pending = null)
+    {
+        var waiting = (pending ?? []).Select(e => e with { ApprovedFingerprint = null }).ToArray();
+        return BoundedJson.Serialize(new ShortcutDocument(Entries: entries.Select(e => e with { ApprovedFingerprint = null }).ToArray(),
+            GroupLayout: groupLayout == "Horizontal" ? "Horizontal" : "Vertical", Pending: waiting.Length > 0 ? waiting : null), ShortcutLibrary.MaximumBytes, "捷徑資料超過 4 MB，無法匯出。");
+    }
+
+    // Entries this platform cannot run but another system can (its paths or step kinds) become pending;
+    // entries no system can run are skipped and counted. A pending entry this platform can run comes back.
+    public static ShortcutImportResult Read(string path, ShortcutRules rules)
+    {
+        ShortcutDocument? doc;
+        try { doc = BoundedJson.Read<ShortcutDocument>(path, ShortcutLibrary.MaximumBytes, "檔案超過 4 MB，不是 Secondary 的捷徑設定。"); }
+        catch (JsonException) { throw new InvalidDataException("檔案不是 Secondary 的捷徑設定。"); }
+        if (doc is not { Version: 1, Entries: not null }) throw new InvalidDataException("檔案不是 Secondary 的捷徑設定，或版本不支援。");
+        var kept = new List<ShortcutEntry>(); var pending = new List<ShortcutEntry>(); var ids = new HashSet<string>(); var skipped = 0;
+        var all = doc.Entries.Concat(doc.Pending ?? []).ToArray();
+        foreach (var raw in all)
+        {
+            if (raw is null) { skipped++; continue; }
+            var entry = raw with { ApprovedFingerprint = null };
+            var target = ShortcutPolicy.Validate(entry, rules) is null ? kept : ShortcutPolicy.ValidAnywhere(entry) ? pending : null;
+            if (target is null || target.Count >= 200) { skipped++; continue; }
+            if (!ids.Add(entry.Id)) { entry = entry with { Id = Guid.NewGuid().ToString("N") }; ids.Add(entry.Id); }
+            target.Add(entry);
+        }
+        if (kept.Count == 0 && pending.Count == 0 && all.Length > 0) throw new InvalidDataException("檔案中沒有可以使用的捷徑；未變更目前設定。");
+        return new(kept.ToArray(), doc.GroupLayout == "Horizontal" ? "Horizontal" : "Vertical", skipped, pending.ToArray());
     }
 }
 

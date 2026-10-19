@@ -21,6 +21,7 @@ internal static class ShortcutChecks
         {
             TestLaunchpad(directory, output);
             TestEditorInWindow(directory, output);
+            TestTransfer(directory);
             if (OperatingSystem.IsLinux()) TestLinuxExecutor(directory);
         }
         finally { Directory.Delete(directory, true); }
@@ -194,8 +195,51 @@ internal static class ShortcutChecks
     private static void Wait(Task task) { PumpUntil(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
     private static void PumpUntil(Func<bool> done) { for (var i = 0; i < 500 && !done(); i++) { Pump(); Thread.Sleep(10); } Pump(); }
 
+    // Export and import through the toolbar buttons; a Windows export keeps only what Linux can run.
+    private static void TestTransfer(string directory)
+    {
+        var path = Path.Combine(directory, "transfer.json");
+        var web = new ShortcutEntry("web", "網站", "日常", Steps: [new("Open", "https://example.com")]);
+        var keys = new ShortcutEntry("keys", "存檔", "工作", Steps: [new("Keys", "Ctrl+S", ProcessName: "notepad", WindowTitle: "Document")]);
+        var windowsFile = Path.Combine(directory, "from-windows.json");
+        File.WriteAllBytes(windowsFile, ShortcutTransfer.Export([web, keys], "Horizontal"));
+        Check(new ShortcutLibrary(path, ShortcutRules.Linux).Save([web with { Id = "old", Name = "舊的" }]), "Transfer fixture saves");
+        var host = new FakeHost { ImportPath = windowsFile, ExportPath = Path.Combine(directory, "exported.json") };
+        var executor = new FakeExecutor();
+        var launchpad = new LaunchpadView(path, host, executor);
+        var window = new Window { Width = 1200, Height = 820, Content = new ScrollViewer { Content = launchpad } };
+        Palette.Apply(window.Resources, false, false, false);
+        window.Show(); Pump();
+        Button Tool(string label) => launchpad.GetVisualDescendantsOfType<Button>().Single(b => b.Content as string == label);
+        host.Answers.Enqueue(false);
+        Tool("匯入設定").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); PumpUntil(() => launchpad.ExecutionStatus.StartsWith("已取消匯入", StringComparison.Ordinal));
+        Check(launchpad.Entries.Single().Id == "old" && host.Confirmations[^1].Contains("1 個無法在這臺設備執行，會列為「待處理」", StringComparison.Ordinal), "Declining keeps the launchpad and the prompt names the pending shortcuts");
+        host.Answers.Enqueue(true);
+        Tool("匯入設定").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); PumpUntil(() => launchpad.ExecutionStatus.StartsWith("已匯入", StringComparison.Ordinal));
+        Check(launchpad.Entries.Single().Id == "web" && launchpad.GroupLayout == "Horizontal" && launchpad.Tiles.Count() == 1, "Accepting replaces shortcuts and layout with what Linux can run");
+        Check(launchpad.PendingEntries.Single().Id == "keys" && launchpad.PendingTiles.Count() == 1, "What Linux cannot run is kept as a pending tile");
+        var pendingTile = launchpad.PendingTiles.Single();
+        Check(((TextBlock)((StackPanel)pendingTile.Content!).Children[2]).Text!.Contains("待處理", StringComparison.Ordinal)
+            && pendingTile.ContextMenu!.Items.OfType<MenuItem>().Select(i => (i.Header as string, i.IsEnabled)).SequenceEqual([("移到主電腦執行", false), ("編輯", false), ("刪除", true)]),
+            "A pending tile is marked, and without a main computer or a Linux editor for window keys it can only be deleted");
+        var calls = executor.Calls.Count;
+        pendingTile.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Pump();
+        Check(launchpad.ExecutionStatus.Contains("無法在這臺設備執行", StringComparison.Ordinal) && executor.Calls.Count == calls, "Pressing a pending tile runs nothing and explains the choices");
+        Tool("匯出設定").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); PumpUntil(() => File.Exists(host.ExportPath));
+        Check(ShortcutTransfer.Read(host.ExportPath!, ShortcutRules.Linux) is { Entries: [{ Name: "網站" }], Pending: [{ Name: "存檔" }] }, "Export writes the current launchpad with its pending shortcuts");
+        host.Answers.Enqueue(true);
+        launchpad.PendingTiles.Single().ContextMenu!.Items.OfType<MenuItem>().Last().RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+        PumpUntil(() => launchpad.PendingEntries.Length == 0);
+        Check(launchpad.PendingEntries.Length == 0 && !launchpad.PendingTiles.Any() && new ShortcutLibrary(path, ShortcutRules.Linux) is var saved && saved.Load().Length == 1 && saved.Pending.Length == 0,
+            "Deleting a pending shortcut asks first and keeps the others");
+        window.Close(); launchpad.Dispose();
+    }
+
     private sealed class FakeHost : ILaunchpadHost
     {
+        public string? ExportPath, ImportPath;
+        public Task<string?> PickExportPathAsync(string suggestedName) => Task.FromResult(ExportPath);
+        public Task<string?> PickImportPathAsync() => Task.FromResult(ImportPath);
         public Queue<bool> Answers { get; } = new();
         public Queue<ShortcutEntry?> Edits { get; } = new();
         public List<string> Confirmations { get; } = new();

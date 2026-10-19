@@ -31,6 +31,9 @@ public interface ILaunchpadHost
         await EditShortcutAsync(entry, main ? ShortcutRules.Windows : ShortcutRules.Linux) is { } edited ? (edited, main) : null;
     // Returns the .desktop files the user chose and the group they all go into, or null.
     Task<AppSelection?> PickAppsAsync(ISet<string> existing, IReadOnlyList<string> groups, string group);
+    // Local paths for exporting or importing the launchpad configuration, or null when cancelled.
+    Task<string?> PickExportPathAsync(string suggestedName) => Task.FromResult<string?>(null);
+    Task<string?> PickImportPathAsync() => Task.FromResult<string?>(null);
 }
 
 public sealed record AppSelection(string[] Files, string Group);
@@ -83,6 +86,8 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         toolbar.Children.Add(ToolButton("＋ 新增", () => _ = Add()));
         toolbar.Children.Add(ToolButton("＋ 選擇 App", () => _ = PickApps()));
         toolbar.Children.Add(ToolButton("名稱排序", () => Save(entries.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase).ToArray())));
+        toolbar.Children.Add(ToolButton("匯出設定", () => _ = Export()));
+        toolbar.Children.Add(ToolButton("匯入設定", () => _ = Import()));
         cancel = ToolButton("取消執行", Cancel); cancel.IsEnabled = false;
         toolbar.Children.Add(cancel);
         Children.Add(toolbar);
@@ -120,7 +125,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         filtering = true;
         var selected = groups.SelectedIndex > 0 ? groups.SelectedItem as string : null;
         var names = new List<string> { "全部" };
-        names.AddRange(entries.Select(e => e.Group).Concat(RemoteGroups).Distinct().Order(StringComparer.CurrentCultureIgnoreCase));
+        names.AddRange(entries.Concat(library.Pending).Select(e => e.Group).Concat(RemoteGroups).Distinct().Order(StringComparer.CurrentCultureIgnoreCase));
         groups.ItemsSource = names;
         groups.SelectedIndex = selected is not null && names.Contains(selected) ? names.IndexOf(selected) : 0;
         filtering = false; layoutToggle.IsEnabled = !library.ReadOnly; RenderTiles();
@@ -135,10 +140,11 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         layoutToggle.Content = horizontal ? "分組：橫向  ↔" : "分組：縱向  ↕";
         groupSections.Orientation = horizontal ? Orientation.Horizontal : Orientation.Vertical;
         groupViewport.HorizontalScrollBarVisibility = horizontal ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
-        // Main-computer shortcuts share the groups, marked on their tiles.
+        // Main-computer and pending shortcuts share the groups, marked on their tiles.
         var selectedGroup = groups.SelectedIndex > 0 ? groups.SelectedItem as string : null;
-        var visible = ShortcutPolicy.Filter(entries, "", selectedGroup).Select(e => (Entry: e, Remote: (RemoteTile?)null))
-            .Concat(VisibleRemote(selectedGroup).Select(r => (r.Entry, Remote: (RemoteTile?)r))).ToArray();
+        var visible = ShortcutPolicy.Filter(entries, "", selectedGroup).Select(e => (Entry: e, Remote: (RemoteTile?)null, Pending: false))
+            .Concat(VisibleRemote(selectedGroup).Select(r => (r.Entry, Remote: (RemoteTile?)r, Pending: false)))
+            .Concat(ShortcutPolicy.Filter(library.Pending, "", selectedGroup).Select(e => (Entry: e, Remote: (RemoteTile?)null, Pending: true))).ToArray();
         foreach (var group in visible.GroupBy(e => e.Entry.Group).OrderBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase))
         {
             var section = new StackPanel { MinWidth = horizontal ? 200 : 0, Margin = horizontal ? new Thickness(0, 0, 20, 0) : new Thickness(0, 4, 0, 18), Background = Brushes.Transparent };
@@ -151,7 +157,8 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
             divider.Bind(Border.BorderBrushProperty, divider.GetResourceObservable("LineBrush"));
             section.Children.Add(divider);
             var tilePanel = new WrapPanel { Orientation = horizontal ? Orientation.Vertical : Orientation.Horizontal };
-            foreach (var item in group) tilePanel.Children.Add(item.Remote is { } remoteTile ? CreateRemoteTile(remoteTile, horizontal) : CreateTile(item.Entry, horizontal));
+            foreach (var item in group) tilePanel.Children.Add(item.Remote is { } remoteTile ? CreateRemoteTile(remoteTile, horizontal)
+                : item.Pending ? CreatePendingTile(item.Entry, horizontal) : CreateTile(item.Entry, horizontal));
             if (horizontal) horizontalTilePanels.Add((tilePanel, group.Count()));
             section.Children.Add(tilePanel);
             var key = group.Key;
@@ -162,7 +169,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         if (groupSections.Children.Count == 0)
             groupSections.Children.Add(new TextBlock
             {
-                Text = entries.Length == 0 && RemoteGroups.Length == 0 ? "還沒有快捷方式\n新增常用程式、資料夾、網站，或建立自己的步驟式巨集。" : "沒有符合條件的快捷方式",
+                Text = entries.Length == 0 && library.Pending.Length == 0 && RemoteGroups.Length == 0 ? "還沒有快捷方式\n新增常用程式、資料夾、網站，或建立自己的步驟式巨集。" : "沒有符合條件的快捷方式",
                 TextWrapping = TextWrapping.Wrap, MaxWidth = 320, Margin = new Thickness(8, 24)
             });
         UpdateHorizontalExtent();
@@ -273,12 +280,20 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         var i = positions[position]; var j = positions[position + delta];
         (list[i], list[j]) = (list[j], list[i]); Save(list.ToArray());
     }
+    // While connected, editing can also move the shortcut to the main computer.
     public async Task Edit(ShortcutEntry entry)
     {
         if (library.ReadOnly) { status.Text = library.Error; return; }
-        if (await host.EditShortcutAsync(entry, ShortcutRules.Linux) is not { } changed) return;
-        SaveLocal(changed);
+        if (MainName is not { } mainName || !entries.Any(e => e.Id == entry.Id))
+        {
+            if (await host.EditShortcutAsync(entry, ShortcutRules.Linux) is { } changed) SaveLocal(changed);
+            return;
+        }
+        if (await host.EditPlacedShortcutAsync(entry, mainName, false, true) is not { } result) return;
+        if (!result.Main) SaveLocal(result.Entry);
+        else await MoveToMainAsync(result.Entry, () => Save(entries.Where(e => e.Id != result.Entry.Id).ToArray()));
     }
+    private string? MainName => remote is { State: Secondary.Shared.Connection.LinkState.Connected } link ? link.ConnectedName ?? "主電腦" : null;
     private void SaveLocal(ShortcutEntry changed) =>
         Save(entries.Any(e => e.Id == changed.Id) ? entries.Select(e => e.Id == changed.Id ? changed : e).ToArray() : entries.Append(changed).ToArray());
     // While connected, a new shortcut is stored and run either here or on the main computer, chosen in the editor.

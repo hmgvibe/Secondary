@@ -105,11 +105,24 @@ public sealed partial class LaunchpadView
     }
 
     // The Linux editor has no window-key step; such shortcuts stay as they are and are edited on a Windows device.
+    // Choosing 本機 in the editor moves the shortcut here: saved locally first, then removed from the main computer.
     public async Task EditRemote(ShortcutEntry entry)
     {
         if (entry.Steps!.Any(s => s.Kind == "Keys")) { status.Text = "這個主電腦捷徑含有「視窗快捷鍵」步驟，Linux 版無法編輯；請在 Windows 設備編輯，仍可在這裡執行。"; return; }
         if (remote is not { State: LinkState.Connected } link) { status.Text = "主電腦未連線，無法編輯主電腦的捷徑。"; return; }
-        if (await host.EditPlacedShortcutAsync(entry, link.ConnectedName ?? "主電腦", true, false) is { } changed) await SaveRemoteAsync(changed.Entry);
+        if (await host.EditPlacedShortcutAsync(entry, link.ConnectedName ?? "主電腦", true, true) is not { } changed) return;
+        if (changed.Main) { await SaveRemoteAsync(changed.Entry); return; }
+        if (library.ReadOnly) { status.Text = library.Error; return; }
+        if (!Save(entries.Append(changed.Entry with { ApprovedFingerprint = null }).ToArray())) return;
+        if (await DeleteRemoteAsync(changed.Entry.Id) && !disposed) status.Text = "已移到本機；第一次執行時需要確認。";
+    }
+    // Saved on the main computer first; only then is it removed here.
+    private async Task<bool> MoveToMainAsync(ShortcutEntry entry, Func<bool> removeHere)
+    {
+        if (!await SaveRemoteAsync(entry with { ApprovedFingerprint = null })) return false;
+        if (!removeHere()) return false;
+        status.Text = $"已移到主電腦「{remote?.ConnectedName}」；第一次在那裡執行時需要在主電腦上確認。";
+        return true;
     }
     private async Task ConfirmDeleteRemote(ShortcutEntry entry)
     {

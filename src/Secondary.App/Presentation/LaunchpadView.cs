@@ -46,6 +46,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
     {
         library = new(path); entries = library.Load(); runner = new(executor);
         EditDialog = (entry,mainName,main,canChoose) => ShortcutDialogs.Edit(Owner,entry,mainName,main,canChoose);
+        InitializeTransfer();
         Children.Add(new TextBlock { Text = "YOUR LAUNCHPAD", FontSize = 11 });
         Children.Add(new TextBlock { Text = "快捷導航", FontSize = 34, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,6,0,8) });
         Children.Add(new TextBlock { Text = "拖入桌面快捷方式、檔案或資料夾即可新增；拖動現有捷徑可排序。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,20) });
@@ -57,6 +58,8 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         toolbar.Children.Add(layoutToggle);
         toolbar.Children.Add(ShortcutDialogs.Button("＋ 新增",Add));
         toolbar.Children.Add(ShortcutDialogs.Button("名稱排序",() => Save(entries.OrderBy(e => e.Name,StringComparer.CurrentCultureIgnoreCase).ToArray())));
+        toolbar.Children.Add(ShortcutDialogs.Button("匯出設定",Export));
+        toolbar.Children.Add(ShortcutDialogs.Button("匯入設定",Import));
         cancel = ShortcutDialogs.Button("取消執行",Cancel); cancel.IsEnabled = false;
         toolbar.Children.Add(cancel); Children.Add(toolbar);
         groupViewport.Content = groupSections; Children.Add(groupViewport); Children.Add(status);
@@ -85,7 +88,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
     private void Refresh()
     {
         filtering = true; var selected = groups.SelectedIndex > 0 ? groups.SelectedItem as string : null;
-        groups.Items.Clear(); groups.Items.Add("全部"); foreach (var group in entries.Select(e => e.Group).Concat(RemoteGroups).Distinct().Order()) groups.Items.Add(group);
+        groups.Items.Clear(); groups.Items.Add("全部"); foreach (var group in entries.Concat(library.Pending).Select(e => e.Group).Concat(RemoteGroups).Distinct().Order()) groups.Items.Add(group);
         groups.SelectedIndex = selected is not null && groups.Items.Contains(selected) ? groups.Items.IndexOf(selected) : 0;
         filtering = false; layoutToggle.IsEnabled = !library.ReadOnly; RenderTiles();
     }
@@ -104,10 +107,11 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         layoutToggle.Content = horizontal ? "分組：橫向  ↔" : "分組：縱向  ↕";
         groupSections.Orientation = horizontal ? Orientation.Horizontal : Orientation.Vertical;
         groupViewport.HorizontalScrollBarVisibility = horizontal ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
-        // Main-computer shortcuts share the groups, marked on their tiles.
+        // Main-computer and pending shortcuts share the groups, marked on their tiles.
         var selectedGroup = groups.SelectedIndex > 0 ? groups.SelectedItem as string : null;
-        var visible = ShortcutPolicy.Filter(entries,"",selectedGroup).Select(e => (Entry: e, Remote: (RemoteTile?)null))
-            .Concat(VisibleRemote(selectedGroup).Select(r => (r.Entry, Remote: (RemoteTile?)r))).ToArray();
+        var visible = ShortcutPolicy.Filter(entries,"",selectedGroup).Select(e => (Entry: e, Remote: (RemoteTile?)null, Pending: false))
+            .Concat(VisibleRemote(selectedGroup).Select(r => (r.Entry, Remote: (RemoteTile?)r, Pending: false)))
+            .Concat(ShortcutPolicy.Filter(library.Pending,"",selectedGroup).Select(e => (Entry: e, Remote: (RemoteTile?)null, Pending: true))).ToArray();
         foreach (var group in visible.GroupBy(e => e.Entry.Group).OrderBy(g => g.Key,StringComparer.CurrentCultureIgnoreCase))
         {
             var section = new StackPanel { MinWidth = horizontal ? 200 : 0,
@@ -123,7 +127,8 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
             divider.SetResourceReference(Border.BorderBrushProperty,"LineBrush");
             section.Children.Add(divider);
             var tilePanel = new WrapPanel { Orientation = horizontal ? Orientation.Vertical : Orientation.Horizontal };
-            foreach (var item in group) tilePanel.Children.Add(item.Remote is { } remoteTile ? CreateRemoteTile(remoteTile,horizontal) : CreateTile(item.Entry,horizontal));
+            foreach (var item in group) tilePanel.Children.Add(item.Remote is { } remoteTile ? CreateRemoteTile(remoteTile,horizontal)
+                : item.Pending ? CreatePendingTile(item.Entry,horizontal) : CreateTile(item.Entry,horizontal));
             if (horizontal) horizontalTilePanels.Add((tilePanel,group.Count()));
             section.Children.Add(tilePanel);
             section.DragOver += (_, e) => { if (e.Data.GetDataPresent("Secondary.ShortcutId")) { e.Effects = DragDropEffects.Move; e.Handled = true; } };
@@ -134,7 +139,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
             };
             groupSections.Children.Add(section);
         }
-        if (groupSections.Children.Count == 0) groupSections.Children.Add(new TextBlock { Text = entries.Length == 0 && RemoteGroups.Length == 0 ? "還沒有快捷方式\n新增常用程式、資料夾、網站，或建立自己的步驟式巨集。" : "沒有符合條件的快捷方式", TextWrapping = TextWrapping.Wrap, MaxWidth = 320, Margin = new Thickness(8,24,8,24) });
+        if (groupSections.Children.Count == 0) groupSections.Children.Add(new TextBlock { Text = entries.Length == 0 && library.Pending.Length == 0 && RemoteGroups.Length == 0 ? "還沒有快捷方式\n新增常用程式、資料夾、網站，或建立自己的步驟式巨集。" : "沒有符合條件的快捷方式", TextWrapping = TextWrapping.Wrap, MaxWidth = 320, Margin = new Thickness(8,24,8,24) });
         Dispatcher.BeginInvoke(UpdateHorizontalExtent,DispatcherPriority.Loaded);
     }
     private void AttachViewport()
@@ -220,18 +225,23 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         var i = groupPositions[position]; var j = groupPositions[position + delta];
         (list[i],list[j]) = (list[j],list[i]); Save(list.ToArray());
     }
+    // While connected, editing can also move the shortcut to the main computer.
     private void Edit(ShortcutEntry entry)
     {
         if (library.ReadOnly) { status.Text = library.Error; return; }
-        if (EditDialog(entry,null,false,false) is not { } changed) return;
-        SaveLocal(changed.Entry);
+        var mainName = MainName;
+        if (EditDialog(entry,mainName,false,mainName is not null) is not { } changed) return;
+        if (!changed.Main) SaveLocal(changed.Entry);
+        else if (entries.Any(e => e.Id == changed.Entry.Id)) _ = MoveToMainAsync(changed.Entry,() => Save(entries.Where(e => e.Id != changed.Entry.Id).ToArray()));
+        else _ = SaveRemoteAsync(changed.Entry);
     }
+    private string? MainName => remote is { State: Secondary.Shared.Connection.LinkState.Connected } link ? link.ConnectedName ?? "主電腦" : null;
     private void SaveLocal(ShortcutEntry changed) =>
         Save(entries.Any(e => e.Id == changed.Id) ? entries.Select(e => e.Id == changed.Id ? changed : e).ToArray() : entries.Append(changed).ToArray());
     // While connected, a new shortcut is stored and run either here or on the main computer, chosen in the editor.
     public void Add()
     {
-        var mainName = remote is { State: Secondary.Shared.Connection.LinkState.Connected } link ? link.ConnectedName ?? "主電腦" : null;
+        var mainName = MainName;
         if (mainName is null && library.ReadOnly) { status.Text = library.Error; return; }
         if (EditDialog(new(Guid.NewGuid().ToString("N"),"新快捷方式",SelectedGroup,Steps:[new()]),mainName,false,mainName is not null) is not { } result) return;
         if (result.Main) _ = SaveRemoteAsync(result.Entry);
