@@ -46,7 +46,7 @@ Claude Code 唯一公開的用量欄位，是 statusLine 指令從 stdin 收到�
   - 找不到 Claude Code CLI 登入憑證。Claude 桌面版的登入不寫在這個檔案，只用桌面版時一定是這個結果。
   - CLI 登入憑證已過期：使用一次 Claude Code CLI，它會自己更新憑證。
   - 伺服器拒絕或回應格式無法辨識：端點可能已經變更。
-- 未經實機驗證：2026-10-20 實作時，這台電腦只有桌面版登入，沒有 CLI 憑證，所以沒有對真實端點測試過。回應格式來自社群說明，程式對欄位都採寬鬆解析。
+- 實機驗證：2026-10-20 安裝 Claude Code CLI 2.1.304，以 Pro 帳號登入後實測。端點回應 HTTP 200，`five_hour`／`seven_day` 的 `utilization` 是 0–100 的數字，`resets_at` 是帶時區的 ISO 時間，和程式的解析方式一致。回應裡還有其他欄位（例如 `seven_day_opus`、`limits`、`extra_usage`），組件不使用。這是未公開的端點，格式以後仍可能改變，所以程式對欄位都採寬鬆解析。
 
 ### 在 Claude Code CLI 中設定 statusLine（選用）
 
@@ -109,3 +109,4 @@ Claude Code 唯一公開的用量欄位，是 statusLine 指令從 stdin 收到�
 
 - Windows：實際啟動 app，讀到本機 Codex 紀錄，每週 6%、4 天 13 小時後重置，與原始 `resets_at` 核對一致。Claude 區塊顯示桌面版提示；開啟線上來源後顯示「無法取得」。在預設組件大小下不需要捲動。
 - Linux：在 Ubuntu 26.04（Surface Pro 7、GNOME 50 Wayland、200% 縮放）上以 `--profile` 和 `--startup-check` 啟動 linux-x64 自包含版本，搭配 `CODEX_HOME` 指向的 Codex 範例紀錄，畫面與 Windows 一致。開啟線上來源時，因為沒有 CLI 憑證，顯示「無法取得」。
+- Claude（CLI 登入後）：開啟線上來源時，組件顯示五小時 49%、每週 19%，重置倒數與端點回應一致。另外暫時設定 statusLine 橋接腳本，在 CLI 回覆一次後，快取檔寫入五小時 50%、每週 19%，重置時間與端點完全相同；關閉線上來源時，組件從快取顯示同樣的數字。測試結束後已移除暫時的 statusLine 設定、腳本和快取檔。
