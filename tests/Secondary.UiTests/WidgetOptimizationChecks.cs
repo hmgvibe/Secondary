@@ -351,6 +351,30 @@ internal static class WidgetOptimizationChecks
             startPaused.SetActive(false);
             pausedFrame.Detach();
 
+            // Service choice: a hidden section collapses and is not read again.
+            bool Shown(HomeUtilityWidget owner, string name) => Descendants(owner).OfType<TextBlock>().Where(t => t.Text == name).Any(t =>
+            {
+                for (DependencyObject? node = t; node is not null && node != owner; node = VisualTreeHelper.GetParent(node))
+                    if (node is UIElement { Visibility: not Visibility.Visible }) return false;
+                return true;
+            });
+            Dispatch(() => widget.SetActive(true));
+            PumpUntil(() => widget.UsageSnapshot is not null);
+            Dispatch(() => check(widget.SetUsageProviders("Codex") && pausedSave is { UsageProviders: "Codex" }, "Choosing only Codex saves the widget option"));
+            PumpUntil(() => widget.UsageSnapshot is not null);
+            Layout(widget, 320, 300);
+            check(!Shown(widget, "Claude") && Shown(widget, "Codex") && TextContains(widget, "30%") && !widget.UsageSnapshot!.Claude.HasData,
+                "Only Codex shows its section and Claude is not read");
+            Dispatch(() => widget.SetUsageProviders("Claude"));
+            PumpUntil(() => widget.UsageSnapshot is not null);
+            Layout(widget, 320, 300);
+            check(Shown(widget, "Claude") && !Shown(widget, "Codex") && !widget.UsageSnapshot!.Codex.HasData, "Only Claude shows its section and Codex is not read");
+            Dispatch(() => widget.SetUsageProviders("Both"));
+            PumpUntil(() => widget.UsageSnapshot is not null);
+            Layout(widget, 320, 300);
+            check(Shown(widget, "Claude") && Shown(widget, "Codex") && widget.Settings.UsageProviders == "Both", "Showing both brings both sections back");
+            widget.SetActive(false);
+
             // Opt-in online source: a desktop-only machine has no CLI credentials and says so.
             using var client = new HttpClient(new FakeHttp((_, _) => throw new InvalidOperationException("No request expected without credentials")));
             var onlineSource = new AiUsageService(paths, () => now, new ClaudeOnlineUsage(client, Path.Combine(paths.ClaudeHome, ".credentials.json"), () => now));
@@ -371,8 +395,14 @@ internal static class WidgetOptimizationChecks
             check(window.AddHomeWidget("AiUsage"), "AI usage widget can be added to the home page");
             var usageFrame = ((Canvas)window.FindName("WidgetCanvas")).Children.OfType<HomeWidget>().Single(f => f.Children.OfType<HomeUtilityWidget>().Any(w => w.Settings.Kind == "AiUsage"));
             var item = usageFrame.ContextMenu!.Items.OfType<MenuItem>().SingleOrDefault(i => i.Header as string == "Claude 線上用量（非官方）");
-            check(item is { IsCheckable: true, IsChecked: false }, "AI usage title menu offers the unofficial Claude online source unchecked");
+            check(item is { IsCheckable: true, IsChecked: false, IsEnabled: true }, "AI usage title menu offers the unofficial Claude online source unchecked");
             var id = model.Settings.Home!.Widgets!.Single(w => w.Kind == "AiUsage").Id;
+            var menuChoices = usageFrame.ContextMenu.Items.OfType<MenuItem>().Where(i => i.Header is string h && h.Contains("顯示")).ToArray();
+            check(menuChoices.Select(i => i.Header as string).SequenceEqual(new[] { "顯示 Claude 和 Codex", "只顯示 Claude", "只顯示 Codex" }) && menuChoices[0].IsChecked && !menuChoices[2].IsChecked,
+                "AI usage title menu offers the three service choices with both selected");
+            Dispatch(() => menuChoices[2].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)));
+            check(model.Settings.Home!.Widgets!.Single(w => w.Id == id).UsageProviders == "Codex" && menuChoices[2].IsChecked && !menuChoices[0].IsChecked && !item!.IsEnabled,
+                "Choosing only Codex from the menu saves it, moves the check and disables the Claude online source");
             check(window.RemoveHomeWidget(id), "AI usage widget can be removed");
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }

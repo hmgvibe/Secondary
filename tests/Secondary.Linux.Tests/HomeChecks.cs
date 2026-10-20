@@ -136,9 +136,17 @@ internal static class HomeChecks
         var progress = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "TimeProgress").Content;
         Check(progress.ProgressTexts.All(t => t.Contains('%')), "Time progress shows today, this week and this year");
         var usageFrame = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "AiUsage");
-        var online = usageFrame.Frame.ContextMenu!.Items.OfType<MenuItem>().First();
-        Check(online.Header as string == "Claude 線上用量（非官方）" && online.ToggleType == MenuItemToggleType.CheckBox && online.IsChecked != true,
+        var online = usageFrame.Frame.ContextMenu!.Items.OfType<MenuItem>().Single(i => i.Header as string == "Claude 線上用量（非官方）");
+        Check(online.ToggleType == MenuItemToggleType.CheckBox && online.IsChecked != true && online.IsEnabled,
             "The AI usage title menu offers the unofficial Claude online source unchecked");
+        var menuChoices = usageFrame.Frame.ContextMenu.Items.OfType<MenuItem>().Where(i => i.Header is string h && h.Contains("顯示")).ToArray();
+        Check(menuChoices.Select(i => i.Header as string).SequenceEqual(new[] { "顯示 Claude 和 Codex", "只顯示 Claude", "只顯示 Codex" }) &&
+            menuChoices.All(i => i.ToggleType == MenuItemToggleType.Radio) && menuChoices[0].IsChecked == true, "The AI usage title menu offers the three service choices with both selected");
+        menuChoices[2].RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent)); Pump();
+        Check(Saved(settingsPath, usageFrame.Content.Settings.Id).UsageProviders == "Codex" && menuChoices[2].IsChecked == true && menuChoices[0].IsChecked != true && !online.IsEnabled,
+            "Choosing only Codex from the menu saves it, moves the check and disables the Claude online source");
+        menuChoices[0].RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent)); Pump();
+        Check(Saved(settingsPath, usageFrame.Content.Settings.Id).UsageProviders == "Both" && online.IsEnabled, "Choosing both again re-enables the Claude online source");
         online.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent)); Pump();
         Check(window.ConfirmOpen && window.ConfirmText.Contains(".credentials.json") && window.ConfirmText.Contains("api.anthropic.com"), "Enabling Claude online usage first explains the token and endpoint");
         window.AnswerConfirm(false); Pump();
@@ -441,7 +449,20 @@ internal static class HomeChecks
         for (var i = 0; i < 20; i++) { Pump(); Thread.Sleep(5); }
         Check(!startPaused.IsRefreshing && startPaused.UsageSnapshot is null && startPaused.UsageAutoUpdate!.IsChecked == false && startPaused.UsageTexts.Count(t => t.StartsWith("已暫停自動更新", StringComparison.Ordinal)) == 1,
             "A Linux AI usage widget saved as paused starts without reading and says so");
-        startPaused.Dispose(); host.Close();
+        startPaused.Dispose();
+
+        // Service choice: a hidden section disappears from the widget and is not read again.
+        var chooser = new UtilityWidget(new HomeWidgetSettings("usage-choice", "AiUsage"), source);
+        chooser.SaveRequested += next => { saved = next; return true; };
+        host.Content = chooser; Pump();
+        chooser.SetActive(true);
+        Check(WaitFor(() => chooser.UsageSnapshot is not null), "The service-choice widget reads usage");
+        Check(chooser.SetUsageProviders("Codex") && saved is { UsageProviders: "Codex" } && WaitFor(() => chooser.UsageSnapshot is not null) &&
+            !chooser.UsageTexts.Contains("Claude") && chooser.UsageTexts.Contains("Codex") && chooser.UsageTexts.Contains("30%") && !chooser.UsageSnapshot!.Claude.HasData,
+            "Only Codex shows its section and Claude is not read");
+        Check(chooser.SetUsageProviders("Claude") && WaitFor(() => chooser.UsageSnapshot is not null) &&
+            chooser.UsageTexts.Contains("Claude") && !chooser.UsageTexts.Contains("Codex") && !chooser.UsageSnapshot!.Codex.HasData, "Only Claude shows its section and Codex is not read");
+        chooser.Dispose(); host.Close();
     }
 
     private static bool WaitFor(Func<bool> done)

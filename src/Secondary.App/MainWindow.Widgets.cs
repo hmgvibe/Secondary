@@ -93,7 +93,22 @@ public partial class MainWindow
         };
         if (settings.Kind == "AiUsage")
         {
-            var online = new MenuItem { Header = "Claude 線上用量（非官方）", IsCheckable = true, IsChecked = content.Settings.ClaudeOnline, Style = (Style)FindResource("WidgetMenuItem") };
+            // Which services to show, as three exclusive choices; the online source needs Claude shown.
+            var choices = new List<(MenuItem Item, string Providers)>();
+            MenuItem? online = null;
+            void Refresh()
+            {
+                foreach (var (item, providers) in choices) item.IsChecked = content.Settings.UsageProviders == providers;
+                online!.IsEnabled = content.Settings.ShowsClaude();
+            }
+            foreach (var (providers, header) in new[] { ("Both", "顯示 Claude 和 Codex"), ("Claude", "只顯示 Claude"), ("Codex", "只顯示 Codex") })
+            {
+                var choice = new MenuItem { Header = header, IsCheckable = true, Style = (Style)FindResource("WidgetMenuItem") };
+                choice.Click += (_, _) => { content.SetUsageProviders(providers); Refresh(); };
+                choices.Add((choice, providers)); menu.Items.Add(choice);
+            }
+            menu.Items.Add(new Separator());
+            online = new MenuItem { Header = "Claude 線上用量（非官方）", IsCheckable = true, IsChecked = content.Settings.ClaudeOnline, Style = (Style)FindResource("WidgetMenuItem") };
             online.Click += (_, _) =>
             {
                 var enable = !content.Settings.ClaudeOnline;
@@ -105,6 +120,7 @@ public partial class MainWindow
                 online.IsChecked = content.Settings.ClaudeOnline;
             };
             menu.Items.Add(online);
+            Refresh();
         }
         menu.Items.Add(remove); frame.ContextMenu = menu;
     }

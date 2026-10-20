@@ -30,6 +30,12 @@ internal static class ClaudeOnlineChecks
         check(!new HomeWidgetSettings("u", "AiUsage").Normalize().UsagePaused, "AI usage updates automatically by default");
         var paused = System.Text.Json.JsonSerializer.Deserialize<HomeWidgetSettings>(System.Text.Json.JsonSerializer.Serialize(new HomeWidgetSettings("u", "AiUsage", UsagePaused: true)))!.Normalize();
         check(paused.UsagePaused && !new HomeWidgetSettings("n", "Note", UsagePaused: true).Normalize().UsagePaused, "A paused AI usage widget stays paused after a settings round trip");
+        var codexOnly = System.Text.Json.JsonSerializer.Deserialize<HomeWidgetSettings>(System.Text.Json.JsonSerializer.Serialize(new HomeWidgetSettings("u", "AiUsage", UsageProviders: "Codex")))!.Normalize();
+        check(new HomeWidgetSettings("u", "AiUsage").Normalize() is { UsageProviders: "Both" } both && both.ShowsClaude() && both.ShowsCodex() &&
+            codexOnly is { UsageProviders: "Codex" } && !codexOnly.ShowsClaude() && codexOnly.ShowsCodex(), "AI usage shows both services by default and keeps a single-service choice");
+        check(new HomeWidgetSettings("u", "AiUsage", UsageProviders: "Gemini").Normalize().UsageProviders == "Both" &&
+            new HomeWidgetSettings("n", "Note", UsageProviders: "Claude").Normalize().UsageProviders == "Both", "Unknown or misplaced service choices fall back to both");
+        check(!System.Text.Json.JsonSerializer.Serialize(codexOnly).Contains("Shows", StringComparison.Ordinal), "Service visibility helpers are not written into settings");
     }
 
     private static string Credentials(long expiresAt) =>
@@ -107,6 +113,12 @@ internal static class ClaudeOnlineChecks
             $"{{\"type\":\"assistant\",\"timestamp\":\"{now.AddSeconds(30):O}\",\"apiErrorParams\":{{\"rate_limit_info\":{{\"status\":\"rejected\",\"resetsAt\":{now.AddMinutes(40).ToUnixTimeSeconds()},\"rateLimitType\":\"five_hour\"}}}}}}\n");
         var merged = await service.ReadAsync(true, CancellationToken.None);
         check(merged.Claude.FiveHour is { LimitReached: true } && merged.Claude.Weekly is { UsedPercent: 41 }, "A rejection logged after the online fetch marks the window as reached");
+
+        var requestsBefore = requests;
+        var codexOnly = await service.ReadAsync(false, true, true, CancellationToken.None);
+        check(requests == requestsBefore && !codexOnly.Claude.HasData && codexOnly.ClaudeOnlineProblem is null, "A hidden Claude section is neither scanned nor fetched online");
+        var claudeOnly = service.Read(true, false);
+        check(claudeOnly.Claude.FiveHour is { LimitReached: true } && !claudeOnly.Codex.HasData, "A hidden Codex section is not read");
 
         var noCredentials = new AiUsageService(paths, () => now, new ClaudeOnlineUsage(client, Path.Combine(root, "none.json"), () => now));
         var unavailable = await noCredentials.ReadAsync(true, CancellationToken.None);

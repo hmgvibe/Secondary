@@ -72,25 +72,31 @@ internal sealed class AiUsageService
 
     internal DateTimeOffset UtcNow => clock();
 
-    internal async Task<AiUsageSnapshot> ReadAsync(bool claudeOnline, CancellationToken token)
+    internal Task<AiUsageSnapshot> ReadAsync(bool claudeOnline, CancellationToken token) => ReadAsync(true, true, claudeOnline, token);
+
+    // A hidden service is not read at all: no file scan and, for Claude, no online request.
+    internal async Task<AiUsageSnapshot> ReadAsync(bool claude, bool codex, bool claudeOnline, CancellationToken token)
     {
-        var local = await Task.Run(() => Read(token), token).ConfigureAwait(false);
-        if (!claudeOnline) return local;
+        var local = await Task.Run(() => Read(claude, codex, token), token).ConfigureAwait(false);
+        if (!claude || !claudeOnline) return local;
         if (online is null) return local with { ClaudeOnlineProblem = "此版本未提供線上來源" };
         var result = await online.ReadAsync(token).ConfigureAwait(false);
         if (result.Usage is not { } usage) return local with { ClaudeOnlineProblem = result.Problem };
         // Online percentages replace older local ones, but a rejection logged after the fetch still wins.
-        var claude = local.Claude;
-        UsageWindow? Pick(UsageWindow? fetched, UsageWindow? known) =>
-            known is { LimitReached: true } && claude.ObservedAt > usage.ObservedAt ? known : fetched ?? known;
-        return local with { Claude = new(Pick(usage.FiveHour, claude.FiveHour), Pick(usage.Weekly, claude.Weekly),
-            claude.ObservedAt > usage.ObservedAt ? claude.ObservedAt : usage.ObservedAt) };
+        var known = local.Claude;
+        UsageWindow? Pick(UsageWindow? fetched, UsageWindow? logged) =>
+            logged is { LimitReached: true } && known.ObservedAt > usage.ObservedAt ? logged : fetched ?? logged;
+        return local with { Claude = new(Pick(usage.FiveHour, known.FiveHour), Pick(usage.Weekly, known.Weekly),
+            known.ObservedAt > usage.ObservedAt ? known.ObservedAt : usage.ObservedAt) };
     }
 
     // Serialized: each file keeps an offset so later reads only parse appended bytes.
-    internal AiUsageSnapshot Read(CancellationToken token = default)
+    internal AiUsageSnapshot Read(CancellationToken token = default) => Read(true, true, token);
+
+    internal AiUsageSnapshot Read(bool claude, bool codex, CancellationToken token = default)
     {
-        lock (sync) return new(ReadClaude(token), ReadCodex(token));
+        var none = new ProviderUsage(null, null, null);
+        lock (sync) return new(claude ? ReadClaude(token) : none, codex ? ReadCodex(token) : none);
     }
 
     private sealed record CodexRecord(DateTimeOffset Timestamp, UsageWindow? FiveHour, UsageWindow? Weekly);

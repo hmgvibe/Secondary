@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Secondary.Core;
 using Secondary.Shared;
 
 namespace Secondary.Linux.Home;
@@ -16,7 +17,7 @@ namespace Secondary.Linux.Home;
 public sealed partial class UtilityWidget
 {
     private sealed record UsageRowView(TextBlock Label, TextBlock Detail, TextBlock Value, Grid Track);
-    private sealed record UsageSectionView(TextBlock Name, TextBlock Age, TextBlock Note, UsageRowView FiveHour, UsageRowView Weekly);
+    private sealed record UsageSectionView(StackPanel Panel, TextBlock Name, TextBlock Age, TextBlock Note, UsageRowView FiveHour, UsageRowView Weekly);
 
     private readonly AiUsageService usageSource;
     private CancellationTokenSource? usageRequest;
@@ -25,7 +26,7 @@ public sealed partial class UtilityWidget
     private AiUsageSnapshot? lastUsage;
     internal AiUsageSnapshot? UsageSnapshot => lastUsage;
     public string[] UsageTexts => claudeUsage is null || codexUsage is null ? [] :
-        new[] { claudeUsage, codexUsage }.SelectMany(s => new[] { s.Name, s.Age, s.Note, s.FiveHour.Detail, s.FiveHour.Value, s.Weekly.Detail, s.Weekly.Value })
+        new[] { claudeUsage, codexUsage }.Where(s => s.Panel.IsVisible).SelectMany(s => new[] { s.Name, s.Age, s.Note, s.FiveHour.Detail, s.FiveHour.Value, s.Weekly.Detail, s.Weekly.Value })
             .Where(t => t.IsVisible).Select(t => t.Text ?? "").ToArray();
 
     private CheckBox? usageAutoUpdate;
@@ -46,8 +47,33 @@ public sealed partial class UtilityWidget
         status.IsVisible = false;
         body.Children.Add(status);
         // One shared line until the first reading, so a paused widget still fits the default size.
-        claudeUsage.Note.Text = Settings.UsagePaused ? "已暫停自動更新；勾選下方開關後讀取" : "正在讀取…";
-        claudeUsage.Note.IsVisible = true;
+        ApplyUsageProviders();
+    }
+
+    // Shows only the chosen services; the first shown section carries the one waiting line,
+    // so a paused or freshly switched widget still fits the default size.
+    private void ApplyUsageProviders()
+    {
+        claudeUsage!.Panel.IsVisible = Settings.ShowsClaude();
+        codexUsage!.Panel.IsVisible = Settings.ShowsCodex();
+        codexUsage.Panel.Margin = new Thickness(0, Settings.ShowsClaude() ? 12 : 2, 0, 0);
+        var first = Settings.ShowsClaude() ? claudeUsage : codexUsage;
+        foreach (var section in new[] { claudeUsage, codexUsage }) section.Note.IsVisible = false;
+        first.Note.Text = Settings.UsagePaused ? "已暫停自動更新；勾選下方開關後讀取" : "正在讀取…";
+        first.Note.IsVisible = true;
+    }
+
+    public bool SetUsageProviders(string providers)
+    {
+        if (Settings.Kind != "AiUsage" || Array.IndexOf(HomeWidgetSettings.UsageProviderChoices, providers) < 0) return false;
+        if (Settings.UsageProviders == providers) return true;
+        if (!Commit(Settings with { UsageProviders = providers })) { status.IsVisible = true; return false; }
+        // A newly shown service has not been read yet, so the widget reads again instead of showing stale gaps.
+        PauseUsageRequests();
+        lastUsage = null;
+        ApplyUsageProviders();
+        SetActive(widgetActive);
+        return true;
     }
 
     public bool SetUsagePaused(bool paused)
@@ -68,20 +94,22 @@ public sealed partial class UtilityWidget
 
     private UsageSectionView UsageSection(string name, Thickness margin)
     {
-        var header = new DockPanel { Margin = margin };
+        var panel = new StackPanel { Margin = margin };
+        body.Children.Add(panel);
+        var header = new DockPanel();
         var age = Label("", 11); age.Margin = new Thickness(8, 0, 0, 0); age.VerticalAlignment = VerticalAlignment.Bottom; Muted(age);
         DockPanel.SetDock(age, Dock.Right); header.Children.Add(age);
         var title = Label(name, 15); title.Margin = new Thickness(0); title.FontWeight = FontWeight.SemiBold;
         header.Children.Add(title);
-        body.Children.Add(header);
-        var fiveHour = UsageRow(name, "五小時");
-        var weekly = UsageRow(name, "每週");
+        panel.Children.Add(header);
+        var fiveHour = UsageRow(panel, name, "五小時");
+        var weekly = UsageRow(panel, name, "每週");
         var note = Label("", 11); note.IsVisible = false; Muted(note);
-        body.Children.Add(note);
-        return new(title, age, note, fiveHour, weekly);
+        panel.Children.Add(note);
+        return new(panel, title, age, note, fiveHour, weekly);
     }
 
-    private UsageRowView UsageRow(string provider, string window)
+    private UsageRowView UsageRow(StackPanel panel, string provider, string window)
     {
         var line = new Grid { Margin = new Thickness(0, 6, 0, 3), ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         var label = new TextBlock { Text = window, FontSize = 12, VerticalAlignment = VerticalAlignment.Bottom };
@@ -91,13 +119,13 @@ public sealed partial class UtilityWidget
         Grid.SetColumn(detail, 1); Grid.SetColumn(value, 2);
         line.Children.Add(label); line.Children.Add(detail); line.Children.Add(value);
         AutomationProperties.SetName(value, provider + " " + window + "用量");
-        body.Children.Add(line);
+        panel.Children.Add(line);
         var fill = new Border { CornerRadius = new CornerRadius(3) };
         fill.Bind(BackgroundProperty, fill.GetResourceObservable("AccentBrush"));
         var track = new Grid { Height = 6, ClipToBounds = true, ColumnDefinitions = new ColumnDefinitions("0*,*") };
         track.Bind(Panel.BackgroundProperty, track.GetResourceObservable("InsetBrush"));
         track.Children.Add(fill);
-        body.Children.Add(track);
+        panel.Children.Add(track);
         return new(label, detail, value, track);
     }
 
@@ -110,7 +138,7 @@ public sealed partial class UtilityWidget
         var request = new CancellationTokenSource(); usageRequest = request; usageBusy = true;
         try
         {
-            var snapshot = await usageSource.ReadAsync(Settings.ClaudeOnline, request.Token);
+            var snapshot = await usageSource.ReadAsync(Settings.ShowsClaude(), Settings.ShowsCodex(), Settings.ClaudeOnline, request.Token);
             if (disposed || !widgetActive || request.IsCancellationRequested) return;
             lastUsage = snapshot; ShowUsage(snapshot);
             status.IsVisible = false;

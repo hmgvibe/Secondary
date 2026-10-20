@@ -290,6 +290,22 @@ public partial class MainWindow
                 online.IsChecked = content.Settings.ClaudeOnline;
             };
             frame.ContextMenu.Items.Insert(0, online);
+            // Which services to show, as three exclusive choices; the online source needs Claude shown.
+            var choices = new[] { ("Both", "顯示 Claude 和 Codex"), ("Claude", "只顯示 Claude"), ("Codex", "只顯示 Codex") }
+                .Select(c => (Item: new MenuItem { Header = c.Item2, ToggleType = MenuItemToggleType.Radio, GroupName = "usage-" + settings.Id }, Providers: c.Item1)).ToArray();
+            void Refresh()
+            {
+                foreach (var (item, providers) in choices) item.IsChecked = content.Settings.UsageProviders == providers;
+                online.IsEnabled = content.Settings.ShowsClaude();
+            }
+            for (var i = 0; i < choices.Length; i++)
+            {
+                var (item, providers) = choices[i];
+                item.Click += (_, _) => { content.SetUsageProviders(providers); Refresh(); };
+                frame.ContextMenu.Items.Insert(i, item);
+            }
+            frame.ContextMenu.Items.Insert(choices.Length, new Separator());
+            Refresh();
         }
     }
     internal const string OnlineUsageHeader = "Claude 線上用量（非官方）";
