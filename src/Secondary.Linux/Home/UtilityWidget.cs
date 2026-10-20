@@ -43,16 +43,16 @@ public sealed partial class UtilityWidget : Border, IDisposable
     public string StatusText => status.Text ?? "";
     public string ReadoutText => readout.Text ?? "";
     public event Func<HomeWidgetSettings, bool>? SaveRequested;
-    // The AI usage widget is Windows-only for now; its data reader in Secondary.Shared is cross-platform.
-    public static readonly string[] Kinds = HomeWidgetSettings.Kinds.Where(kind => kind != "AiUsage").ToArray();
-    public static string Title(string kind) => kind switch { "Calendar" => "日曆", "Note" => "便箋", "Countdown" => "倒數計時", "Stopwatch" => "碼錶", "Todo" => "待辦清單", "Counter" => "計數器", "TimeProgress" => "時間進度", "Media" => "媒體", "Weather" => "天氣", "EventCountdown" => "倒數日", _ => kind };
-    public static string Description(string kind) => kind switch { "Calendar" => "查看日期與月份", "Note" => "隨手記下想法 · 本機儲存", "Countdown" => "設定專注時間 · 1–1440 分鐘", "Todo" => "新增、勾選完成 · 最多 20 項", "Counter" => "加減計數 · 自動儲存", "TimeProgress" => "今日、本週、今年的時間進度", "Media" => "目前播放內容與控制", "Weather" => "輸入城市查看即時天氣", "EventCountdown" => "自訂紀念日或目標日期", _ => "記錄經過時間 · 隨時暫停" };
+    public static string Title(string kind) => kind switch { "Calendar" => "日曆", "Note" => "便箋", "Countdown" => "倒數計時", "Stopwatch" => "碼錶", "Todo" => "待辦清單", "Counter" => "計數器", "TimeProgress" => "時間進度", "Media" => "媒體", "Weather" => "天氣", "EventCountdown" => "倒數日", "AiUsage" => "AI 用量", _ => kind };
+    public static string Description(string kind) => kind switch { "Calendar" => "查看日期與月份", "Note" => "隨手記下想法 · 本機儲存", "Countdown" => "設定專注時間 · 1–1440 分鐘", "Todo" => "新增、勾選完成 · 最多 20 項", "Counter" => "加減計數 · 自動儲存", "TimeProgress" => "今日、本週、今年的時間進度", "Media" => "目前播放內容與控制", "Weather" => "輸入城市查看即時天氣", "EventCountdown" => "自訂紀念日或目標日期", "AiUsage" => "Claude 與 Codex 的五小時、每週額度", _ => "記錄經過時間 · 隨時暫停" };
 
     public UtilityWidget(HomeWidgetSettings settings) : this(settings, WeatherDataService.Shared, Platform.MprisMediaSource.Shared) { }
-    internal UtilityWidget(HomeWidgetSettings settings, WeatherDataService weatherSource, IMediaSource mediaSource)
+    internal UtilityWidget(HomeWidgetSettings settings, AiUsageService usageSource) : this(settings, WeatherDataService.Shared, Platform.MprisMediaSource.Shared, usageSource) { }
+    internal UtilityWidget(HomeWidgetSettings settings, WeatherDataService weatherSource, IMediaSource mediaSource, AiUsageService? usageSource = null)
     {
         this.weatherSource = weatherSource;
         this.mediaSource = mediaSource;
+        this.usageSource = usageSource ?? AiUsageService.Shared;
         Settings = settings.Normalize();
         numberHost.Child = readout;
         contentScroll = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
@@ -68,6 +68,7 @@ public sealed partial class UtilityWidget : Border, IDisposable
             case "Media": RenderMedia(); break;
             case "Weather": RenderWeather(); break;
             case "EventCountdown": RenderEventCountdown(); break;
+            case "AiUsage": RenderUsage(); break;
             case "Calendar": RenderCalendar(); break;
             case "Note": RenderNote(); break;
             default: RenderTimer(); break;
@@ -161,6 +162,7 @@ public sealed partial class UtilityWidget : Border, IDisposable
         else if (Settings.Kind == "EventCountdown") UpdateEventCountdown();
         else if (Settings.Kind == "Media") _ = RefreshMediaAsync();
         else if (Settings.Kind == "Weather") _ = RefreshWeatherAsync();
+        else if (Settings.Kind == "AiUsage") _ = RefreshUsageAsync();
         else UpdateTime();
     }
     public void SetActive(bool active)
@@ -168,9 +170,9 @@ public sealed partial class UtilityWidget : Border, IDisposable
         refresh.Stop();
         if (disposed) return;
         widgetActive = active;
-        if (!active) PauseWeatherRequests();
+        if (!active) { PauseWeatherRequests(); PauseUsageRequests(); }
         SetMediaSubscription(active && Settings.Kind == "Media");
-        refresh.Interval = Settings.Kind switch { "Media" => TimeSpan.FromSeconds(5), "Weather" or "TimeProgress" or "Calendar" or "EventCountdown" => TimeSpan.FromMinutes(1), _ => TimeSpan.FromSeconds(1) };
+        refresh.Interval = Settings.Kind switch { "Media" => TimeSpan.FromSeconds(5), "Weather" or "TimeProgress" or "Calendar" or "EventCountdown" or "AiUsage" => TimeSpan.FromMinutes(1), _ => TimeSpan.FromSeconds(1) };
         if (active && Settings.Kind is not ("Note" or "Todo" or "Counter")) { OnTick(null, EventArgs.Empty); refresh.Start(); }
     }
 
@@ -223,5 +225,5 @@ public sealed partial class UtilityWidget : Border, IDisposable
         UpdateResponsiveLayout();
     }
 
-    public void Dispose() { disposed = true; widgetActive = false; PauseWeatherRequests(); SetMediaSubscription(false); refresh.Stop(); refresh.Tick -= OnTick; elapsed.Stop(); }
+    public void Dispose() { disposed = true; widgetActive = false; PauseWeatherRequests(); PauseUsageRequests(); SetMediaSubscription(false); refresh.Stop(); refresh.Tick -= OnTick; elapsed.Stop(); }
 }

@@ -1,6 +1,16 @@
 # AI 用量組件
 
-「AI 用量」組件顯示 Claude（Claude Code）與 Codex 的五小時和每週額度，包括已用百分比、進度條、重置倒數和資料更新時間。目前只有 Windows 版，Linux 選單不提供這個組件。讀取邏輯在 `Secondary.Shared/AiUsageService.cs`，不依賴 Windows，將來 Linux 可以直接沿用。
+「AI 用量」組件顯示 Claude（Claude Code）與 Codex 的五小時和每週額度，包括已用百分比、進度條、重置倒數和資料更新時間。Windows（WPF）與 Linux（Avalonia）都提供這個組件，兩邊的行為和文字相同。讀取邏輯放在 `Secondary.Shared/AiUsageService.cs` 和 `ClaudeOnlineUsage.cs`，兩個平台共用。
+
+本文的路徑以 Windows 寫法為主，Linux 的對應如下：
+
+| Windows | Linux |
+| --- | --- |
+| `%USERPROFILE%\.codex` | `~/.codex` |
+| `%USERPROFILE%\.claude` | `~/.claude` |
+| `%LOCALAPPDATA%\Secondary\claude-statusline.json` | `${XDG_CONFIG_HOME:-~/.config}/secondary/claude-statusline.json` |
+
+使用 `--profile=目錄` 啟動時，statusLine 快取不會跟著改到 profile 目錄。
 
 ## 原則
 
@@ -23,7 +33,6 @@ Claude Code 唯一公開的用量欄位，是 statusLine 指令從 stdin 收到�
 
 1. **額度用完紀錄（桌面版和 CLI 都有）**：讀取最近 8 天內修改過、最新的 24 個 `%USERPROFILE%\.claude\projects\*\*.jsonl` transcript（有設定 `CLAUDE_CONFIG_DIR` 時改讀它），尋找 `apiErrorParams.rate_limit_info` 中 `status` 為 `rejected` 的紀錄。重置時間還沒到時，對應的視窗顯示「已用完」和重置倒數。
 2. **statusLine 快取（只有 CLI）**：如果 `%LOCALAPPDATA%\Secondary\claude-statusline.json` 存在，就讀取其中的 `rate_limits` 百分比；transcript 中更新的額度用完紀錄會覆蓋它。
-
 3. **Claude 線上用量（非官方，預設關閉）**：見下一節。
 
 本機來源都沒有資料時，組件會說明桌面版不提供百分比。
@@ -40,6 +49,8 @@ Claude Code 唯一公開的用量欄位，是 statusLine 指令從 stdin 收到�
 - 未經實機驗證：2026-10-20 實作時，這台電腦只有桌面版登入，沒有 CLI 憑證，所以沒有對真實端點測試過。回應格式來自社群說明，程式對欄位都採寬鬆解析。
 
 ### 在 Claude Code CLI 中設定 statusLine（選用）
+
+#### Windows
 
 1. 把以下內容存成 `%USERPROFILE%\.claude\secondary-usage.ps1`。它把 statusLine 收到的 JSON 寫給 Secondary，並在狀態列顯示 `AI usage synced`。
 
@@ -67,11 +78,24 @@ Claude Code 唯一公開的用量欄位，是 statusLine 指令從 stdin 收到�
    }
    ```
 
+#### Linux
+
+1. 把以下內容存成 `~/.claude/secondary-usage.sh`，再執行 `chmod +x ~/.claude/secondary-usage.sh`。快取檔會寫到 `${XDG_CONFIG_HOME:-~/.config}/secondary/claude-statusline.json`。
+
+   ```sh
+   #!/bin/sh
+   # Claude Code statusLine bridge for the Secondary AI usage widget.
+   dir="${XDG_CONFIG_HOME:-$HOME/.config}/secondary"
+   mkdir -p "$dir" && cat > "$dir/claude-statusline.json.tmp" && mv -f "$dir/claude-statusline.json.tmp" "$dir/claude-statusline.json" && echo "AI usage synced"
+   ```
+
+2. 在 `~/.claude/settings.json` 加入 `"statusLine": { "type": "command", "command": "~/.claude/secondary-usage.sh" }`。
+
 注意事項：
 
 - Windows 上，Claude Code 有 Git Bash 時透過 Git Bash 執行 statusLine，沒有時透過 PowerShell，所以路徑要用正斜線。
 - 有些電腦的 PowerShell 執行原則會擋下腳本，因此指令要加上 `-ExecutionPolicy Bypass`。
-- 這個腳本在 Git Bash 和 PowerShell 兩種呼叫方式下都實測過。
+- Windows 腳本在 Git Bash 和 PowerShell 兩種呼叫方式下都實測過；Linux 腳本在 Ubuntu 26.04 上實測過。
 - 這個檔案包含 statusLine 的完整輸入，例如工作目錄和 session id，但只存在本機。
 - Claude Code 在每次回應後才更新 statusLine，閒置時資料不會變。
 
@@ -80,3 +104,8 @@ Claude Code 唯一公開的用量欄位，是 statusLine 指令從 stdin 收到�
 - 兩邊的 JSONL 格式都是工具內部格式，沒有公開文件，改版後可能改名或不再寫入。組件會略過讀不懂的行，最壞情況是顯示「沒有資料」，不會影響其他功能。
 - Claude 桌面版平常沒有百分比，只有額度用完時才會顯示。
 - Claude 線上用量使用沒有公開文件的端點，而且要經手 CLI 的登入 token，因此預設關閉，啟用前會再次確認。端點隨時可能失效或改變格式。
+
+## 驗證紀錄（2026-10-20）
+
+- Windows：實際啟動 app，讀到本機 Codex 紀錄，每週 6%、4 天 13 小時後重置，與原始 `resets_at` 核對一致。Claude 區塊顯示桌面版提示；開啟線上來源後顯示「無法取得」。在預設組件大小下不需要捲動。
+- Linux：在 Ubuntu 26.04（Surface Pro 7、GNOME 50 Wayland、200% 縮放）上以 `--profile` 和 `--startup-check` 啟動 linux-x64 自包含版本，搭配 `CODEX_HOME` 指向的 Codex 範例紀錄，畫面與 Windows 一致。開啟線上來源時，因為沒有 CLI 憑證，顯示「無法取得」。

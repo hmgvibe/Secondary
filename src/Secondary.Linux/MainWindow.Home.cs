@@ -202,7 +202,7 @@ public partial class MainWindow
     private void OnAddWidget(object? sender, RoutedEventArgs e)
     {
         var menu = new MenuFlyout { Placement = PlacementMode.TopEdgeAlignedRight };
-        foreach (var kind in UtilityWidget.Kinds)
+        foreach (var kind in HomeWidgetSettings.Kinds)
         {
             var header = new StackPanel { MinWidth = 240 };
             header.Children.Add(new TextBlock { Text = UtilityWidget.Title(kind), FontSize = 15, FontWeight = FontWeight.SemiBold });
@@ -236,7 +236,7 @@ public partial class MainWindow
     }
     public bool AddHomeWidget(string kind)
     {
-        if (!UtilityWidget.Kinds.Contains(kind) || utilityWidgets.Count >= 12) return false;
+        if (!HomeWidgetSettings.Supported(kind) || utilityWidgets.Count >= 12) return false;
         var home = model.Settings.Home ?? new();
         var occupied = WidgetCanvas.Children.OfType<WidgetFrame>().Select(frame => new LayoutRect(
             Math.Max(0, Canvas.GetLeft(frame)), Math.Max(0, Canvas.GetTop(frame)), Settled(frame.Width), Settled(frame.Height))).ToArray();
@@ -279,7 +279,23 @@ public partial class MainWindow
             if (await ConfirmAsync("移除組件", "移除此組件？其中的資料及未儲存編輯也會一併移除。", "移除")) RemoveHomeWidget(settings.Id);
         };
         frame.ContextMenu = new ContextMenu { Items = { remove } };
+        if (settings.Kind == "AiUsage")
+        {
+            var online = new MenuItem { Header = OnlineUsageHeader, ToggleType = MenuItemToggleType.CheckBox, IsChecked = content.Settings.ClaudeOnline };
+            online.Click += async (_, _) =>
+            {
+                var enable = !content.Settings.ClaudeOnline;
+                if (enable && !await ConfirmAsync("啟用 Claude 線上用量", OnlineUsageWarning, "啟用")) { online.IsChecked = false; return; }
+                content.SetClaudeOnline(enable);
+                online.IsChecked = content.Settings.ClaudeOnline;
+            };
+            frame.ContextMenu.Items.Insert(0, online);
+        }
     }
+    internal const string OnlineUsageHeader = "Claude 線上用量（非官方）";
+    private const string OnlineUsageWarning =
+        "Secondary 會讀取 ~/.claude/.credentials.json 裡 Claude Code CLI 的登入 token，最多每 5 分鐘傳送一次到 api.anthropic.com 的未公開用量端點，以取得五小時與每週百分比。\n\n" +
+        "這個端點沒有公開文件，可能隨時失效或改變。token 只送往該端點，不會儲存或顯示。Claude 桌面版的登入不在這個檔案，只用桌面版時會顯示「無法取得」。";
     private bool SaveUtilityWidget(HomeWidgetSettings next)
     {
         var home = model.Settings.Home ?? new();

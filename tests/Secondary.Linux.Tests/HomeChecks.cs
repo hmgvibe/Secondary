@@ -27,6 +27,7 @@ internal static class HomeChecks
         {
             TestHome(directory, output);
             TestLiveWidgets();
+            TestUsageWidget(directory);
         }
         finally { Directory.Delete(directory, true); }
     }
@@ -98,13 +99,12 @@ internal static class HomeChecks
         window.Clock.Configure(model.Settings.Home ?? new HomeSettings());
 
         // Utility widgets: every kind, free placement, persistence and the 12 limit.
-        Check(!UtilityWidget.Kinds.Contains("AiUsage") && !window.AddHomeWidget("AiUsage"), "The Windows-only AI usage widget is not offered on Linux");
-        foreach (var kind in UtilityWidget.Kinds) Check(window.AddHomeWidget(kind), "Adds widget " + kind);
+        foreach (var kind in HomeWidgetSettings.Kinds) Check(window.AddHomeWidget(kind), "Adds widget " + kind);
         Pump();
         var saved = new SettingsStore(settingsPath).Load().Home!.Widgets!;
-        Check(saved.Length == 10 && saved.Select(w => w.Kind).SequenceEqual(UtilityWidget.Kinds), "Every widget kind is saved in order");
-        Check(saved.Select(w => (w.Placement!.X, w.Placement.Y)).Distinct().Count() == 10, "New widgets get distinct placements");
-        Check(window.AddHomeWidget("Note") && window.AddHomeWidget("Counter") && !window.AddHomeWidget("Calendar") && window.UtilityWidgetCount == 12, "At most 12 widgets can be added; kinds may repeat");
+        Check(saved.Length == 11 && saved.Select(w => w.Kind).SequenceEqual(HomeWidgetSettings.Kinds), "Every widget kind is saved in order");
+        Check(saved.Select(w => (w.Placement!.X, w.Placement.Y)).Distinct().Count() == 11, "New widgets get distinct placements");
+        Check(window.AddHomeWidget("Note") && !window.AddHomeWidget("Calendar") && window.UtilityWidgetCount == 12, "At most 12 widgets can be added; kinds may repeat");
         Check(window.UtilityWidgets.Values.All(w => w.Content.IsRefreshing == w.Content.Settings.Kind is not ("Note" or "Todo" or "Counter")), "Active widgets refresh only when their content changes over time");
 
         var note = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "Note");
@@ -135,6 +135,14 @@ internal static class HomeChecks
         Check(calendar.CalendarHeading != heading && calendar.CalendarHeading.Contains(" 年 "), "Calendar moves between months");
         var progress = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "TimeProgress").Content;
         Check(progress.ProgressTexts.All(t => t.Contains('%')), "Time progress shows today, this week and this year");
+        var usageFrame = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "AiUsage");
+        var online = usageFrame.Frame.ContextMenu!.Items.OfType<MenuItem>().First();
+        Check(online.Header as string == "Claude 線上用量（非官方）" && online.ToggleType == MenuItemToggleType.CheckBox && online.IsChecked != true,
+            "The AI usage title menu offers the unofficial Claude online source unchecked");
+        online.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent)); Pump();
+        Check(window.ConfirmOpen && window.ConfirmText.Contains(".credentials.json") && window.ConfirmText.Contains("api.anthropic.com"), "Enabling Claude online usage first explains the token and endpoint");
+        window.AnswerConfirm(false); Pump();
+        Check(online.IsChecked != true && !Saved(settingsPath, usageFrame.Content.Settings.Id).ClaudeOnline, "Declining the confirmation keeps Claude online usage off");
         var eventWidget = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "EventCountdown").Content;
         Check(!eventWidget.SaveEvent("生日", "2026/1/1"), "Event countdown rejects dates outside YYYY-MM-DD");
         Check(eventWidget.SaveEvent("生日", DateTime.Today.AddDays(3).ToString("yyyy-MM-dd")) && eventWidget.EventReading == "3 天", "Event countdown shows remaining days");
@@ -381,6 +389,49 @@ internal static class HomeChecks
     }
 
     private static HomeWidgetSettings Saved(string settingsPath, string id) => new SettingsStore(settingsPath).Load().Home!.Widgets!.First(w => w.Id == id);
+
+    private static void TestUsageWidget(string directory)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var paths = new AiUsagePaths(Path.Combine(directory, "codex"), Path.Combine(directory, "claude"), Path.Combine(directory, "claude-statusline.json"));
+        var sessions = Path.Combine(paths.CodexHome, "sessions", "2026", "10", "20");
+        Directory.CreateDirectory(sessions);
+        string Window(double used, int minutes, DateTimeOffset resets) => $"{{\"used_percent\":{used},\"window_minutes\":{minutes},\"resets_at\":{resets.ToUnixTimeSeconds()}}}";
+        File.WriteAllText(Path.Combine(sessions, "rollout-linux.jsonl"),
+            $"{{\"timestamp\":\"{now.AddMinutes(-3):O}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"token_count\",\"rate_limits\":{{\"limit_id\":\"codex\",\"primary\":{Window(24, 300, now.AddHours(3).AddMinutes(12).AddSeconds(30))},\"secondary\":{Window(6, 10080, now.AddDays(6).AddHours(4).AddSeconds(30))}}}}}}}" + "\n");
+        using var client = new HttpClient(new WeatherHandler());
+        var source = new AiUsageService(paths, () => now, new ClaudeOnlineUsage(client, Path.Combine(paths.ClaudeHome, ".credentials.json"), () => now));
+        var host = new Window { Width = 400, Height = 400 };
+        Palette.Apply(host.Resources, false, false, false);
+        var widget = new UtilityWidget(new HomeWidgetSettings("usage", "AiUsage"), source);
+        HomeWidgetSettings? saved = null;
+        widget.SaveRequested += next => { saved = next; return true; };
+        host.Content = widget; host.Show(); Pump();
+        widget.SetActive(true);
+        Check(WaitFor(() => widget.UsageSnapshot is not null), "The AI usage widget reads local usage in the background");
+        var texts = widget.UsageTexts;
+        Check(texts.Contains("24%") && texts.Contains("6%") && texts.Contains("3 小時 12 分後重置") && texts.Contains("6 天 4 小時後重置") && texts.Contains("3 分鐘前更新"),
+            "Linux AI usage shows Codex percentages, reset countdowns and data age: " + string.Join(" | ", texts));
+        Check(texts.Contains("桌面版不提供百分比，用完額度時顯示重置時間") && texts.Count(t => t == "沒有資料") == 2, "Linux AI usage explains missing Claude percentages");
+        var before = widget.UsageSnapshot;
+        Check(widget.SetClaudeOnline(true) && saved is { ClaudeOnline: true }, "Enabling Claude online usage saves the widget option");
+        Check(WaitFor(() => !ReferenceEquals(widget.UsageSnapshot, before)) && widget.UsageTexts.Any(t => t.StartsWith("線上用量無法取得：找不到 Claude Code CLI 登入憑證", StringComparison.Ordinal)),
+            "Enabled online usage without CLI credentials shows it is unavailable");
+        widget.SetActive(false);
+        Check(!widget.IsRefreshing, "The AI usage widget stops refreshing when inactive");
+        widget.Dispose(); host.Close();
+    }
+
+    private static bool WaitFor(Func<bool> done)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!done())
+        {
+            if (DateTime.UtcNow > deadline) return false;
+            Pump(); Thread.Sleep(5);
+        }
+        return true;
+    }
 
     private static void TestLiveWidgets()
     {
