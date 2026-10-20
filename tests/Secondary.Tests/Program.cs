@@ -271,6 +271,7 @@ RemoteGameChecks.Run(Check);
 RemoteDeviceChecks.Run(Check);
 ShortcutTransferChecks.Run(Check);
 AiUsageChecks.Run(Check);
+await ClaudeOnlineChecks.Run(Check);
 Console.WriteLine($"{passed} tests passed.");
 
 sealed class TrackingModule : ISectionModule

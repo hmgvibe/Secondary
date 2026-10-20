@@ -45,7 +45,7 @@ PresentMon 的 FPS／1% Low／幀間隔採集需要足夠的 ETW 權限；成功
 
 天氣查詢會提供城市／行政區／國家候選，選定後保存座標；相同地點共用快取，顯示最後成功更新及失敗後的過期狀態。媒體組件共用 Windows 播放資訊，播放器不支援的操作會停用。圖片背景在背景工作中解碼，切換或離開首頁會取消舊請求。
 
-「AI 用量」（目前僅 Windows）顯示 Claude 和 Codex 的五小時與每週額度：已用百分比、進度條、重置倒數和資料更新時間，每分鐘讀一次。組件只讀本機紀錄，不連網路，也不讀登入憑證。Codex 用量來自 `~/.codex/sessions` 的紀錄，使用 Codex 後才會出現。Claude 桌面版不提供用量百分比，額度用完時才會顯示重置時間；使用 Claude Code CLI 時可另外設定 statusLine 取得百分比。資料來源、設定方式與風險見 [docs/ai-usage-widget.md](docs/ai-usage-widget.md)。
+「AI 用量」（目前僅 Windows）顯示 Claude 和 Codex 的五小時與每週額度：已用百分比、進度條、重置倒數和資料更新時間，每分鐘讀一次。組件只讀本機紀錄，不連網路，也不讀登入憑證。Codex 用量來自 `~/.codex/sessions` 的紀錄，使用 Codex 後才會出現。Claude 桌面版不提供用量百分比，額度用完時才會顯示重置時間；使用 Claude Code CLI 時可另外設定 statusLine 取得百分比，或在組件標題右鍵啟用預設關閉的「Claude 線上用量（非官方）」。資料來源、設定方式與風險見 [docs/ai-usage-widget.md](docs/ai-usage-widget.md)。
 
 較小或較矮的遊戲視窗會顯示緊湊摘要，首屏保留 FPS、1% Low、幀間隔、CPU、GPU、記憶體、網路及來源狀態；採樣選項與曲線可展開查看。各來源分別標示有效、等待、過期或失敗，無可用值仍顯示「—」。
 

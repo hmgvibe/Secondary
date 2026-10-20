@@ -87,7 +87,7 @@ internal static class WidgetOptimizationChecks
         CheckPlacement(check);
         Task.Run(() => CheckWeatherAsync(check)).GetAwaiter().GetResult();
         CheckWeatherUi(window, check);
-        CheckUsageUi(window, check, outputDirectory);
+        CheckUsageUi(window, model, check, outputDirectory);
         var location = new WeatherLocation("台北", "台灣", "台北市", 25.03, 121.56);
         var oldData = new HomeWidgetSettings("old", "Weather", City: "台北").Normalize();
         check(oldData.City == "台北" && oldData.Location is null, "Legacy weather city is retained for explicit location selection");
@@ -263,7 +263,7 @@ internal static class WidgetOptimizationChecks
         check(TextContains(stale, "25.5°C") && TextContains(stale, "資料已過期"), "Failed refresh retains the last successful temperature with stale and failure labels");
         stale.SetActive(false);
     }
-    private static void CheckUsageUi(MainWindow window, Action<bool, string> check, string? outputDirectory)
+    private static void CheckUsageUi(MainWindow window, ShellViewModel model, Action<bool, string> check, string? outputDirectory)
     {
         var root = Path.Combine(Path.GetTempPath(), "Secondary.UsageUi-" + Guid.NewGuid().ToString("N"));
         try
@@ -318,6 +318,30 @@ internal static class WidgetOptimizationChecks
             check(Descendants(widget).OfType<ScrollViewer>().Single().ScrollableHeight < 1, "AI usage fits the default widget frame without scrolling");
             widget.SetActive(false);
             frame.Detach();
+
+            // Opt-in online source: a desktop-only machine has no CLI credentials and says so.
+            using var client = new HttpClient(new FakeHttp((_, _) => throw new InvalidOperationException("No request expected without credentials")));
+            var onlineSource = new AiUsageService(paths, () => now, new ClaudeOnlineUsage(client, Path.Combine(paths.ClaudeHome, ".credentials.json"), () => now));
+            using var online = new HomeUtilityWidget(new HomeWidgetSettings("usage-online", "AiUsage"), onlineSource) { Resources = window.Resources };
+            HomeWidgetSettings? saved = null;
+            online.SaveRequested += next => { saved = next; return true; };
+            Layout(online, 320, 300);
+            Dispatch(() => online.SetActive(true));
+            PumpUntil(() => online.UsageSnapshot is not null);
+            check(!online.Settings.ClaudeOnline && online.UsageSnapshot!.ClaudeOnlineProblem is null, "AI usage keeps the online source off until enabled");
+            var offline = online.UsageSnapshot;
+            Dispatch(() => check(online.SetClaudeOnline(true) && saved is { ClaudeOnline: true }, "Enabling Claude online usage saves the widget option"));
+            PumpUntil(() => !ReferenceEquals(online.UsageSnapshot, offline));
+            Layout(online, 320, 300);
+            check(TextContains(online, "線上用量無法取得：找不到 Claude Code CLI 登入憑證"), "Enabled online usage without CLI credentials shows it is unavailable");
+            online.SetActive(false);
+
+            check(window.AddHomeWidget("AiUsage"), "AI usage widget can be added to the home page");
+            var usageFrame = ((Canvas)window.FindName("WidgetCanvas")).Children.OfType<HomeWidget>().Single(f => f.Children.OfType<HomeUtilityWidget>().Any(w => w.Settings.Kind == "AiUsage"));
+            var item = usageFrame.ContextMenu!.Items.OfType<MenuItem>().SingleOrDefault(i => i.Header as string == "Claude 線上用量（非官方）");
+            check(item is { IsCheckable: true, IsChecked: false }, "AI usage title menu offers the unofficial Claude online source unchecked");
+            var id = model.Settings.Home!.Widgets!.Single(w => w.Kind == "AiUsage").Id;
+            check(window.RemoveHomeWidget(id), "AI usage widget can be removed");
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }

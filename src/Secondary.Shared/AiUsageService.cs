@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -18,7 +19,8 @@ internal sealed record ProviderUsage(UsageWindow? FiveHour, UsageWindow? Weekly,
     public bool HasData => FiveHour is not null || Weekly is not null;
 }
 
-internal sealed record AiUsageSnapshot(ProviderUsage Claude, ProviderUsage Codex);
+// ClaudeOnlineProblem is set only when the opt-in online source is enabled and failed.
+internal sealed record AiUsageSnapshot(ProviderUsage Claude, ProviderUsage Codex, string? ClaudeOnlineProblem = null);
 
 internal sealed record AiUsagePaths(string CodexHome, string ClaudeHome, string ClaudeStatusLinePath)
 {
@@ -51,23 +53,39 @@ internal sealed class AiUsageService
     internal const int MaximumLineBytes = 4 * 1024 * 1024;
     internal const int MaximumStatusLineBytes = 256 * 1024;
     internal static readonly TimeSpan ClaudeTranscriptAge = TimeSpan.FromDays(8);
-    internal static readonly AiUsageService Shared = new(AiUsagePaths.Current);
+    internal static readonly AiUsageService Shared = new(AiUsagePaths.Current,
+        online: new ClaudeOnlineUsage(new HttpClient { Timeout = TimeSpan.FromSeconds(12) }, Path.Combine(AiUsagePaths.Current.ClaudeHome, ".credentials.json")));
 
     private readonly AiUsagePaths paths;
     private readonly Func<DateTimeOffset> clock;
+    private readonly ClaudeOnlineUsage? online;
     private readonly object sync = new();
     private readonly Dictionary<string, ScanState<CodexRecord>> codexFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ScanState<ClaudeLimitRecord>> claudeFiles = new(StringComparer.OrdinalIgnoreCase);
 
-    internal AiUsageService(AiUsagePaths paths, Func<DateTimeOffset>? clock = null)
+    internal AiUsageService(AiUsagePaths paths, Func<DateTimeOffset>? clock = null, ClaudeOnlineUsage? online = null)
     {
         this.paths = paths;
         this.clock = clock ?? (() => DateTimeOffset.UtcNow);
+        this.online = online;
     }
 
     internal DateTimeOffset UtcNow => clock();
 
-    internal Task<AiUsageSnapshot> ReadAsync(CancellationToken token) => Task.Run(() => Read(token), token);
+    internal async Task<AiUsageSnapshot> ReadAsync(bool claudeOnline, CancellationToken token)
+    {
+        var local = await Task.Run(() => Read(token), token).ConfigureAwait(false);
+        if (!claudeOnline) return local;
+        if (online is null) return local with { ClaudeOnlineProblem = "此版本未提供線上來源" };
+        var result = await online.ReadAsync(token).ConfigureAwait(false);
+        if (result.Usage is not { } usage) return local with { ClaudeOnlineProblem = result.Problem };
+        // Online percentages replace older local ones, but a rejection logged after the fetch still wins.
+        var claude = local.Claude;
+        UsageWindow? Pick(UsageWindow? fetched, UsageWindow? known) =>
+            known is { LimitReached: true } && claude.ObservedAt > usage.ObservedAt ? known : fetched ?? known;
+        return local with { Claude = new(Pick(usage.FiveHour, claude.FiveHour), Pick(usage.Weekly, claude.Weekly),
+            claude.ObservedAt > usage.ObservedAt ? claude.ObservedAt : usage.ObservedAt) };
+    }
 
     // Serialized: each file keeps an offset so later reads only parse appended bytes.
     internal AiUsageSnapshot Read(CancellationToken token = default)

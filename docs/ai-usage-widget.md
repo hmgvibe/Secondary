@@ -4,7 +4,7 @@
 
 ## 原則
 
-- 只讀取 Codex 和 Claude Code 自己寫在本機的檔案，不連網路，不讀登入憑證。
+- 預設只讀取 Codex 和 Claude Code 自己寫在本機的檔案，不連網路，不讀登入憑證。唯一的例外是下面「Claude 線上用量」，它預設關閉，需要使用者手動開啟。
 - 組件顯示在畫面上時每分鐘讀一次，讀檔在背景執行緒；離開首頁就停止。
 - 每個紀錄檔都記住上次讀到的位置，之後只解析新增的內容。第一次讀取時，Codex 只讀檔尾 2 MB，Claude transcript 最多讀檔尾 32 MB；單行超過 4 MB 會略過。
 - 重置時間已過的視窗不沿用舊百分比，會顯示「已重置，等待下次使用後更新」。
@@ -19,12 +19,25 @@
 
 ## Claude
 
-Claude Code 唯一公開的用量欄位，是 statusLine 指令從 stdin 收到的 `rate_limits.five_hour`／`rate_limits.seven_day`（`used_percentage`、`resets_at`），只有 Pro／Max 帳號會提供。2026-10-20 實測確認，Claude 桌面版的 Code 分頁不會執行 statusLine，所以桌面版拿不到百分比。組件因此使用以下兩個來源：
+Claude Code 唯一公開的用量欄位，是 statusLine 指令從 stdin 收到的 `rate_limits.five_hour`／`rate_limits.seven_day`（`used_percentage`、`resets_at`），只有 Pro／Max 帳號會提供。2026-10-20 實測確認，Claude 桌面版的 Code 分頁不會執行 statusLine，所以桌面版拿不到百分比。組件因此使用以下來源：
 
 1. **額度用完紀錄（桌面版和 CLI 都有）**：讀取最近 8 天內修改過、最新的 24 個 `%USERPROFILE%\.claude\projects\*\*.jsonl` transcript（有設定 `CLAUDE_CONFIG_DIR` 時改讀它），尋找 `apiErrorParams.rate_limit_info` 中 `status` 為 `rejected` 的紀錄。重置時間還沒到時，對應的視窗顯示「已用完」和重置倒數。
 2. **statusLine 快取（只有 CLI）**：如果 `%LOCALAPPDATA%\Secondary\claude-statusline.json` 存在，就讀取其中的 `rate_limits` 百分比；transcript 中更新的額度用完紀錄會覆蓋它。
 
-兩個來源都沒有資料時，組件會說明桌面版不提供百分比。
+3. **Claude 線上用量（非官方，預設關閉）**：見下一節。
+
+本機來源都沒有資料時，組件會說明桌面版不提供百分比。
+
+### Claude 線上用量（非官方，預設關閉）
+
+- 開啟方式：在組件標題按右鍵，勾選「Claude 線上用量（非官方）」，看完確認對話框的說明後按「啟用」。設定只存在這個組件，取消勾選後就停用。
+- 運作方式：讀取 `%USERPROFILE%\.claude\.credentials.json` 中 `claudeAiOauth.accessToken`（Claude Code CLI 登入時寫入），以 `Authorization: Bearer` 和 `anthropic-beta: oauth-2025-04-20` 呼叫 `GET https://api.anthropic.com/api/oauth/usage`，最多每 5 分鐘一次。讀取的欄位是 `five_hour`／`seven_day` 的 `utilization`（0–100）和 `resets_at`。
+- token 只送往這個固定網址，不會寫入記錄或顯示在畫面上，也不會刷新；刷新會和 Claude Code 自己換 token 的流程互相干擾。
+- 無法取得時，Claude 區塊會顯示「線上用量無法取得：原因」，本機來源的資料照常顯示。常見原因：
+  - 找不到 Claude Code CLI 登入憑證。Claude 桌面版的登入不寫在這個檔案，只用桌面版時一定是這個結果。
+  - CLI 登入憑證已過期：使用一次 Claude Code CLI，它會自己更新憑證。
+  - 伺服器拒絕或回應格式無法辨識：端點可能已經變更。
+- 未經實機驗證：2026-10-20 實作時，這台電腦只有桌面版登入，沒有 CLI 憑證，所以沒有對真實端點測試過。回應格式來自社群說明，程式對欄位都採寬鬆解析。
 
 ### 在 Claude Code CLI 中設定 statusLine（選用）
 
@@ -66,4 +79,4 @@ Claude Code 唯一公開的用量欄位，是 statusLine 指令從 stdin 收到�
 
 - 兩邊的 JSONL 格式都是工具內部格式，沒有公開文件，改版後可能改名或不再寫入。組件會略過讀不懂的行，最壞情況是顯示「沒有資料」，不會影響其他功能。
 - Claude 桌面版平常沒有百分比，只有額度用完時才會顯示。
-- 非官方的 `api.anthropic.com/api/oauth/usage` 需要 OAuth token。桌面版的登入資料不在 `~/.claude/.credentials.json`，而是由桌面 app 自行保管，所以這次沒有實作這個來源。
+- Claude 線上用量使用沒有公開文件的端點，而且要經手 CLI 的登入 token，因此預設關閉，啟用前會再次確認。端點隨時可能失效或改變格式。

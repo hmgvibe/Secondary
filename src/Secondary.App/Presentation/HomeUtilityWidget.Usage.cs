@@ -84,7 +84,7 @@ public sealed partial class HomeUtilityWidget
         var request = new CancellationTokenSource(); usageRequest = request; usageBusy = true;
         try
         {
-            var snapshot = await usageSource.ReadAsync(request.Token);
+            var snapshot = await usageSource.ReadAsync(Settings.ClaudeOnline, request.Token);
             if (disposed || !widgetActive || request.IsCancellationRequested) return;
             lastUsage = snapshot; ShowUsage(snapshot);
             status.Visibility = Visibility.Collapsed;
@@ -101,6 +101,16 @@ public sealed partial class HomeUtilityWidget
         }
     }
 
+    // Enabling sends the Claude Code CLI token to an unofficial endpoint; callers confirm with the user first.
+    public bool SetClaudeOnline(bool enabled)
+    {
+        if (Settings.Kind != "AiUsage" || Settings.ClaudeOnline == enabled) return Settings.ClaudeOnline == enabled;
+        if (!Commit(Settings with { ClaudeOnline = enabled })) { status.Visibility = Visibility.Visible; return false; }
+        PauseUsageRequests();
+        if (widgetActive) _ = RefreshUsageAsync();
+        return true;
+    }
+
     private void PauseUsageRequests()
     {
         var request = usageRequest; usageRequest = null; usageBusy = false;
@@ -111,8 +121,8 @@ public sealed partial class HomeUtilityWidget
     {
         if (claudeUsage is null || codexUsage is null) return;
         var now = usageSource.UtcNow;
-        ShowSection(claudeUsage, snapshot.Claude, now, snapshot.Claude.HasData ? "" :
-            "桌面版不提供百分比，用完額度時顯示重置時間");
+        ShowSection(claudeUsage, snapshot.Claude, now, snapshot.ClaudeOnlineProblem is { } problem ? "線上用量無法取得：" + problem :
+            snapshot.Claude.HasData ? "" : "桌面版不提供百分比，用完額度時顯示重置時間");
         ShowSection(codexUsage, snapshot.Codex, now, snapshot.Codex.HasData ? "" :
             "尚無紀錄，使用 Codex 後自動顯示");
         UpdateResponsiveLayout();
