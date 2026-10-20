@@ -419,7 +419,29 @@ internal static class HomeChecks
             "Enabled online usage without CLI credentials shows it is unavailable");
         widget.SetActive(false);
         Check(!widget.IsRefreshing, "The AI usage widget stops refreshing when inactive");
-        widget.Dispose(); host.Close();
+
+        // The auto-update switch: unchecked keeps the last reading and stops every read.
+        widget.SetActive(true);
+        Check(widget.IsRefreshing && widget.UsageAutoUpdate is { IsChecked: true }, "Linux AI usage auto-update switch starts checked");
+        widget.UsageAutoUpdate!.IsChecked = false;
+        widget.UsageAutoUpdate.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Pump();
+        Check(!widget.IsRefreshing && saved is { UsagePaused: true }, "Unchecking auto-update saves the pause and stops the timer");
+        var frozen = widget.UsageSnapshot;
+        File.AppendAllText(Path.Combine(sessions, "rollout-linux.jsonl"),
+            $"{{\"timestamp\":\"{now.AddMinutes(-1):O}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"token_count\",\"rate_limits\":{{\"limit_id\":\"codex\",\"primary\":{Window(30, 300, now.AddHours(3))},\"secondary\":{Window(7, 10080, now.AddDays(6))}}}}}}}" + "\n");
+        widget.SetActive(true);
+        for (var i = 0; i < 20; i++) { Pump(); Thread.Sleep(5); }
+        Check(!widget.IsRefreshing && ReferenceEquals(widget.UsageSnapshot, frozen) && widget.UsageTexts.Contains("24%"), "A paused Linux AI usage widget does not read new data when shown again");
+        Check(widget.SetUsagePaused(false) && widget.UsageAutoUpdate.IsChecked == true && saved is { UsagePaused: false }, "Re-enabling auto-update saves the choice");
+        Check(WaitFor(() => !ReferenceEquals(widget.UsageSnapshot, frozen)) && widget.IsRefreshing && widget.UsageTexts.Contains("30%"), "Re-enabling auto-update reads new data immediately and restarts the timer");
+        widget.Dispose();
+        var startPaused = new UtilityWidget(new HomeWidgetSettings("usage-paused", "AiUsage", UsagePaused: true), source);
+        host.Content = startPaused; Pump();
+        startPaused.SetActive(true);
+        for (var i = 0; i < 20; i++) { Pump(); Thread.Sleep(5); }
+        Check(!startPaused.IsRefreshing && startPaused.UsageSnapshot is null && startPaused.UsageAutoUpdate!.IsChecked == false && startPaused.UsageTexts.Count(t => t.StartsWith("已暫停自動更新", StringComparison.Ordinal)) == 1,
+            "A Linux AI usage widget saved as paused starts without reading and says so");
+        startPaused.Dispose(); host.Close();
     }
 
     private static bool WaitFor(Func<bool> done)

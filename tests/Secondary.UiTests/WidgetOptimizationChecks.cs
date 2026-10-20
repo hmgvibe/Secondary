@@ -294,7 +294,7 @@ internal static class WidgetOptimizationChecks
             Dispatch(() => widget.SetActive(true));
             PumpUntil(() => !ReferenceEquals(widget.UsageSnapshot, before));
             Layout(widget, 320, 300);
-            var fills = Descendants(widget).OfType<Grid>().Where(g => g.ColumnDefinitions.Count == 2 && g.Children.OfType<Border>().Any()).ToArray();
+            var fills = Descendants(widget).OfType<Grid>().Where(g => g.Parent is StackPanel && g.ColumnDefinitions.Count == 2 && g.Children.Count == 1 && g.Children[0] is Border).ToArray();
             check(TextContains(widget, "24%") && TextContains(widget, "6%") && TextContains(widget, "3 小時 12 分後重置") && TextContains(widget, "6 天 4 小時後重置") &&
                 TextContains(widget, "3 分鐘前更新"), "AI usage shows Codex five-hour and weekly percentages, reset countdowns and data age");
             check(TextContains(widget, "已用完") && TextContains(widget, "50 分鐘後重置") && !TextContains(widget, "桌面版不提供百分比") && !TextContains(widget, "尚無紀錄"),
@@ -318,6 +318,38 @@ internal static class WidgetOptimizationChecks
             check(Descendants(widget).OfType<ScrollViewer>().Single().ScrollableHeight < 1, "AI usage fits the default widget frame without scrolling");
             widget.SetActive(false);
             frame.Detach();
+
+            // The auto-update switch: unchecked keeps the last reading and stops every read.
+            HomeWidgetSettings? pausedSave = null;
+            widget.SaveRequested += next => { pausedSave = next; return true; };
+            Dispatch(() => widget.SetActive(true));
+            check(widget.IsRefreshing && widget.UsageAutoUpdate is { IsChecked: true, Content: "每分鐘自動更新" }, "AI usage auto-update switch starts checked");
+            widget.UsageAutoUpdate!.IsChecked = false;
+            Dispatch(() => widget.UsageAutoUpdate.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)));
+            check(!widget.IsRefreshing && pausedSave is { UsagePaused: true } && widget.Settings.UsagePaused, "Unchecking auto-update saves the pause and stops the timer");
+            var frozen = widget.UsageSnapshot;
+            File.AppendAllText(Path.Combine(sessions, "rollout-ui.jsonl"),
+                $"{{\"timestamp\":\"{now.AddMinutes(-1):O}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"token_count\",\"rate_limits\":{{\"limit_id\":\"codex\",\"primary\":{Window(30, 300, now.AddHours(3))},\"secondary\":{Window(7, 10080, now.AddDays(6))}}}}}}}" + "\n");
+            Dispatch(() => widget.SetActive(true));
+            for (var i = 0; i < 20; i++) { PumpDispatcher(); Thread.Sleep(5); }
+            check(!widget.IsRefreshing && ReferenceEquals(widget.UsageSnapshot, frozen) && TextContains(widget, "24%"), "A paused AI usage widget does not read new data when shown again");
+            Dispatch(() => check(widget.SetUsagePaused(false) && widget.UsageAutoUpdate.IsChecked == true && pausedSave is { UsagePaused: false }, "Re-enabling auto-update saves the choice"));
+            PumpUntil(() => !ReferenceEquals(widget.UsageSnapshot, frozen));
+            Layout(widget, 320, 300);
+            check(widget.IsRefreshing && TextContains(widget, "30%"), "Re-enabling auto-update reads new data immediately and restarts the timer");
+            widget.SetActive(false);
+            using var startPaused = new HomeUtilityWidget(new HomeWidgetSettings("usage-paused", "AiUsage", UsagePaused: true), source) { Resources = window.Resources };
+            var pausedFrame = new HomeWidget(); pausedFrame.Attach(canvas, startPaused, HomeUtilityWidget.Title("AiUsage"));
+            pausedFrame.Configure(new WidgetPlacement(), new Size(320, 300)); canvas.UpdateLayout();
+            Dispatch(() => startPaused.SetActive(true));
+            for (var i = 0; i < 20; i++) { PumpDispatcher(); Thread.Sleep(5); }
+            canvas.UpdateLayout();
+            check(!startPaused.IsRefreshing && startPaused.UsageSnapshot is null && startPaused.UsageAutoUpdate!.IsChecked == false &&
+                Descendants(startPaused).OfType<TextBlock>().Count(t => t.Text.StartsWith("已暫停自動更新", StringComparison.Ordinal)) == 1,
+                "An AI usage widget saved as paused starts without reading and says so once");
+            check(Descendants(startPaused).OfType<ScrollViewer>().Single().ScrollableHeight < 1, "A paused AI usage widget fits the default widget frame without scrolling");
+            startPaused.SetActive(false);
+            pausedFrame.Detach();
 
             // Opt-in online source: a desktop-only machine has no CLI credentials and says so.
             using var client = new HttpClient(new FakeHttp((_, _) => throw new InvalidOperationException("No request expected without credentials")));

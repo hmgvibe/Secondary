@@ -173,7 +173,7 @@ public sealed partial class UtilityWidget : Border, IDisposable
         if (!active) { PauseWeatherRequests(); PauseUsageRequests(); }
         SetMediaSubscription(active && Settings.Kind == "Media");
         refresh.Interval = Settings.Kind switch { "Media" => TimeSpan.FromSeconds(5), "Weather" or "TimeProgress" or "Calendar" or "EventCountdown" or "AiUsage" => TimeSpan.FromMinutes(1), _ => TimeSpan.FromSeconds(1) };
-        if (active && Settings.Kind is not ("Note" or "Todo" or "Counter")) { OnTick(null, EventArgs.Empty); refresh.Start(); }
+        if (active && Settings.Kind is not ("Note" or "Todo" or "Counter") && !UsagePaused) { OnTick(null, EventArgs.Empty); refresh.Start(); }
     }
 
     private void RenderCalendar()

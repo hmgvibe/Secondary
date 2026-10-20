@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Secondary.Shared;
@@ -27,15 +28,42 @@ public sealed partial class UtilityWidget
         new[] { claudeUsage, codexUsage }.SelectMany(s => new[] { s.Name, s.Age, s.Note, s.FiveHour.Detail, s.FiveHour.Value, s.Weekly.Detail, s.Weekly.Value })
             .Where(t => t.IsVisible).Select(t => t.Text ?? "").ToArray();
 
+    private CheckBox? usageAutoUpdate;
+    public CheckBox? UsageAutoUpdate => usageAutoUpdate;
+    private bool UsagePaused => Settings.Kind == "AiUsage" && Settings.UsagePaused;
+
     private void RenderUsage()
     {
         claudeUsage = UsageSection("Claude", new Thickness(0, 2, 0, 0));
         codexUsage = UsageSection("Codex", new Thickness(0, 12, 0, 0));
+        // Unchecked: the widget keeps its last reading and stops reading files and the network.
+        usageAutoUpdate = new CheckBox { Content = "每分鐘自動更新", IsChecked = !Settings.UsagePaused, FontSize = 11, MinHeight = 28, Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        usageAutoUpdate.Bind(TemplatedControl.ForegroundProperty, usageAutoUpdate.GetResourceObservable("MutedBrush"));
+        AutomationProperties.SetName(usageAutoUpdate, "AI 用量每分鐘自動更新");
+        usageAutoUpdate.Click += (_, _) => SetUsagePaused(usageAutoUpdate.IsChecked != true);
+        body.Children.Add(usageAutoUpdate);
         // The status line appears only when reading fails, so both services fit the default size.
         status.IsVisible = false;
         body.Children.Add(status);
-        claudeUsage.Note.Text = codexUsage.Note.Text = "正在讀取…";
-        claudeUsage.Note.IsVisible = codexUsage.Note.IsVisible = true;
+        // One shared line until the first reading, so a paused widget still fits the default size.
+        claudeUsage.Note.Text = Settings.UsagePaused ? "已暫停自動更新；勾選下方開關後讀取" : "正在讀取…";
+        claudeUsage.Note.IsVisible = true;
+    }
+
+    public bool SetUsagePaused(bool paused)
+    {
+        if (Settings.Kind != "AiUsage") return false;
+        if (Settings.UsagePaused != paused && !Commit(Settings with { UsagePaused = paused }))
+        {
+            usageAutoUpdate!.IsChecked = !Settings.UsagePaused;
+            status.IsVisible = true;
+            return false;
+        }
+        usageAutoUpdate!.IsChecked = !paused;
+        if (paused) PauseUsageRequests();
+        // Re-applying the active state stops the timer, or restarts it with an immediate read.
+        SetActive(widgetActive);
+        return true;
     }
 
     private UsageSectionView UsageSection(string name, Thickness margin)
@@ -75,7 +103,7 @@ public sealed partial class UtilityWidget
 
     private async Task RefreshUsageAsync()
     {
-        if (disposed || !widgetActive) return;
+        if (disposed || !widgetActive || UsagePaused) return;
         if (lastUsage is not null) ShowUsage(lastUsage);
         if (usageBusy) return;
         usageRequest?.Cancel();
@@ -147,6 +175,7 @@ public sealed partial class UtilityWidget
     private void UpdateUsageLayout(double scale)
     {
         if (claudeUsage is null || codexUsage is null) return;
+        usageAutoUpdate!.FontSize = Math.Clamp(11 * scale, 11, 16);
         foreach (var section in new[] { claudeUsage, codexUsage })
         {
             section.Name.FontSize = Math.Clamp(15 * scale, 13, 24);

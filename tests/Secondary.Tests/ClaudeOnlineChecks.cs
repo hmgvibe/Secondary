@@ -27,6 +27,9 @@ internal static class ClaudeOnlineChecks
         var enabled = System.Text.Json.JsonSerializer.Deserialize<HomeWidgetSettings>(System.Text.Json.JsonSerializer.Serialize(new HomeWidgetSettings("u", "AiUsage", ClaudeOnline: true)))!.Normalize();
         check(enabled.ClaudeOnline, "Enabled Claude online usage survives a settings round trip");
         check(!new HomeWidgetSettings("n", "Note", ClaudeOnline: true).Normalize().ClaudeOnline, "Only AI usage widgets keep the Claude online option");
+        check(!new HomeWidgetSettings("u", "AiUsage").Normalize().UsagePaused, "AI usage updates automatically by default");
+        var paused = System.Text.Json.JsonSerializer.Deserialize<HomeWidgetSettings>(System.Text.Json.JsonSerializer.Serialize(new HomeWidgetSettings("u", "AiUsage", UsagePaused: true)))!.Normalize();
+        check(paused.UsagePaused && !new HomeWidgetSettings("n", "Note", UsagePaused: true).Normalize().UsagePaused, "A paused AI usage widget stays paused after a settings round trip");
     }
 
     private static string Credentials(long expiresAt) =>
