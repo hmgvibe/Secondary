@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Automation;
 using Secondary.Shared;
+using Secondary.Shared.Connection;
 
 namespace Secondary.App.Presentation;
 
@@ -23,18 +24,34 @@ public sealed partial class HomeUtilityWidget
     internal AiUsageSnapshot? UsageSnapshot => lastUsage;
     private CheckBox? usageAutoUpdate;
     public CheckBox? UsageAutoUpdate => usageAutoUpdate;
+    private Button? usageSourceButton;
+    public Button? UsageSourceButton => usageSourceButton;
+    private IDisposable? remoteUsageWatch;
+    private RemoteUsageClient? watchedUsageClient;
+    private UsageRequest watchedUsageRequest;
+    private bool watchingUsageClient;
     private bool UsagePaused => Settings.Kind == "AiUsage" && Settings.UsagePaused;
+    private bool MainUsage => Settings.Kind == "AiUsage" && Settings.UsageSource == "Main";
+    public string UsageNoteText => (Settings.ShowsClaude() ? claudeUsage : codexUsage)?.Note.Text ?? "";
 
     private void RenderUsage()
     {
         claudeUsage = UsageSection("Claude", new Thickness(0, 2, 0, 0));
         codexUsage = UsageSection("Codex", new Thickness(0, 12, 0, 0));
+        // Bottom row: the auto-update switch, and the source (this computer or the main computer in connection mode).
+        var row = new DockPanel { Margin = new Thickness(0, 8, 0, 0), LastChildFill = false };
+        usageSourceButton = ActionButton("", () => SetUsageSource(MainUsage ? "Local" : "Main"));
+        usageSourceButton.FontSize = 11; usageSourceButton.MinHeight = usageSourceButton.Height = 28;
+        usageSourceButton.Padding = new Thickness(10, 0, 10, 0); usageSourceButton.Margin = new Thickness(8, 0, 0, 0);
+        AutomationProperties.SetName(usageSourceButton, "切換 AI 用量來源：本機或主電腦");
+        DockPanel.SetDock(usageSourceButton, Dock.Right); row.Children.Add(usageSourceButton);
         // Unchecked: the widget keeps its last reading and stops reading files and the network.
-        usageAutoUpdate = new CheckBox { Content = "每分鐘自動更新", IsChecked = !Settings.UsagePaused, FontSize = 11, MinHeight = 28, Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        usageAutoUpdate = new CheckBox { Content = "每分鐘自動更新", IsChecked = !Settings.UsagePaused, FontSize = 11, MinHeight = 28, VerticalAlignment = VerticalAlignment.Center };
         usageAutoUpdate.SetResourceReference(Control.ForegroundProperty, "MutedBrush");
         AutomationProperties.SetName(usageAutoUpdate, "AI 用量每分鐘自動更新");
         usageAutoUpdate.Click += (_, _) => SetUsagePaused(usageAutoUpdate.IsChecked != true);
-        body.Children.Add(usageAutoUpdate);
+        DockPanel.SetDock(usageAutoUpdate, Dock.Left); row.Children.Add(usageAutoUpdate);
+        body.Children.Add(row);
         // The status line appears only when reading fails, so both services fit the default size.
         status.Visibility = Visibility.Collapsed;
         body.Children.Add(status);
@@ -48,19 +65,44 @@ public sealed partial class HomeUtilityWidget
         claudeUsage!.Panel.Visibility = Settings.ShowsClaude() ? Visibility.Visible : Visibility.Collapsed;
         codexUsage!.Panel.Visibility = Settings.ShowsCodex() ? Visibility.Visible : Visibility.Collapsed;
         codexUsage.Panel.Margin = new Thickness(0, Settings.ShowsClaude() ? 12 : 2, 0, 0);
+        usageSourceButton!.Content = MainUsage ? "主電腦" : "本機";
+        ShowUsageMessage(Settings.UsagePaused ? "已暫停自動更新；勾選下方開關後讀取" : MainUsage ? "等待主電腦回報用量" : "正在讀取…");
+    }
+
+    // Clears the readings and puts one explanation under the first shown section.
+    private void ShowUsageMessage(string message)
+    {
+        if (claudeUsage is null || codexUsage is null) return;
+        var empty = new ProviderUsage(null, null, null);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var section in new[] { claudeUsage, codexUsage }) ShowSection(section, empty, now, "", "");
         var first = Settings.ShowsClaude() ? claudeUsage : codexUsage;
-        foreach (var section in new[] { claudeUsage, codexUsage }) section.Note.Visibility = Visibility.Collapsed;
-        first.Note.Text = Settings.UsagePaused ? "已暫停自動更新；勾選下方開關後讀取" : "正在讀取…";
+        foreach (var section in new[] { claudeUsage, codexUsage }) { section.FiveHour.Detail.Text = section.Weekly.Detail.Text = ""; }
+        first.Note.Text = message;
         first.Note.Visibility = Visibility.Visible;
+        UpdateResponsiveLayout();
     }
 
     public bool SetUsageProviders(string providers)
     {
         if (Settings.Kind != "AiUsage" || Array.IndexOf(Secondary.Core.HomeWidgetSettings.UsageProviderChoices, providers) < 0) return false;
         if (Settings.UsageProviders == providers) return true;
-        if (!Commit(Settings with { UsageProviders = providers })) { status.Visibility = Visibility.Visible; return false; }
-        // A newly shown service has not been read yet, so the widget reads again instead of showing stale gaps.
+        return ChangeUsage(Settings with { UsageProviders = providers });
+    }
+
+    public bool SetUsageSource(string source)
+    {
+        if (Settings.Kind != "AiUsage" || source is not ("Local" or "Main")) return false;
+        if (Settings.UsageSource == source) return true;
+        return ChangeUsage(Settings with { UsageSource = source });
+    }
+
+    // A changed choice reads again (or re-subscribes) instead of showing stale gaps.
+    private bool ChangeUsage(Secondary.Core.HomeWidgetSettings next)
+    {
+        if (!Commit(next)) { status.Visibility = Visibility.Visible; return false; }
         PauseUsageRequests();
+        SetUsageSubscription(false);
         lastUsage = null;
         ApplyUsageProviders();
         SetActive(widgetActive);
@@ -78,9 +120,116 @@ public sealed partial class HomeUtilityWidget
         }
         usageAutoUpdate!.IsChecked = !paused;
         if (paused) PauseUsageRequests();
-        // Re-applying the active state stops the timer, or restarts it with an immediate read.
+        // Re-applying the active state stops the timer and subscription, or restarts them with an immediate read.
         SetActive(widgetActive);
         return true;
+    }
+
+    // Enabling sends a Claude Code CLI token to an unofficial endpoint (here, or on the main computer); callers confirm first.
+    public bool SetClaudeOnline(bool enabled)
+    {
+        if (Settings.Kind != "AiUsage" || Settings.ClaudeOnline == enabled) return Settings.ClaudeOnline == enabled;
+        if (!Commit(Settings with { ClaudeOnline = enabled })) { status.Visibility = Visibility.Visible; return false; }
+        PauseUsageRequests();
+        SetUsageSubscription(false);
+        SetActive(widgetActive);
+        return true;
+    }
+
+    // Main-computer usage: one watch while the widget is on screen, unpaused and set to the main computer.
+    private void SetUsageSubscription(bool on)
+    {
+        // Showing the page again keeps an identical watch instead of stopping and restarting the helper.
+        var request = new UsageRequest(Settings.ShowsClaude(), Settings.ShowsCodex(), Settings.ClaudeOnline);
+        if (on && remoteUsageWatch is not null && watchedUsageClient == RemoteUsageClient.Current && watchedUsageRequest == request) { ShowRemoteUsage(); return; }
+        remoteUsageWatch?.Dispose(); remoteUsageWatch = null; watchedUsageClient = null;
+        if (on != watchingUsageClient)
+        {
+            if (on) RemoteUsageClient.CurrentChanged += OnUsageClientChanged; else RemoteUsageClient.CurrentChanged -= OnUsageClientChanged;
+            watchingUsageClient = on;
+        }
+        if (on && RemoteUsageClient.Current is { } client)
+        {
+            remoteUsageWatch = client.Watch(request, OnRemoteUsageChanged);
+            watchedUsageClient = client; watchedUsageRequest = request;
+        }
+        if (on) ShowRemoteUsage();
+    }
+    private void OnUsageClientChanged() => Dispatcher.BeginInvoke(() => { if (!disposed && widgetActive && MainUsage && !UsagePaused) SetUsageSubscription(true); });
+    private void OnRemoteUsageChanged() => Dispatcher.BeginInvoke(() => { if (!disposed && widgetActive && MainUsage && !UsagePaused) ShowRemoteUsage(); });
+
+    private void ShowRemoteUsage()
+    {
+        var client = RemoteUsageClient.Current;
+        if (client is null) { lastUsage = null; ShowUsageMessage("連線模式未啟用；可切回本機"); return; }
+        if (!client.Connected) { lastUsage = null; ShowUsageMessage("主電腦未連線；連上後自動顯示"); return; }
+        if (client.Snapshot is not { } snapshot) { lastUsage = null; ShowUsageMessage(client.Status); return; }
+        lastUsage = snapshot;
+        ShowUsage(snapshot, client.MainNow, "主電腦 · ");
+    }
+
+    private async Task RefreshUsageAsync()
+    {
+        if (disposed || !widgetActive || UsagePaused) return;
+        // The main computer reports on its own; the minute tick only moves the countdowns.
+        if (MainUsage) { ShowRemoteUsage(); return; }
+        if (lastUsage is not null) ShowUsage(lastUsage, usageSource.UtcNow);
+        if (usageBusy) return;
+        usageRequest?.Cancel();
+        var request = new CancellationTokenSource(); usageRequest = request; usageBusy = true;
+        try
+        {
+            var snapshot = await usageSource.ReadAsync(Settings.ShowsClaude(), Settings.ShowsCodex(), Settings.ClaudeOnline, request.Token);
+            if (disposed || !widgetActive || request.IsCancellationRequested || MainUsage) return;
+            lastUsage = snapshot; ShowUsage(snapshot, usageSource.UtcNow);
+            status.Visibility = Visibility.Collapsed;
+        }
+        catch (OperationCanceledException) when (request.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (!disposed && !request.IsCancellationRequested) { status.Text = "讀取用量紀錄失敗，下一分鐘會重試。"; status.Visibility = Visibility.Visible; }
+        }
+        finally
+        {
+            if (usageRequest == request) { usageRequest = null; usageBusy = false; }
+            request.Dispose();
+        }
+    }
+
+    private void PauseUsageRequests()
+    {
+        var request = usageRequest; usageRequest = null; usageBusy = false;
+        request?.Cancel();
+    }
+
+    private void ShowUsage(AiUsageSnapshot snapshot, DateTimeOffset now, string agePrefix = "")
+    {
+        if (claudeUsage is null || codexUsage is null) return;
+        ShowSection(claudeUsage, snapshot.Claude, now, snapshot.ClaudeOnlineProblem is { } problem ? "線上用量無法取得：" + problem :
+            snapshot.Claude.HasData ? "" : "桌面版不提供百分比，用完額度時顯示重置時間", agePrefix);
+        ShowSection(codexUsage, snapshot.Codex, now, snapshot.Codex.HasData ? "" :
+            "尚無紀錄，使用 Codex 後自動顯示", agePrefix);
+        UpdateResponsiveLayout();
+    }
+
+    private static void ShowSection(UsageSectionView section, ProviderUsage usage, DateTimeOffset now, string note, string agePrefix)
+    {
+        var age = AiUsageText.Age(usage.ObservedAt, now);
+        section.Age.Text = age.Length == 0 ? "" : agePrefix + age;
+        section.Note.Text = note;
+        section.Note.Visibility = note.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        ShowRow(section.FiveHour, usage.FiveHour, now);
+        ShowRow(section.Weekly, usage.Weekly, now);
+    }
+
+    private static void ShowRow(UsageRowView row, UsageWindow? window, DateTimeOffset now)
+    {
+        var text = AiUsageText.Describe(window, now);
+        row.Value.Text = text.Value;
+        row.Detail.Text = text.Detail;
+        row.Detail.ToolTip = text.Detail;
+        row.Track.ColumnDefinitions[0].Width = new GridLength(text.Fraction, GridUnitType.Star);
+        row.Track.ColumnDefinitions[1].Width = new GridLength(1 - text.Fraction, GridUnitType.Star);
     }
 
     private UsageSectionView UsageSection(string name, Thickness margin)
@@ -127,82 +276,10 @@ public sealed partial class HomeUtilityWidget
         return new(label, detail, value, track);
     }
 
-    private async Task RefreshUsageAsync()
-    {
-        if (disposed || !widgetActive || UsagePaused) return;
-        if (lastUsage is not null) ShowUsage(lastUsage);
-        if (usageBusy) return;
-        usageRequest?.Cancel();
-        var request = new CancellationTokenSource(); usageRequest = request; usageBusy = true;
-        try
-        {
-            var snapshot = await usageSource.ReadAsync(Settings.ShowsClaude(), Settings.ShowsCodex(), Settings.ClaudeOnline, request.Token);
-            if (disposed || !widgetActive || request.IsCancellationRequested) return;
-            lastUsage = snapshot; ShowUsage(snapshot);
-            status.Visibility = Visibility.Collapsed;
-        }
-        catch (OperationCanceledException) when (request.IsCancellationRequested) { }
-        catch (Exception)
-        {
-            if (!disposed && !request.IsCancellationRequested) { status.Text = "讀取用量紀錄失敗，下一分鐘會重試。"; status.Visibility = Visibility.Visible; }
-        }
-        finally
-        {
-            if (usageRequest == request) { usageRequest = null; usageBusy = false; }
-            request.Dispose();
-        }
-    }
-
-    // Enabling sends the Claude Code CLI token to an unofficial endpoint; callers confirm with the user first.
-    public bool SetClaudeOnline(bool enabled)
-    {
-        if (Settings.Kind != "AiUsage" || Settings.ClaudeOnline == enabled) return Settings.ClaudeOnline == enabled;
-        if (!Commit(Settings with { ClaudeOnline = enabled })) { status.Visibility = Visibility.Visible; return false; }
-        PauseUsageRequests();
-        if (widgetActive) _ = RefreshUsageAsync();
-        return true;
-    }
-
-    private void PauseUsageRequests()
-    {
-        var request = usageRequest; usageRequest = null; usageBusy = false;
-        request?.Cancel();
-    }
-
-    private void ShowUsage(AiUsageSnapshot snapshot)
-    {
-        if (claudeUsage is null || codexUsage is null) return;
-        var now = usageSource.UtcNow;
-        ShowSection(claudeUsage, snapshot.Claude, now, snapshot.ClaudeOnlineProblem is { } problem ? "線上用量無法取得：" + problem :
-            snapshot.Claude.HasData ? "" : "桌面版不提供百分比，用完額度時顯示重置時間");
-        ShowSection(codexUsage, snapshot.Codex, now, snapshot.Codex.HasData ? "" :
-            "尚無紀錄，使用 Codex 後自動顯示");
-        UpdateResponsiveLayout();
-    }
-
-    private static void ShowSection(UsageSectionView section, ProviderUsage usage, DateTimeOffset now, string note)
-    {
-        section.Age.Text = AiUsageText.Age(usage.ObservedAt, now);
-        section.Note.Text = note;
-        section.Note.Visibility = note.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-        ShowRow(section.FiveHour, usage.FiveHour, now);
-        ShowRow(section.Weekly, usage.Weekly, now);
-    }
-
-    private static void ShowRow(UsageRowView row, UsageWindow? window, DateTimeOffset now)
-    {
-        var text = AiUsageText.Describe(window, now);
-        row.Value.Text = text.Value;
-        row.Detail.Text = text.Detail;
-        row.Detail.ToolTip = text.Detail;
-        row.Track.ColumnDefinitions[0].Width = new GridLength(text.Fraction, GridUnitType.Star);
-        row.Track.ColumnDefinitions[1].Width = new GridLength(1 - text.Fraction, GridUnitType.Star);
-    }
-
     private void UpdateUsageLayout(double width, double height, double scale)
     {
         if (claudeUsage is null || codexUsage is null) return;
-        usageAutoUpdate!.FontSize = Math.Clamp(11 * scale, 11, 16);
+        usageAutoUpdate!.FontSize = usageSourceButton!.FontSize = Math.Clamp(11 * scale, 11, 16);
         foreach (var section in new[] { claudeUsage, codexUsage })
         {
             section.Name.FontSize = Math.Clamp(15 * scale, 13, 24);

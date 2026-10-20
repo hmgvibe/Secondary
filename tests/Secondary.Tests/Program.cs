@@ -269,6 +269,7 @@ DataOptimizationChecks.Run(Check);
 ConnectionChecks.Run(Check);
 RemoteGameChecks.Run(Check);
 RemoteDeviceChecks.Run(Check);
+RemoteUsageChecks.Run(Check);
 ShortcutTransferChecks.Run(Check);
 AiUsageChecks.Run(Check);
 await ClaudeOnlineChecks.Run(Check);

@@ -15,7 +15,7 @@ public sealed record WeatherLocation(string Name, string Country, string Region,
 
 public sealed record HomeWidgetSettings(string Id, string Kind, WidgetPlacement? Placement = null, string Text = "", int Minutes = 5,
     TodoItem[]? Tasks = null, int Count = 0, string City = "", string EventTitle = "", string EventDate = "", WeatherLocation? Location = null,
-    string MediaSource = "Local", bool ClaudeOnline = false, bool UsagePaused = false, string UsageProviders = "Both")
+    string MediaSource = "Local", bool ClaudeOnline = false, bool UsagePaused = false, string UsageProviders = "Both", string UsageSource = "Local")
 {
     // Which services an AI usage widget shows; hidden services are not read at all.
     public static readonly string[] UsageProviderChoices = ["Both", "Claude", "Codex"];
@@ -39,6 +39,8 @@ public sealed record HomeWidgetSettings(string Id, string Kind, WidgetPlacement?
         // A paused AI usage widget keeps its last reading and stops reading files or the network.
         UsagePaused = UsagePaused && Kind == "AiUsage",
         UsageProviders = Kind == "AiUsage" && UsageProviderChoices.Contains(UsageProviders) ? UsageProviders : "Both",
+        // AI usage widgets read this computer, or the main computer's usage in connection mode.
+        UsageSource = Kind == "AiUsage" && UsageSource == "Main" ? "Main" : "Local",
         EventTitle = (EventTitle ?? "").Trim()[..Math.Min((EventTitle ?? "").Trim().Length, 80)],
         EventDate = DateOnly.TryParseExact(EventDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out var date) ? date.ToString("yyyy-MM-dd") : "",

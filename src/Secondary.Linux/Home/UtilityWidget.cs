@@ -172,6 +172,7 @@ public sealed partial class UtilityWidget : Border, IDisposable
         widgetActive = active;
         if (!active) { PauseWeatherRequests(); PauseUsageRequests(); }
         SetMediaSubscription(active && Settings.Kind == "Media");
+        if (Settings.Kind == "AiUsage") SetUsageSubscription(active && MainUsage && !UsagePaused);
         refresh.Interval = Settings.Kind switch { "Media" => TimeSpan.FromSeconds(5), "Weather" or "TimeProgress" or "Calendar" or "EventCountdown" or "AiUsage" => TimeSpan.FromMinutes(1), _ => TimeSpan.FromSeconds(1) };
         if (active && Settings.Kind is not ("Note" or "Todo" or "Counter") && !UsagePaused) { OnTick(null, EventArgs.Empty); refresh.Start(); }
     }
@@ -225,5 +226,5 @@ public sealed partial class UtilityWidget : Border, IDisposable
         UpdateResponsiveLayout();
     }
 
-    public void Dispose() { disposed = true; widgetActive = false; PauseWeatherRequests(); PauseUsageRequests(); SetMediaSubscription(false); refresh.Stop(); refresh.Tick -= OnTick; elapsed.Stop(); }
+    public void Dispose() { disposed = true; widgetActive = false; PauseWeatherRequests(); PauseUsageRequests(); if (Settings.Kind == "AiUsage") SetUsageSubscription(false); SetMediaSubscription(false); refresh.Stop(); refresh.Tick -= OnTick; elapsed.Stop(); }
 }

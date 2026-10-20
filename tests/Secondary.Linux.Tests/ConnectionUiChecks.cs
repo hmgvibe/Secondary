@@ -50,6 +50,7 @@ internal static class ConnectionUiChecks
         public volatile string? MediaCommand;
         public volatile bool Playing = true;
         public int Watching;
+        public readonly List<UsageRequest?> UsageRequests = [];
         public readonly List<ShortcutEntry> Shortcuts = [];
         public int Runs;
         public async Task Handle(string device, JsonObject message, FrameChannel channel, CancellationToken token)
@@ -77,6 +78,15 @@ internal static class ConnectionUiChecks
                 case "media-watch":
                     Watching += message["on"]?.GetValue<bool>() == true ? 1 : -1;
                     if (Watching > 0) await channel.SendAsync(Song(), token);
+                    break;
+                case "usage-watch":
+                    var usage = RemoteUsageMessages.ReadWatch(message);
+                    lock (UsageRequests) UsageRequests.Add(usage);
+                    if (usage is { } wanted)
+                        await channel.SendAsync(RemoteUsageMessages.State(new Secondary.Shared.AiUsageSnapshot(
+                            wanted.Claude ? new(new(30, DateTimeOffset.UtcNow.AddHours(3).AddMinutes(12).AddSeconds(30)), new(19, DateTimeOffset.UtcNow.AddDays(4)), DateTimeOffset.UtcNow.AddMinutes(-4)) : new(null, null, null),
+                            wanted.Codex ? new(null, new(6, DateTimeOffset.UtcNow.AddDays(2)), DateTimeOffset.UtcNow.AddMinutes(-4)) : new(null, null, null),
+                            wanted.ClaudeOnline ? "主電腦未允許線上用量（在連接助手選單開啟）" : null), DateTimeOffset.UtcNow, "主電腦用量"), token);
                     break;
                 case "media-control":
                     MediaCommand = Text(message, "command"); Playing = !Playing;
@@ -187,6 +197,41 @@ internal static class ConnectionUiChecks
             Check(saved.Last().MediaSource == "Local" && PumpUntil(() => helper.Watching == 0), "Switching back to this computer stops the main computer's reports");
         }
         finally { widget.SetActive(false); widget.Dispose(); host.Close(); Pump(); }
+    }
+
+    // Stage 4: an AI usage widget switched to the main computer shows the helper's readings.
+    private static void ExerciseUsage(MainWindow window, FakeHelper helper, string? output)
+    {
+        UsageRequest?[] Seen() { lock (helper.UsageRequests) return helper.UsageRequests.ToArray(); }
+        var saved = new List<HomeWidgetSettings>();
+        var widget = new Secondary.Linux.Home.UtilityWidget(new HomeWidgetSettings("usage", "AiUsage")) { Width = 320, Height = 300 };
+        widget.SaveRequested += next => { saved.Add(next); return true; };
+        var host = new Window { Content = widget, Width = 360, Height = 360 };
+        host.Show(); Pump();
+        try
+        {
+            widget.SetActive(true);
+            Check((string?)widget.UsageSourceButton!.Content == "本機" && Seen().Length == 0, "A Linux AI usage widget made directly starts with this computer");
+            Press(widget.UsageSourceButton);
+            Check(saved.LastOrDefault()?.UsageSource == "Main" && (string?)widget.UsageSourceButton.Content == "主電腦", "The usage source switch is saved with the widget");
+            Check(PumpUntil(() => widget.UsageTexts.Contains("30%")) && Seen() is [{ Claude: true, Codex: true, ClaudeOnline: false }],
+                "The widget shows the main computer's usage for both services: " + string.Join(" | ", widget.UsageTexts));
+            Check(widget.UsageTexts.Contains("6%") && widget.UsageTexts.Contains("3 小時 12 分後重置") && widget.UsageTexts.Contains("主電腦 · 4 分鐘前更新"),
+                "Main-computer usage shows countdowns and the main computer's age");
+            if (output is not null) { for (var i = 0; i < 5; i++) Pump(); host.CaptureRenderedFrame()?.Save(Path.Combine(output, "linux-connection-usage.png"), PngBitmapEncoderOptions.Default); }
+            Check(widget.SetClaudeOnline(true) && PumpUntil(() => widget.UsageTexts.Any(t => t.Contains("主電腦未允許線上用量", StringComparison.Ordinal))) && Seen()[^1] is { ClaudeOnline: true },
+                "Online usage the main computer has not allowed is explained");
+            Check(widget.SetUsageProviders("Codex") && PumpUntil(() => Seen()[^1] is { Claude: false, Codex: true }), "Showing only Codex narrows what the main computer reads");
+            Check(widget.SetUsagePaused(true) && PumpUntil(() => Seen()[^1] is null), "Pausing the widget stops the main computer's reading");
+            Check(widget.SetUsagePaused(false) && PumpUntil(() => Seen()[^1] is not null), "Resuming watches the main computer again");
+            Press(widget.UsageSourceButton);
+            Check(saved.Last().UsageSource == "Local" && PumpUntil(() => Seen()[^1] is null), "Switching back to this computer stops the main computer's reading");
+        }
+        finally { widget.SetActive(false); widget.Dispose(); host.Close(); Pump(); }
+        Check(window.AddHomeWidget("AiUsage"), "An AI usage widget can be added in connection mode");
+        var added = window.UtilityWidgets.Values.Single(w => w.Content.Settings.Kind == "AiUsage");
+        Check(added.Content.Settings.UsageSource == "Main", "A new AI usage widget defaults to the main computer once connection mode is set up");
+        Check(window.RemoveHomeWidget(added.Content.Settings.Id), "The added AI usage widget can be removed");
     }
 
     // Stage 3: main-computer shortcuts in the Linux launchpad; the main computer validates and runs them.
@@ -320,6 +365,7 @@ internal static class ConnectionUiChecks
             Check(PumpUntil(() => server.ActiveDevice == "Surface"), "Connecting again uses the stored pairing");
             ExerciseGame(window, model, server, helper, controller, card, output);
             ExerciseMedia(helper, output);
+            ExerciseUsage(window, helper, output);
             ExerciseShortcuts(window, helper, output);
             // 移除配對 asks in the window's own dialog first.
             Press(RowButton(card.Rows, "移除配對")); Pump();

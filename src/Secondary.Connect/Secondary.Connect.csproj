@@ -15,6 +15,8 @@
     <Content Include="../../.tools/monitoring/PresentMon-2.6.0-x64.exe" Condition="Exists('../../.tools/monitoring/PresentMon-2.6.0-x64.exe')" Link="Monitoring/PresentMon-2.6.0-x64.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../third-party/PresentMon-LICENSE.txt" Link="Monitoring/PresentMon-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <!-- The UI tests drive the helper with fake sources through its internal constructor. -->
+  <ItemGroup><InternalsVisibleTo Include="Secondary.UiTests" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../Secondary.SensorHelper/Secondary.SensorHelper.csproj" ReferenceOutputAssembly="false" /></ItemGroup>
   <Target Name="CopySensorHelper" AfterTargets="Build">
     <ItemGroup><SensorHelperFiles Include="../Secondary.SensorHelper/bin/$(Configuration)/net10.0-windows/**/*" /></ItemGroup>

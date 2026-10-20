@@ -357,6 +357,8 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         // Media widgets set to the main computer and the launchpad's main-computer section use this connection.
         Secondary.Shared.Connection.RemoteMediaClient.Current?.Dispose();
         Secondary.Shared.Connection.RemoteMediaClient.Current = controller is null ? null : new(controller);
+        Secondary.Shared.Connection.RemoteUsageClient.Current?.Dispose();
+        Secondary.Shared.Connection.RemoteUsageClient.Current = controller is null ? null : new(controller);
         Launchpad.AttachRemote(controller);
         if (controller is not null)
         {

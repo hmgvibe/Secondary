@@ -6,3 +6,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("secondary")]
 [assembly: InternalsVisibleTo("Secondary.Linux.Tests")]
 [assembly: InternalsVisibleTo("Secondary.Tests")]
+[assembly: InternalsVisibleTo("Secondary.Connect")]

@@ -23,6 +23,7 @@ public sealed class ConnectTray : IDisposable
     public PairingForm? PairingWindow { get; private set; }
     public GameService Games { get; }
     public MediaService Media { get; }
+    internal UsageService Usage { get; }
     public ShortcutService Shortcuts { get; }
     public HelperHotkey Hotkey { get; }
     public ShortcutConfirmForm? ConfirmWindow { get; private set; }
@@ -30,13 +31,14 @@ public sealed class ConnectTray : IDisposable
     public Func<string, bool> Confirm { get; set; } = text => MessageBox.Show(text, "Secondary 連接助手", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
 
     // Tests pass showIcon: false so no icon appears in the real notification area.
-    public ConnectTray(HelperServer server, PairedStore devices, IStartupSetting startup, string? problem = null, bool showIcon = true,
-        GameService? games = null, MediaService? media = null, ShortcutService? shortcuts = null)
+    internal ConnectTray(HelperServer server, PairedStore devices, IStartupSetting startup, string? problem = null, bool showIcon = true,
+        GameService? games = null, MediaService? media = null, ShortcutService? shortcuts = null, UsageService? usage = null)
     {
         this.server = server; this.devices = devices; this.startup = startup; this.problem = problem;
         marshal.CreateControl();
         Games = games ?? new GameService();
         Media = media ?? new MediaService();
+        Usage = usage ?? new UsageService(System.IO.Path.Combine(Secondary.Shared.AppPaths.Current.DataDirectory, "Connect", "usage.json"));
         Shortcuts = shortcuts ?? new ShortcutService(System.IO.Path.Combine(Secondary.Shared.AppPaths.Current.DataDirectory, "Connect", "shortcuts.json"));
         Shortcuts.Confirm ??= ShowConfirmation;
         Shortcuts.Busy = () => Games.Current is not null;
@@ -67,6 +69,7 @@ public sealed class ConnectTray : IDisposable
     {
         var type = TypeOf(message);
         if (type.StartsWith("media-", StringComparison.Ordinal)) { await Media.Handle(message, channel, session).ConfigureAwait(false); return; }
+        if (type.StartsWith("usage-", StringComparison.Ordinal)) { await Usage.Handle(message, channel, session).ConfigureAwait(false); return; }
         if (type.StartsWith("shortcut", StringComparison.Ordinal)) { await Shortcuts.Handle(server.ActiveDevice ?? "設備", message, channel, session).ConfigureAwait(false); return; }
         if (type != "hotkey") { await Games.Handle(message, channel, session).ConfigureAwait(false); return; }
         var result = new TaskCompletionSource<(bool, string)>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -101,8 +104,9 @@ public sealed class ConnectTray : IDisposable
         Item(Games.Status, null).Enabled = false;
         Item(Hotkey.Status, null).Enabled = false;
         Item(Media.Status, null).Enabled = false;
+        Item(Usage.Status, null).Enabled = false;
         Item(Shortcuts.Status, null).Enabled = false;
-        foreach (var note in new[] { problem, server.DiscoveryError, devices.SaveError }.Where(n => n is not null)) Item("⚠ " + note, null).Enabled = false;
+        foreach (var note in new[] { problem, server.DiscoveryError, devices.SaveError, Usage.SaveError }.Where(n => n is not null)) Item("⚠ " + note, null).Enabled = false;
         Menu.Items.Add(new ToolStripSeparator());
         Item("開始配對…", (_, _) => OpenPairing());
         var list = new ToolStripMenuItem("已配對設備") { Padding = new Padding(12, 8, 20, 8) };
@@ -122,6 +126,17 @@ public sealed class ConnectTray : IDisposable
             { icon?.ShowBalloonTip(5000, "Secondary 連接助手", "無法變更登入時啟動：" + error.Message, ToolTipIcon.Warning); }
         };
         Menu.Items.Add(signIn);
+        // The device may ask for the unofficial Claude online usage; it runs here, with this computer's CLI login.
+        var online = new ToolStripMenuItem("允許設備使用 Claude 線上用量") { Checked = Usage.AllowOnline, CheckOnClick = true, Padding = new Padding(12, 8, 20, 8) };
+        online.CheckedChanged += (_, _) =>
+        {
+            if (online.Checked && !Confirm("允許設備使用 Claude 線上用量？" + Environment.NewLine + Environment.NewLine +
+                "設備的 AI 用量組件開啟線上用量時，連接助手會讀取這台電腦 ~/.claude/.credentials.json 裡 Claude Code CLI 的登入 token，" +
+                "最多每 5 分鐘傳送一次到 api.anthropic.com 的未公開用量端點。token 不會傳給設備，設備只收到百分比與重置時間。"))
+            { online.Checked = false; return; }
+            Usage.AllowOnline = online.Checked;
+        };
+        Menu.Items.Add(online);
         Menu.Items.Add(new ToolStripSeparator());
         Item("結束連接助手", (_, _) => Context.ExitThread());
     }

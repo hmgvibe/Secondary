@@ -18,6 +18,7 @@ using Secondary.App.Presentation;
 using Secondary.Connect;
 using Secondary.Core;
 using Secondary.Monitoring;
+using Secondary.Shared;
 using Secondary.Shared.Connection;
 
 // Connection mode on Windows: the device card in settings and the helper's tray and pairing window, over loopback.
@@ -127,9 +128,11 @@ internal static class ConnectionUiChecks
         var startup = new FakeStartup();
         var executor = new FakeExecutor();
         var media = new FakeMedia();
+        var usage = new FakeUsage();
         using var tray = new ConnectTray(server, devices, startup, showIcon: false,
             games: new GameService(_ => new FakeTelemetry(), () => [new RemoteProcess(4242, 99, "fakegame"), new RemoteProcess(7, 1, "explorer")]),
-            media: new MediaService(media), shortcuts: new ShortcutService(Path.Combine(root, "helper", "shortcuts.json"), executor));
+            media: new MediaService(media), shortcuts: new ShortcutService(Path.Combine(root, "helper", "shortcuts.json"), executor),
+            usage: new UsageService(Path.Combine(root, "helper", "usage.json"), usage.Read, TimeSpan.FromMilliseconds(300)));
         var confirmations = 0;
         tray.Confirm = _ => ++confirmations > 1;
         try
@@ -185,6 +188,7 @@ internal static class ConnectionUiChecks
             check(Pump(() => server.ActiveDevice == "Desk"), "Connecting again uses the stored pairing");
             ExerciseGame(window, check, output, tray, controller, card);
             ExerciseMedia(check, output, media);
+            ExerciseUsage(window, check, output, tray, usage);
             ExerciseShortcuts(window, check, output, tray, executor, Path.Combine(root, "helper", "shortcuts.json"));
 
             // Removal from the tray asks first; declining keeps the device.
@@ -287,6 +291,100 @@ internal static class ConnectionUiChecks
             check(saved.Last().MediaSource == "Local" && (string)widget.MediaSourceButton.Content == "來源：本機", "The widget can switch back to this computer");
         }
         finally { widget.SetActive(false); host.Close(); }
+    }
+
+    // Stage 4: the main computer's AI usage, read by the helper's UsageService for a widget set to the main computer.
+    private sealed class FakeUsage
+    {
+        public readonly List<(bool Claude, bool Codex, bool Online)> Reads = [];
+        public static readonly DateTimeOffset Resets = DateTimeOffset.UtcNow.AddHours(3).AddMinutes(12).AddSeconds(30);
+        public Task<AiUsageSnapshot> Read(bool claude, bool codex, bool online, CancellationToken token)
+        {
+            lock (Reads) Reads.Add((claude, codex, online));
+            var observed = DateTimeOffset.UtcNow.AddMinutes(-4);
+            return Task.FromResult(new AiUsageSnapshot(
+                claude ? new ProviderUsage(new UsageWindow(online ? 49 : 30, Resets), new UsageWindow(19, Resets.AddDays(4)), observed) : new(null, null, null),
+                codex ? new ProviderUsage(null, new UsageWindow(6, Resets.AddDays(2)), observed) : new(null, null, null)));
+        }
+        public (bool Claude, bool Codex, bool Online) Last { get { lock (Reads) return Reads[^1]; } }
+        public int Count { get { lock (Reads) return Reads.Count; } }
+    }
+
+    private static void ExerciseUsage(MainWindow window, Action<bool, string> check, string? output, ConnectTray tray, FakeUsage usage)
+    {
+        string[] Menu() { tray.Build(); return tray.Menu.Items.Cast<System.Windows.Forms.ToolStripItem>().Select(i => i.Text ?? "").ToArray(); }
+        check(Menu().Contains("AI 用量：未使用") && tray.Menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Single(i => i.Text == "允許設備使用 Claude 線上用量") is { Checked: false },
+            "The helper's tray shows AI usage as unused and the online permission off");
+        check(usage.Count == 0, "The helper reads no usage until a widget watches");
+
+        var saved = new List<HomeWidgetSettings>();
+        using var widget = new HomeUtilityWidget(new HomeWidgetSettings("usage", "AiUsage")) { Width = 320, Height = 300 };
+        widget.SaveRequested += next => { saved.Add(next); return true; };
+        var host = new Window { Content = widget, Width = 360, Height = 360, ShowActivated = false, WindowStyle = WindowStyle.None, Left = -2000, Top = -2000 };
+        host.Show();
+        try
+        {
+            widget.SetActive(true);
+            check((string)widget.UsageSourceButton!.Content == "本機" && usage.Count == 0, "An AI usage widget made directly starts with this computer");
+            Click(widget.UsageSourceButton);
+            check(saved.LastOrDefault()?.UsageSource == "Main" && (string)widget.UsageSourceButton.Content == "主電腦", "The usage source switch is saved with the widget");
+            check(Pump(() => widget.UsageSnapshot is { Claude.HasData: true }) && usage.Last == (true, true, false) && tray.Usage.Watching,
+                "The widget shows the main computer's usage, read by the helper for both services");
+            check(Pump(() => Menu().Contains("AI 用量：設備正在顯示主電腦的用量")), "The tray shows that a device is watching the main computer's usage");
+            host.UpdateLayout();
+            var texts = Descendants(widget).OfType<TextBlock>().Select(t => t.Text).ToArray();
+            check(texts.Contains("30%") && texts.Contains("6%") && texts.Contains("3 小時 12 分後重置") && texts.Contains("主電腦 · 4 分鐘前更新"),
+                "Main-computer usage shows percentages, countdowns and the main computer's age: " + string.Join(" | ", texts.Where(t => t.Length > 0)));
+            if (output is not null) Capture(widget, Path.Combine(output, "connection-usage.png"));
+
+            Dispatch(() => widget.SetClaudeOnline(true));
+            check(Pump(() => widget.UsageNoteText.Contains("主電腦未允許線上用量", StringComparison.Ordinal)) && usage.Last.Online == false,
+                "Online usage the main computer has not allowed is explained and never requested there");
+            var allow = tray.Menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Single(i => i.Text == "允許設備使用 Claude 線上用量");
+            var confirm = tray.Confirm;
+            var asked = "";
+            tray.Confirm = text => { asked = text; return false; };
+            allow.PerformClick();
+            check(!tray.Usage.AllowOnline && !allow.Checked && asked.Contains("token 不會傳給設備", StringComparison.Ordinal), "Declining on the main computer keeps online usage blocked");
+            tray.Confirm = _ => true;
+            allow.PerformClick();
+            tray.Confirm = confirm;
+            check(tray.Usage.AllowOnline && allow.Checked && new UsageService(tray.Usage.SettingsPath).AllowOnline, "Allowing on the main computer is saved for the next start");
+            check(Pump(() => usage.Last.Online && widget.UsageSnapshot?.Claude.FiveHour?.UsedPercent == 49 && !widget.UsageNoteText.Contains("未允許", StringComparison.Ordinal)),
+                "Once allowed, the helper reads online usage at once and the device shows it");
+
+            var reads = usage.Count;
+            Dispatch(() => widget.SetUsageProviders("Codex"));
+            check(Pump(() => usage.Count > reads && usage.Last == (false, true, false)), "Showing only Codex narrows what the main computer reads");
+            Dispatch(() => widget.SetUsagePaused(true));
+            check(Pump(() => !tray.Usage.Watching), "Pausing the widget stops the main computer's reading");
+            Dispatch(() => widget.SetUsagePaused(false));
+            check(Pump(() => tray.Usage.Watching), "Resuming watches the main computer again");
+            Click(widget.UsageSourceButton);
+            check(saved.Last().UsageSource == "Local" && Pump(() => !tray.Usage.Watching), "Switching back to this computer stops the main computer's reading");
+        }
+        finally { widget.SetActive(false); host.Close(); }
+
+        // With connection mode set up, a newly added AI usage widget starts on the main computer.
+        check(window.AddHomeWidget("AiUsage"), "An AI usage widget can be added in connection mode");
+        var added = ((Canvas)window.FindName("WidgetCanvas")).Children.OfType<HomeWidget>().SelectMany(f => f.Children.OfType<HomeUtilityWidget>()).Single(w => w.Settings.Kind == "AiUsage");
+        check(added.Settings.UsageSource == "Main" && (string)added.UsageSourceButton!.Content == "主電腦", "A new AI usage widget defaults to the main computer once connection mode is set up");
+        check(window.RemoveHomeWidget(added.Settings.Id), "The added AI usage widget can be removed");
+        tray.Usage.AllowOnline = false;
+    }
+    private static void Dispatch(Action action)
+    {
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+        try { action(); } finally { SynchronizationContext.SetSynchronizationContext(previous); }
+    }
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject node)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+        {
+            var child = VisualTreeHelper.GetChild(node, i); yield return child;
+            foreach (var descendant in Descendants(child)) yield return descendant;
+        }
     }
 
     // Stage 3: main-computer shortcuts are listed, edited and run from the device; the first run waits for the main computer.

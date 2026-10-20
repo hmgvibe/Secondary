@@ -54,6 +54,8 @@ public partial class MainWindow
             Math.Max(0, frame.ActualWidth), Math.Max(0, frame.ActualHeight))).ToArray();
         var placement = HomeWidgetLayout.FindNewPlacement(new Size(WidgetCanvas.ActualWidth, WidgetCanvas.ActualHeight), occupied, utilityWidgets.Count, out var crowded);
         var widget = new HomeWidgetSettings(Guid.NewGuid().ToString("N"), kind, placement);
+        // With connection mode set up, AI usage is usually wanted from the main computer.
+        if (kind == "AiUsage" && Secondary.Shared.Connection.RemoteUsageClient.Current is { Configured: true }) widget = widget with { UsageSource = "Main" };
         if (!model.SaveHome(home with { Widgets = (home.Widgets ?? []).Append(widget).ToArray() })) { HomeMediaStatus.Text = model.Status; return false; }
         AttachUtilityWidget(widget);
         utilityWidgets[widget.Id].Frame.SelectForEditing();
@@ -112,9 +114,7 @@ public partial class MainWindow
             online.Click += (_, _) =>
             {
                 var enable = !content.Settings.ClaudeOnline;
-                if (enable && !ShortcutDialogs.Confirm(this, "啟用 Claude 線上用量",
-                    "Secondary 會讀取 ~/.claude/.credentials.json 裡 Claude Code CLI 的登入 token，最多每 5 分鐘傳送一次到 api.anthropic.com 的未公開用量端點，以取得五小時與每週百分比。\n\n" +
-                    "這個端點沒有公開文件，可能隨時失效或改變。token 只送往該端點，不會儲存或顯示。Claude 桌面版的登入不在這個檔案，只用桌面版時會顯示「無法取得」。", "啟用"))
+                if (enable && !ShortcutDialogs.Confirm(this, "啟用 Claude 線上用量", content.Settings.UsageSource == "Main" ? OnlineUsageMainWarning : OnlineUsageWarning, "啟用"))
                 { online.IsChecked = false; return; }
                 content.SetClaudeOnline(enable);
                 online.IsChecked = content.Settings.ClaudeOnline;
@@ -124,6 +124,12 @@ public partial class MainWindow
         }
         menu.Items.Add(remove); frame.ContextMenu = menu;
     }
+    private const string OnlineUsageWarning =
+        "Secondary 會讀取 ~/.claude/.credentials.json 裡 Claude Code CLI 的登入 token，最多每 5 分鐘傳送一次到 api.anthropic.com 的未公開用量端點，以取得五小時與每週百分比。\n\n" +
+        "這個端點沒有公開文件，可能隨時失效或改變。token 只送往該端點，不會儲存或顯示。Claude 桌面版的登入不在這個檔案，只用桌面版時會顯示「無法取得」。";
+    private const string OnlineUsageMainWarning =
+        "這個組件顯示主電腦的用量：主電腦的連接助手會用主電腦上 Claude Code CLI 的登入 token，最多每 5 分鐘呼叫一次 api.anthropic.com 的未公開用量端點。token 不會傳到這台設備，設備只收到百分比與重置時間。\n\n" +
+        "主電腦也需要在連接助手選單勾選「允許設備使用 Claude 線上用量」。這個端點沒有公開文件，可能隨時失效或改變。";
     private bool SaveUtilityWidget(HomeWidgetSettings next)
     {
         var home = model.Settings.Home ?? new();
