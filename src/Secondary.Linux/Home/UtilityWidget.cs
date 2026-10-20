@@ -43,6 +43,8 @@ public sealed partial class UtilityWidget : Border, IDisposable
     public string StatusText => status.Text ?? "";
     public string ReadoutText => readout.Text ?? "";
     public event Func<HomeWidgetSettings, bool>? SaveRequested;
+    // The AI usage widget is Windows-only for now; its data reader in Secondary.Shared is cross-platform.
+    public static readonly string[] Kinds = HomeWidgetSettings.Kinds.Where(kind => kind != "AiUsage").ToArray();
     public static string Title(string kind) => kind switch { "Calendar" => "日曆", "Note" => "便箋", "Countdown" => "倒數計時", "Stopwatch" => "碼錶", "Todo" => "待辦清單", "Counter" => "計數器", "TimeProgress" => "時間進度", "Media" => "媒體", "Weather" => "天氣", "EventCountdown" => "倒數日", _ => kind };
     public static string Description(string kind) => kind switch { "Calendar" => "查看日期與月份", "Note" => "隨手記下想法 · 本機儲存", "Countdown" => "設定專注時間 · 1–1440 分鐘", "Todo" => "新增、勾選完成 · 最多 20 項", "Counter" => "加減計數 · 自動儲存", "TimeProgress" => "今日、本週、今年的時間進度", "Media" => "目前播放內容與控制", "Weather" => "輸入城市查看即時天氣", "EventCountdown" => "自訂紀念日或目標日期", _ => "記錄經過時間 · 隨時暫停" };
 

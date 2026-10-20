@@ -77,6 +77,7 @@ public sealed partial class HomeUtilityWidget
             weatherMeta!.FontSize = Math.Clamp(12 * scale, 11, 18);
             weatherCity!.FontSize = Math.Clamp(15 * scale, 13, 22);
         }
+        UpdateUsageLayout(width, height, scale);
         if (eventReading is not null)
         {
             eventReading.FontSize = Math.Clamp(Math.Min(width / Math.Max(3, eventReading.Text.Length) * 1.5, (height - 66) * .45), 24, 110);

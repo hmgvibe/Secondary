@@ -202,7 +202,7 @@ public partial class MainWindow
     private void OnAddWidget(object? sender, RoutedEventArgs e)
     {
         var menu = new MenuFlyout { Placement = PlacementMode.TopEdgeAlignedRight };
-        foreach (var kind in HomeWidgetSettings.Kinds)
+        foreach (var kind in UtilityWidget.Kinds)
         {
             var header = new StackPanel { MinWidth = 240 };
             header.Children.Add(new TextBlock { Text = UtilityWidget.Title(kind), FontSize = 15, FontWeight = FontWeight.SemiBold });
@@ -236,7 +236,7 @@ public partial class MainWindow
     }
     public bool AddHomeWidget(string kind)
     {
-        if (!HomeWidgetSettings.Supported(kind) || utilityWidgets.Count >= 12) return false;
+        if (!UtilityWidget.Kinds.Contains(kind) || utilityWidgets.Count >= 12) return false;
         var home = model.Settings.Home ?? new();
         var occupied = WidgetCanvas.Children.OfType<WidgetFrame>().Select(frame => new LayoutRect(
             Math.Max(0, Canvas.GetLeft(frame)), Math.Max(0, Canvas.GetTop(frame)), Settled(frame.Width), Settled(frame.Height))).ToArray();

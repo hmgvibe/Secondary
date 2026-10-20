@@ -17,7 +17,7 @@ public sealed record HomeWidgetSettings(string Id, string Kind, WidgetPlacement?
     TodoItem[]? Tasks = null, int Count = 0, string City = "", string EventTitle = "", string EventDate = "", WeatherLocation? Location = null,
     string MediaSource = "Local")
 {
-    public static readonly string[] Kinds = ["Calendar", "Note", "Countdown", "Stopwatch", "Todo", "Counter", "TimeProgress", "Media", "Weather", "EventCountdown"];
+    public static readonly string[] Kinds = ["Calendar", "Note", "Countdown", "Stopwatch", "Todo", "Counter", "TimeProgress", "Media", "Weather", "EventCountdown", "AiUsage"];
     public static bool Supported(string? kind) => Kinds.Contains(kind);
     public HomeWidgetSettings Normalize() => this with
     {

@@ -54,7 +54,7 @@ internal static class WidgetOptimizationChecks
             }
             if (kind == "Note") check(boxes[0].ActualHeight > editorHeight + 150, "Note editor uses added height");
             if (mainNumber is not null) check(mainNumber.ActualHeight > numberHeight + 15, kind + " primary number expands with available height");
-            if (kind is "Media" or "Weather" or "EventCountdown" or "TimeProgress")
+            if (kind is "Media" or "Weather" or "EventCountdown" or "TimeProgress" or "AiUsage")
                 check(largeElements.OfType<TextBlock>().Select(t => t.FontSize).Max() > primaryFonts + 4, kind + " primary typography responds to enlargement");
             if (kind == "Todo")
             {
@@ -87,6 +87,7 @@ internal static class WidgetOptimizationChecks
         CheckPlacement(check);
         Task.Run(() => CheckWeatherAsync(check)).GetAwaiter().GetResult();
         CheckWeatherUi(window, check);
+        CheckUsageUi(window, check, outputDirectory);
         var location = new WeatherLocation("台北", "台灣", "台北市", 25.03, 121.56);
         var oldData = new HomeWidgetSettings("old", "Weather", City: "台北").Normalize();
         check(oldData.City == "台北" && oldData.Location is null, "Legacy weather city is retained for explicit location selection");
@@ -261,6 +262,64 @@ internal static class WidgetOptimizationChecks
         PumpUntil(() => TextContains(stale, "更新失敗"));
         check(TextContains(stale, "25.5°C") && TextContains(stale, "資料已過期"), "Failed refresh retains the last successful temperature with stale and failure labels");
         stale.SetActive(false);
+    }
+    private static void CheckUsageUi(MainWindow window, Action<bool, string> check, string? outputDirectory)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Secondary.UsageUi-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var paths = new AiUsagePaths(Path.Combine(root, "codex"), Path.Combine(root, "claude"), Path.Combine(root, "claude-statusline.json"));
+            var source = new AiUsageService(paths, () => now);
+            using var widget = new HomeUtilityWidget(new HomeWidgetSettings("usage-ui", "AiUsage"), source) { Resources = window.Resources };
+            Layout(widget, 320, 300);
+            Dispatch(() => widget.SetActive(true));
+            PumpUntil(() => widget.UsageSnapshot is not null);
+            Layout(widget, 320, 300);
+            check(widget.IsRefreshing && TextContains(widget, "尚無紀錄，使用 Codex 後自動顯示") && TextContains(widget, "桌面版不提供百分比") &&
+                Descendants(widget).OfType<TextBlock>().Count(t => t.Text == "沒有資料") == 4, "AI usage explains missing Claude and Codex data");
+            widget.SetActive(false);
+            check(!widget.IsRefreshing, "AI usage stops refreshing when inactive");
+
+            var sessions = Path.Combine(paths.CodexHome, "sessions", "2026", "10", "20");
+            Directory.CreateDirectory(sessions);
+            string Window(double used, int minutes, DateTimeOffset resets) => $"{{\"used_percent\":{used},\"window_minutes\":{minutes},\"resets_at\":{resets.ToUnixTimeSeconds()}}}";
+            File.WriteAllText(Path.Combine(sessions, "rollout-ui.jsonl"),
+                $"{{\"timestamp\":\"{now.AddMinutes(-3):O}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"token_count\",\"rate_limits\":{{\"limit_id\":\"codex\",\"primary\":{Window(24, 300, now.AddHours(3).AddMinutes(12).AddSeconds(30))},\"secondary\":{Window(6, 10080, now.AddDays(6).AddHours(4).AddSeconds(30))}}}}}}}" + "\n");
+            var project = Path.Combine(paths.ClaudeHome, "projects", "D--Project");
+            Directory.CreateDirectory(project);
+            File.WriteAllText(Path.Combine(project, "session.jsonl"),
+                $"{{\"type\":\"assistant\",\"timestamp\":\"{now.AddMinutes(-10):O}\",\"apiErrorParams\":{{\"rate_limit_info\":{{\"status\":\"rejected\",\"resetsAt\":{now.AddMinutes(50).AddSeconds(30).ToUnixTimeSeconds()},\"rateLimitType\":\"five_hour\"}}}}}}" + "\n");
+            var before = widget.UsageSnapshot;
+            Dispatch(() => widget.SetActive(true));
+            PumpUntil(() => !ReferenceEquals(widget.UsageSnapshot, before));
+            Layout(widget, 320, 300);
+            var fills = Descendants(widget).OfType<Grid>().Where(g => g.ColumnDefinitions.Count == 2 && g.Children.OfType<Border>().Any()).ToArray();
+            check(TextContains(widget, "24%") && TextContains(widget, "6%") && TextContains(widget, "3 小時 12 分後重置") && TextContains(widget, "6 天 4 小時後重置") &&
+                TextContains(widget, "3 分鐘前更新"), "AI usage shows Codex five-hour and weekly percentages, reset countdowns and data age");
+            check(TextContains(widget, "已用完") && TextContains(widget, "50 分鐘後重置") && !TextContains(widget, "桌面版不提供百分比") && !TextContains(widget, "尚無紀錄"),
+                "AI usage shows a reached Claude limit with its reset time and hides the missing-data hints");
+            check(fills.Length == 4 && fills.Any(g => Math.Abs(g.ColumnDefinitions[0].Width.Value - .24) < 1e-9) && fills.Any(g => g.ColumnDefinitions[0].Width.Value == 1),
+                "AI usage bars reflect used fractions");
+            if (outputDirectory is not null) Save(widget, Path.Combine(outputDirectory, "optimized-widget-AiUsage-data.png"));
+            widget.SetActive(false);
+
+            // The common desktop case: Codex data plus the Claude hint must fit the default frame.
+            File.Delete(Path.Combine(project, "session.jsonl"));
+            before = widget.UsageSnapshot;
+            Dispatch(() => widget.SetActive(true));
+            PumpUntil(() => !ReferenceEquals(widget.UsageSnapshot, before));
+            widget.Width = widget.Height = double.NaN;
+            var canvas = new Canvas { Resources = window.Resources };
+            canvas.Measure(new Size(1200, 800)); canvas.Arrange(new Rect(0, 0, 1200, 800));
+            var frame = new HomeWidget(); frame.Attach(canvas, widget, HomeUtilityWidget.Title("AiUsage"));
+            frame.Configure(new WidgetPlacement(), new Size(320, 300)); canvas.UpdateLayout();
+            check(TextContains(widget, "桌面版不提供百分比") && TextContains(widget, "24%"), "AI usage shows the Claude hint beside Codex data");
+            check(Descendants(widget).OfType<ScrollViewer>().Single().ScrollableHeight < 1, "AI usage fits the default widget frame without scrolling");
+            widget.SetActive(false);
+            frame.Detach();
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
     private const string CityJson = "{\"results\":[{\"name\":\"Taipei\",\"country\":\"Taiwan\",\"admin1\":\"Taipei\",\"latitude\":25.03,\"longitude\":121.56},{\"name\":\"Taipei\",\"country\":\"Other\",\"latitude\":1,\"longitude\":1}]}";
     private const string ForecastJson = "{\"current\":{\"temperature_2m\":25.5,\"apparent_temperature\":27,\"relative_humidity_2m\":75,\"wind_speed_10m\":8.2,\"weather_code\":2,\"time\":\"2026-10-14T08:00\"}}";

@@ -19,7 +19,7 @@ public partial class MainWindow
         {
             var header = new StackPanel { MinWidth = 240 };
             header.Children.Add(new TextBlock { Text = HomeUtilityWidget.Title(kind), FontSize = 15, FontWeight = FontWeights.SemiBold });
-            var description = new TextBlock { Text = kind switch { "Calendar" => "查看日期與月份", "Note" => "隨手記下想法 · 本機儲存", "Countdown" => "設定專注時間 · 1–1440 分鐘", "Todo" => "新增、勾選完成 · 最多 20 項", "Counter" => "加減計數 · 自動儲存", "TimeProgress" => "今日、本週、今年的時間進度", "Media" => "目前播放內容與控制", "Weather" => "輸入城市查看即時天氣", "EventCountdown" => "自訂紀念日或目標日期", _ => "記錄經過時間 · 隨時暫停" }, FontSize = 12, Margin = new Thickness(0,4,0,0) };
+            var description = new TextBlock { Text = kind switch { "Calendar" => "查看日期與月份", "Note" => "隨手記下想法 · 本機儲存", "Countdown" => "設定專注時間 · 1–1440 分鐘", "Todo" => "新增、勾選完成 · 最多 20 項", "Counter" => "加減計數 · 自動儲存", "TimeProgress" => "今日、本週、今年的時間進度", "Media" => "目前播放內容與控制", "Weather" => "輸入城市查看即時天氣", "EventCountdown" => "自訂紀念日或目標日期", "AiUsage" => "Claude 與 Codex 的五小時、每週額度", _ => "記錄經過時間 · 隨時暫停" }, FontSize = 12, Margin = new Thickness(0,4,0,0) };
             description.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush"); header.Children.Add(description);
             var item = new MenuItem { Header = header, Style = (Style)FindResource("WidgetMenuItem"), IsEnabled = utilityWidgets.Count < 12 };
             System.Windows.Automation.AutomationProperties.SetName(item,HomeUtilityWidget.Title(kind));

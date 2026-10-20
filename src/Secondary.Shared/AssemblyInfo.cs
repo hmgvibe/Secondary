@@ -5,3 +5,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Secondary.UiTests")]
 [assembly: InternalsVisibleTo("secondary")]
 [assembly: InternalsVisibleTo("Secondary.Linux.Tests")]
+[assembly: InternalsVisibleTo("Secondary.Tests")]

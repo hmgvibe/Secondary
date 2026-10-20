@@ -35,11 +35,13 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
     public HomeWidgetSettings Settings { get; private set; }
     public bool IsRefreshing => refresh.IsEnabled;
     public event Func<HomeWidgetSettings, bool>? SaveRequested;
-    public static string Title(string kind) => kind switch { "Calendar" => "日曆", "Note" => "便箋", "Countdown" => "倒數計時", "Stopwatch" => "碼錶", "Todo" => "待辦清單", "Counter" => "計數器", "TimeProgress" => "時間進度", "Media" => "媒體", "Weather" => "天氣", "EventCountdown" => "倒數日", _ => kind };
+    public static string Title(string kind) => kind switch { "Calendar" => "日曆", "Note" => "便箋", "Countdown" => "倒數計時", "Stopwatch" => "碼錶", "Todo" => "待辦清單", "Counter" => "計數器", "TimeProgress" => "時間進度", "Media" => "媒體", "Weather" => "天氣", "EventCountdown" => "倒數日", "AiUsage" => "AI 用量", _ => kind };
     public HomeUtilityWidget(HomeWidgetSettings settings) : this(settings, WeatherDataService.Shared) { }
-    internal HomeUtilityWidget(HomeWidgetSettings settings, WeatherDataService weatherSource)
+    internal HomeUtilityWidget(HomeWidgetSettings settings, AiUsageService usageSource) : this(settings, WeatherDataService.Shared, usageSource) { }
+    internal HomeUtilityWidget(HomeWidgetSettings settings, WeatherDataService weatherSource, AiUsageService? usageSource = null)
     {
         this.weatherSource = weatherSource;
+        this.usageSource = usageSource ?? AiUsageService.Shared;
         Settings = settings.Normalize();
         numberHost.Child = readout;
         contentScroll = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
@@ -53,6 +55,7 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
         else if (settings.Kind == "Media") RenderMedia();
         else if (settings.Kind == "Weather") RenderWeather();
         else if (settings.Kind == "EventCountdown") RenderEventCountdown();
+        else if (settings.Kind == "AiUsage") RenderUsage();
         else if (settings.Kind == "Calendar") RenderCalendar();
         else if (settings.Kind == "Note")
         {
@@ -142,6 +145,7 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
         else if (Settings.Kind == "EventCountdown") UpdateEventCountdown();
         else if (Settings.Kind == "Media") _ = RefreshMediaAsync();
         else if (Settings.Kind == "Weather") _ = RefreshWeatherAsync();
+        else if (Settings.Kind == "AiUsage") _ = RefreshUsageAsync();
         else UpdateTime();
     }
     public void SetActive(bool active)
@@ -149,9 +153,9 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
         refresh.Stop();
         if (disposed) return;
         widgetActive = active;
-        if (!active) PauseWeatherRequests();
+        if (!active) { PauseWeatherRequests(); PauseUsageRequests(); }
         SetMediaSubscription(active && Settings.Kind == "Media");
-        refresh.Interval = Settings.Kind switch { "Media" => TimeSpan.FromSeconds(5), "Weather" or "TimeProgress" or "Calendar" or "EventCountdown" => TimeSpan.FromMinutes(1), _ => TimeSpan.FromSeconds(1) };
+        refresh.Interval = Settings.Kind switch { "Media" => TimeSpan.FromSeconds(5), "Weather" or "TimeProgress" or "Calendar" or "EventCountdown" or "AiUsage" => TimeSpan.FromMinutes(1), _ => TimeSpan.FromSeconds(1) };
         if (active && Settings.Kind is not ("Note" or "Todo" or "Counter")) { OnTick(null, EventArgs.Empty); refresh.Start(); }
     }
     private void RenderCalendar()
@@ -194,5 +198,5 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
         }
         UpdateResponsiveLayout();
     }
-    public void Dispose() { disposed = true; widgetActive = false; PauseWeatherRequests(); SetMediaSubscription(false); refresh.Stop(); refresh.Tick -= OnTick; elapsed.Stop(); }
+    public void Dispose() { disposed = true; widgetActive = false; PauseWeatherRequests(); PauseUsageRequests(); SetMediaSubscription(false); refresh.Stop(); refresh.Tick -= OnTick; elapsed.Stop(); }
 }

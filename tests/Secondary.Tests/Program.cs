@@ -270,6 +270,7 @@ ConnectionChecks.Run(Check);
 RemoteGameChecks.Run(Check);
 RemoteDeviceChecks.Run(Check);
 ShortcutTransferChecks.Run(Check);
+AiUsageChecks.Run(Check);
 Console.WriteLine($"{passed} tests passed.");
 
 sealed class TrackingModule : ISectionModule
