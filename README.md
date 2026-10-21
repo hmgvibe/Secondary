@@ -1,16 +1,16 @@
 # Secondary
 
-Secondary v1.2.0 是副屏應用程式：Windows 11 x64 版使用 WPF／.NET 10，Ubuntu／GNOME 版使用 Avalonia，提供可自訂首頁、快捷導航與真實遊戲監測；沒有副屏時，也能用另一臺設備透過「連線模式」顯示並操作主電腦。部分監測來源受系統權限限制。
+Secondary v1.3.0 是副屏應用程式：Windows 11 x64 版使用 WPF／.NET 10，Ubuntu／GNOME 版使用 Avalonia，提供可自訂首頁、快捷導航與真實遊戲監測；沒有副屏時，也能用另一臺設備透過「連線模式」顯示並操作主電腦。部分監測來源受系統權限限制。
 
 ## 下載
 
 從 [GitHub Releases](https://github.com/hmgvibe/Secondary/releases/latest) 下載。各發行包都已包含所需的 .NET 執行環境：
 
-- Windows 版：`Secondary-v1.2.0-windows-x64.zip`，解壓縮後執行 `Secondary.App.exe`。更新前先從系統匣完全退出舊程式，再啟動新目錄中的程式；既有設定與布局會沿用。
-- Linux 版（Ubuntu／GNOME）：`secondary_1.2.0_amd64.deb`（`sudo apt install ./secondary_1.2.0_amd64.deb`），或免安裝的 `Secondary-v1.2.0-linux-x86_64.AppImage`。
-- 連接助手（主電腦，Windows）：`Secondary-Connect-v1.2.0-windows-x64.zip`，解壓縮後執行 `Secondary.Connect.exe`，常駐系統匣。只在使用連線模式時需要。
+- Windows 版：`Secondary-v1.3.0-windows-x64.zip`，解壓縮後執行 `Secondary.App.exe`。更新前先從系統匣完全退出舊程式，再啟動新目錄中的程式；既有設定與布局會沿用。
+- Linux 版（Ubuntu／GNOME）：`secondary_1.3.0_amd64.deb`（`sudo apt install ./secondary_1.3.0_amd64.deb`），或免安裝的 `Secondary-v1.3.0-linux-x86_64.AppImage`。
+- 連接助手（主電腦，Windows）：`Secondary-Connect-v1.3.0-windows-x64.zip`，解壓縮後執行 `Secondary.Connect.exe`，常駐系統匣。只在使用連線模式時需要。
 
-[本版更新內容](docs/releases/v1.2.0.md)
+[本版更新內容](docs/releases/v1.3.0.md)
 
 ## 連線模式
 
@@ -97,7 +97,7 @@ Ubuntu／GNOME（Wayland）版本以 Avalonia 開發，與 Windows 共用核心�
 打包會產生三種格式，內容相同：AppImage（免安裝）、Ubuntu／Debian 用的 `secondary_<版本>_amd64.deb`，以及 tar.gz。.deb 會把程式裝在 `/opt/secondary`，並加入 `secondary` 指令和應用程式選單項目；裝好後 GNOME 就允許綁定全域快捷鍵，不必再到設定頁按「加入應用程式選單」。
 
 ```bash
-sudo apt install ./secondary_1.2.0_amd64.deb
+sudo apt install ./secondary_1.3.0_amd64.deb
 ```
 
 詳見 [Linux 版計劃](docs/linux-plan.md) 與各階段說明：[L1](docs/linux-stage-1.md)、[L2](docs/linux-stage-2.md)、[L3](docs/linux-stage-3.md)、[L4](docs/linux-stage-4.md)。
