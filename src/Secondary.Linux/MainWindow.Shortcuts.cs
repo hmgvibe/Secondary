@@ -19,7 +19,8 @@ public partial class MainWindow
     public AppPicker? OpenAppPicker => appPicker;
     public bool AppPickerOpen => AppPickerOverlay.IsVisible;
     // Tests substitute a catalog built from fixture directories.
-    public Platform.AppCatalog AppCatalog { get; set; } = Platform.AppCatalog.Current;
+    // The app picker and the launcher tiles' icons read the same catalog; tests swap in a fixture.
+    public Platform.AppCatalog AppCatalog { get => Launchpad.Catalog; set => Launchpad.Catalog = value; }
     private ShortcutEditor? shortcutEditor;
     public LaunchpadView Launchpad { get; private set; } = null!;
     public bool ShortcutEditorOpen => ShortcutEditorOverlay.IsVisible;

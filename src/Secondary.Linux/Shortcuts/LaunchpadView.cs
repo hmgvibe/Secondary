@@ -46,7 +46,8 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
     private readonly IReviewingExecutor executor;
     private readonly ShortcutRunner runner;
     private readonly ILaunchpadHost host;
-    private readonly AppCatalog catalog;
+    // Resolves launcher tiles' app icons; the window keeps it the same as its app picker's catalog.
+    public AppCatalog Catalog { get; set; }
     private ShortcutEntry[] entries;
     private readonly ComboBox groups = new() { MinWidth = 140, MinHeight = 44, Margin = new Thickness(0, 0, 8, 8) };
     private readonly ScrollViewer groupViewport = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled };
@@ -70,7 +71,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
     public LaunchpadView(string path, ILaunchpadHost host, IReviewingExecutor? executor = null, AppCatalog? catalog = null)
     {
         this.host = host;
-        this.catalog = catalog ?? AppCatalog.Current;
+        Catalog = catalog ?? AppCatalog.Current;
         library = new(path, ShortcutRules.Linux); entries = library.Load();
         this.executor = executor ?? new LinuxShortcutExecutor();
         runner = new(this.executor) { Rules = ShortcutRules.Linux };
@@ -261,7 +262,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         string? name;
         try { name = AppCatalog.DesktopEntry(File.ReadLines(desktopFile).Take(400)).GetValueOrDefault("Icon"); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return; }
-        var bitmap = await catalog.LoadIconAsync(catalog.IconPath(name), 96);
+        var bitmap = await Catalog.LoadIconAsync(Catalog.IconPath(name), 96);
         if (bitmap is null || disposed) return;
         var index = body.Children.IndexOf(fallback);
         if (index < 0) return;
