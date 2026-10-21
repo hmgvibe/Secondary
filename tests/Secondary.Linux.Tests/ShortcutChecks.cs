@@ -129,7 +129,8 @@ internal static class ShortcutChecks
         Check(window.ShortcutEditorOpen && editor.Steps.Count == 1, "The editor opens in the window's dialog layer");
         var addButtons = editor.GetVisualDescendantsOfType<Button>().Select(b => b.Content as string).Where(t => t?.StartsWith("＋", StringComparison.Ordinal) == true).ToArray();
         Check(addButtons.SequenceEqual(["＋ 開啟", "＋ 等待", "＋ 腳本"]), "Linux offers open, wait and script steps but no key step");
-        editor.Steps[0].Target!.Text = @"C:\tools\run.sh";
+        // A Unix path, so the path check passes on any host and the .sh rule is what refuses it.
+        editor.Steps[0].Target!.Text = "/opt/tools/run.sh";
         Check(!window.SaveShortcutEditor() && window.ShortcutEditorOpen && editor.Error.IsVisible && (editor.Error.Text ?? "").Contains(".sh", StringComparison.Ordinal), "An .sh file must use the script step, with the Linux rule shown");
         editor.Steps[0].Target!.Text = "https://example.com/";
         editor.AddStep("Wait"); editor.Steps[1].Seconds!.Text = "2";
