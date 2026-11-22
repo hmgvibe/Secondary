@@ -189,6 +189,10 @@
        <ComboBox x:Name="ThemePicker" SelectionChanged="OnThemeChoice" AutomationProperties.Name="明暗主題">
         <ComboBoxItem Content="跟隨系統" Tag="System"/><ComboBoxItem Content="淺色" Tag="Light"/><ComboBoxItem Content="深色" Tag="Dark"/>
        </ComboBox>
+       <TextBlock Text="語言" Classes="label" Margin="0,16,0,6"/>
+       <ComboBox x:Name="LanguagePicker" SelectionChanged="OnLanguageChoice" AutomationProperties.Name="介面語言">
+        <ComboBoxItem Content="跟隨系統" Tag="System"/><ComboBoxItem Content="簡體中文" Tag="Simplified"/><ComboBoxItem Content="繁體中文" Tag="Traditional"/>
+       </ComboBox>
        <TextBlock x:Name="AccessibilityStatus" Classes="label" FontSize="12" Margin="0,16,0,0"/>
       </StackPanel></Border>
       <Border Classes="card"><StackPanel>

@@ -5,7 +5,21 @@ namespace Secondary.Core;
 public sealed record AppSettings(int Version = 3, string? DisplayId = null,
     AppMode Mode = AppMode.Normal, string NormalSection = "home",
     string Theme = "System", string Hotkey = "Ctrl+Alt+G", bool GameHighSampling = false,
-    bool GameAnimation = true, HomeSettings? Home = null, string NavigationSize = "Standard", string NavigationPosition = "Bottom");
+    bool GameAnimation = true, HomeSettings? Home = null, string NavigationSize = "Standard", string NavigationPosition = "Bottom",
+    string Language = "Traditional");
+
+public static class LanguagePolicy
+{
+    // The app's authored wording is Traditional; keep that as the default so existing installs
+    // and UI text lookups are unchanged. Users opt in to Simplified or "follow system" explicitly.
+    public static string Validate(string? value) => value is "Simplified" or "Traditional" or "System" ? value : "Traditional";
+    public static ChineseLanguage Parse(string? value) => Validate(value) switch
+    {
+        "Simplified" => ChineseLanguage.Simplified,
+        "Traditional" => ChineseLanguage.Traditional,
+        _ => ChineseLanguage.System
+    };
+}
 
 public sealed class SettingsStore(string path)
 {
@@ -31,7 +45,8 @@ public sealed class SettingsStore(string path)
                 Hotkey = HotkeyGesture.TryParse(settings.Hotkey, out var gesture) ? gesture!.ToString() : "Ctrl+Alt+G",
                 Home = settings.Home?.Normalize(),
                 NavigationSize = settings.NavigationSize == "Small" ? "Small" : "Standard",
-                NavigationPosition = settings.NavigationPosition is "Top" or "Left" or "Right" ? settings.NavigationPosition : "Bottom" };
+                NavigationPosition = settings.NavigationPosition is "Top" or "Left" or "Right" ? settings.NavigationPosition : "Bottom",
+                Language = LanguagePolicy.Validate(settings.Language) };
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {

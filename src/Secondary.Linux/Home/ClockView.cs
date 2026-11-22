@@ -20,7 +20,7 @@ public sealed class ClockView : Control, IDisposable
     private const double DefaultScale = .7;
     private const double FlipDigitWidth = 140, FlipDigitHeight = 190, FlipDigitGap = 8, FlipGroupGap = 28;
     private static readonly TimeSpan FlipDuration = TimeSpan.FromMilliseconds(420);
-    private static readonly CultureInfo DateCulture = CultureInfo.GetCultureInfo("zh-TW");
+    private static CultureInfo DateCulture => ChineseLocale.DateCulture;
     private static readonly FontFamily ClockFont = new("fonts:Inter#Inter");
     private static readonly IBrush FlipFace = new ImmutableSolidColorBrush(Color.FromRgb(24, 30, 35));
     private static readonly IBrush FlipBottomFace = new ImmutableSolidColorBrush(Color.FromRgb(20, 26, 31));

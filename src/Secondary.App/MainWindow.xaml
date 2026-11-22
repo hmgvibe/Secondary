@@ -173,7 +173,9 @@
       <Border Style="{StaticResource Panel}" MaxWidth="800" VerticalAlignment="Top" Margin="8,0,8,16"><StackPanel>
        <TextBlock Text="色彩與外觀" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="明暗預設跟隨 Windows，遊戲外觀固定深色。" Style="{StaticResource Label}" Margin="0,6,0,16"/>
        <ComboBox x:Name="ThemePicker" SelectionChanged="OnThemeChoice" AutomationProperties.Name="明暗主題"><ComboBoxItem Content="跟隨 Windows" Tag="System"/><ComboBoxItem Content="淺色" Tag="Light"/><ComboBoxItem Content="深色" Tag="Dark"/></ComboBox>
-       <TextBlock Text="明暗主題及最後使用的頁面會自動保存。" Style="{StaticResource Label}" FontSize="12" Margin="0,16,0,0"/>
+       <TextBlock Text="語言" Style="{StaticResource Label}" Margin="0,16,0,6"/>
+       <ComboBox x:Name="LanguagePicker" SelectionChanged="OnLanguageChoice" AutomationProperties.Name="介面語言"><ComboBoxItem Content="跟隨系統" Tag="System"/><ComboBoxItem Content="簡體中文" Tag="Simplified"/><ComboBoxItem Content="繁體中文" Tag="Traditional"/></ComboBox>
+       <TextBlock Text="明暗主題、語言及最後使用的頁面會自動保存。" Style="{StaticResource Label}" FontSize="12" Margin="0,16,0,0"/>
       </StackPanel></Border>
       <Border Style="{StaticResource Panel}" MaxWidth="800" VerticalAlignment="Top" Margin="8,0,8,16"><StackPanel>
        <TextBlock Text="遊戲模式快捷鍵" FontSize="20" FontWeight="SemiBold"/>

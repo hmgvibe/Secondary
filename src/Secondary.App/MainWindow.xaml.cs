@@ -36,9 +36,11 @@ public partial class MainWindow : Window
         this.model = model;
         InitializeComponent();
         DataContext = model;
+        ChineseLocale.Preference = LanguagePolicy.Parse(model.Settings.Language);
         theme = new ThemeService(this);
         themeChoice = Enum.Parse<ThemeChoice>(model.Settings.Theme);
         ThemePicker.SelectedIndex = (int)themeChoice;
+        LanguagePicker.SelectedItem = LanguagePicker.Items.OfType<ComboBoxItem>().First(i => (string)i.Tag == model.Settings.Language);
         HotkeyInput.Text = model.Settings.Hotkey;
         GameAnimationToggle.IsChecked = model.Settings.GameAnimation;
         NavigationSizePicker.SelectedIndex = model.Settings.NavigationSize == "Small" ? 1 : 0;
@@ -74,12 +76,15 @@ public partial class MainWindow : Window
         Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
         Loaded += (_, _) =>
         {
+            ApplyChineseLocalization();
+            ChineseLocale.Changed += OnChineseLocaleChanged;
             var saved = DisplayPolicy.FindSaved(model.Displays, model.Settings.DisplayId);
             if (saved is not null) EnterFullscreen(saved);
             else if (model.Settings.DisplayId is not null) model.Status = "上次的顯示器未連接，請選擇目前可用的顯示器。";
             if (IsGame) StartGameTransition();
             ConfigureGameTelemetry();
         };
+        Unloaded += (_, _) => ChineseLocale.Changed -= OnChineseLocaleChanged;
     }
     private void OnSystemParametersChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -205,6 +210,7 @@ public partial class MainWindow : Window
         updatingNavigation = false;
         ContentScroll.ScrollToTop();
         UpdateHomeActivity();
+        ApplyChineseLocalization();
     }
     public void OpenSettings()
     {
@@ -324,6 +330,28 @@ public partial class MainWindow : Window
         themeChoice = Enum.Parse<ThemeChoice>((string)item.Tag);
         theme.Apply(model.Presentation.Appearance, themeChoice);
         model.SaveRuntime(theme: themeChoice.ToString());
+    }
+
+    private void ApplyChineseLocalization()
+    {
+        if (!IsLoaded) return;
+        Presentation.ChineseLocalization.Apply(this);
+    }
+
+    private void OnChineseLocaleChanged()
+    {
+        if (!IsLoaded) return;
+        Dispatcher.Invoke(ApplyChineseLocalization);
+        UpdateHomeActivity();
+    }
+
+    private void OnLanguageChoice(object sender, SelectionChangedEventArgs e)
+    {
+        if (initializing || LanguagePicker.SelectedItem is not ComboBoxItem item) return;
+        var language = (string)item.Tag;
+        var chinese = LanguagePolicy.Parse(language);
+        ChineseLocale.Preference = chinese; // raises Changed -> refreshes all open UI
+        model.SaveRuntime(language: language);
     }
 
     private void OnNavigationSizeChanged(object sender, SizeChangedEventArgs e)

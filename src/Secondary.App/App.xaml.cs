@@ -21,6 +21,8 @@ public partial class App : Application
         // Composition root: dependencies are supplied explicitly, without a background host.
         var settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Secondary", "settings.json");
         var benchmark = e.Args.Length > 0 && e.Args[0] == "--measure";
+        // Sign-in launch: start silently into the tray without showing the dashboard.
+        var background = Array.IndexOf(e.Args, "--background") >= 0;
         Monitoring.PerformanceRequest? measurement = null;
         if (benchmark)
         {
@@ -49,9 +51,9 @@ public partial class App : Application
         var window = new MainWindow(model, registerHotkey: !benchmark,
             shortcutsPath: benchmarkDirectory is null ? null : Path.Combine(benchmarkDirectory, "shortcuts.json"));
         MainWindow = window;
-        tray = new TrayService(window, () => Shutdown());
+        tray = new TrayService(window, () => Shutdown(), new Secondary.Windows.AppStartup());
         if (!benchmark) StartConnection(window, Path.GetDirectoryName(settingsPath)!);
-        window.Show();
+        if (!background) window.Show();
         instance?.Listen(() => Dispatcher.BeginInvoke(() => window.ShowInterface()));
         if (!benchmark) _ = Secondary.Monitoring.PresentMonStream.RecoverAbandonedSessionsAsync(message =>
             Dispatcher.BeginInvoke(() => model.Status = message));

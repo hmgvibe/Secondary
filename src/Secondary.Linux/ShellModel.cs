@@ -49,9 +49,9 @@ public sealed class ShellModel : INotifyPropertyChanged, IDisposable
         Notify(nameof(HasUnsavedSettings));
         return true;
     }
-    public void SaveRuntime(string? theme = null, string? hotkey = null, bool? gameAnimation = null, string? navigationSize = null, string? navigationPosition = null, bool? highSampling = null)
+    public void SaveRuntime(string? theme = null, string? hotkey = null, bool? gameAnimation = null, string? navigationSize = null, string? navigationPosition = null, bool? highSampling = null, string? language = null)
     {
-        var next = Modes.Snapshot(Settings) with { Theme = theme ?? Settings.Theme, Hotkey = hotkey ?? Settings.Hotkey, GameAnimation = gameAnimation ?? Settings.GameAnimation, GameHighSampling = highSampling ?? Settings.GameHighSampling, NavigationSize = navigationSize ?? Settings.NavigationSize, NavigationPosition = navigationPosition ?? Settings.NavigationPosition };
+        var next = Modes.Snapshot(Settings) with { Theme = theme ?? Settings.Theme, Hotkey = hotkey ?? Settings.Hotkey, GameAnimation = gameAnimation ?? Settings.GameAnimation, GameHighSampling = highSampling ?? Settings.GameHighSampling, NavigationSize = navigationSize ?? Settings.NavigationSize, NavigationPosition = navigationPosition ?? Settings.NavigationPosition, Language = language is null ? Settings.Language : LanguagePolicy.Validate(language) };
         if (next == Settings && !store.NeedsSave) return;
         Settings = next;
         if (!store.Save(Settings)) Status = "設定儲存失敗：" + store.LastError;

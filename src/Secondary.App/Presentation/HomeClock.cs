@@ -17,7 +17,7 @@ public sealed class HomeClock : FrameworkElement, IDisposable
 {
     private const double DefaultScale = .7;
     private const double FlipDigitWidth = 140, FlipDigitHeight = 190, FlipDigitGap = 8, FlipGroupGap = 28;
-    private static readonly CultureInfo DateCulture = CultureInfo.GetCultureInfo("zh-TW");
+    private static CultureInfo DateCulture => ChineseLocale.DateCulture;
     private static readonly Brush FlipFace = FrozenBrush(Color.FromRgb(24, 30, 35));
     private static readonly Brush FlipBottomFace = FrozenBrush(Color.FromRgb(20, 26, 31));
     private static readonly Brush FoldShade = CreateFoldShade();

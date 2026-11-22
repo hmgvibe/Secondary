@@ -273,6 +273,21 @@ RemoteUsageChecks.Run(Check);
 ShortcutTransferChecks.Run(Check);
 AiUsageChecks.Run(Check);
 await ClaudeOnlineChecks.Run(Check);
+
+// Chinese writing-system conversion: simplified display, lossless return to original wording.
+ChineseLocale.Preference = ChineseLanguage.Traditional;
+Check(ChineseLocale.Convert("設定") == "設定" && ChineseLocale.Convert("繁體中文便箋") == "繁體中文便箋", "Traditional preference keeps original wording");
+ChineseLocale.Preference = ChineseLanguage.Simplified;
+Check(ChineseLocale.Convert("設定") == "设定", "Simplified converts common UI word");
+Check(ChineseLocale.Convert("繁體中文") == "繁体中文", "Simplified converts multiple characters");
+Check(ChineseLocale.Convert("尊敬的用戶") == "尊敬的用户", "Character conversion applies across a phrase");
+Check(ChineseLocale.Convert("儲存便箋") == "储存便笺", "Sticky-note wording converts");
+Check(ChineseLocale.Convert("Ctrl+Alt+G 123") == "Ctrl+Alt+G 123", "Latin and digits pass through unchanged");
+Check(ChineseLocale.Convert(ChineseLocale.Convert("設定")) == "设定", "Conversion is idempotent on simplified text");
+Check(ChineseLocale.Convert("") == "", "Empty text stays empty");
+Check(ChineseLocale.DateCulture.Name == "zh-CN", "Simplified date culture is zh-CN");
+ChineseLocale.Preference = ChineseLanguage.Traditional;
+Check(ChineseLocale.DateCulture.Name == "zh-TW", "Traditional date culture is zh-TW");
 Console.WriteLine($"{passed} tests passed.");
 
 sealed class TrackingModule : ISectionModule

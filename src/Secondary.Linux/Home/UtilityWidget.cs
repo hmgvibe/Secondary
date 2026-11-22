@@ -22,7 +22,7 @@ namespace Secondary.Linux.Home;
 // Behaviour and wording follow the WPF HomeUtilityWidget.
 public sealed partial class UtilityWidget : Border, IDisposable
 {
-    private static readonly CultureInfo Chinese = CultureInfo.GetCultureInfo("zh-TW");
+    private static CultureInfo Chinese => ChineseLocale.DateCulture;
     private readonly DispatcherTimer refresh = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly Stopwatch elapsed = new();
     private readonly StackPanel body = new();

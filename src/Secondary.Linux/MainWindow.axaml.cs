@@ -29,7 +29,6 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         public const string Monitor = "M4,13 H7 V20 H4 Z M10.5,8 H13.5 V20 H10.5 Z M17,4 H20 V20 H17 Z";
         public const string Exit = "M4,4 H13 V6 H6 V18 H13 V20 H4 Z M15,8 L20,12 L15,16 V13 H9 V11 H15 Z";
     }
-    private static readonly CultureInfo Chinese = CultureInfo.GetCultureInfo("zh-TW");
     private readonly ShellModel model;
     private ThemeChoice themeChoice;
     private bool settingsOpen, initializing = true, highContrast;
@@ -55,8 +54,11 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         this.launcher = launcher ?? DesktopLauncher.FromEnvironment(Environment.GetEnvironmentVariable, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Environment.ProcessPath);
         InitializeComponent();
         DataContext = model;
+        ChineseLocale.Preference = LanguagePolicy.Parse(model.Settings.Language);
         themeChoice = Enum.Parse<ThemeChoice>(model.Settings.Theme);
         ThemePicker.SelectedIndex = (int)themeChoice;
+        LanguagePicker.SelectedIndex = Array.IndexOf(new[] { "System", "Simplified", "Traditional" }, model.Settings.Language) is var lp and >= 0 ? lp : 0;
+        ChineseLocale.Changed += OnChineseLocaleChanged;
         NavigationSizePicker.SelectedIndex = model.Settings.NavigationSize == "Small" ? 1 : 0;
         NavigationPositionPicker.SelectedIndex = Array.IndexOf(new[] { "Bottom", "Top", "Left", "Right" }, model.Settings.NavigationPosition) is var p and >= 0 ? p : 0;
         GameAnimationToggle.IsChecked = model.Settings.GameAnimation;
@@ -192,6 +194,7 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         foreach (var item in NavigationItems.Children.OfType<RadioButton>()) item.IsChecked = (string?)item.Tag == page;
         Frame.Offset = default;
         UpdateHomeActivity();
+        ApplyChineseLocalization();
     }
     private void OnCloseSettings(object? sender, RoutedEventArgs e) => CloseSettings();
     private void CloseSettings() { settingsOpen = false; ShowPage(); }
@@ -221,6 +224,29 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         themeChoice = Enum.Parse<ThemeChoice>(tag);
         model.SaveRuntime(theme: tag);
         ApplyTheme();
+    }
+
+    private void ApplyChineseLocalization()
+    {
+        ChineseLocalization.Apply(this);
+    }
+
+    private void OnChineseLocaleChanged()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            ApplyChineseLocalization();
+            UpdateHomeActivity();
+            UpdateLauncherStatus();
+        });
+    }
+
+    private void OnLanguageChoice(object? sender, SelectionChangedEventArgs e)
+    {
+        if (initializing || LanguagePicker.SelectedItem is not ComboBoxItem { Tag: string tag }) return;
+        var language = LanguagePolicy.Validate(tag);
+        ChineseLocale.Preference = LanguagePolicy.Parse(language); // raises Changed -> refreshes open UI
+        model.SaveRuntime(language: language);
     }
     private void OnNavigationPreference(object? sender, SelectionChangedEventArgs e)
     {
