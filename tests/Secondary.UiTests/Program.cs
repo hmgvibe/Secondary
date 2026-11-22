@@ -253,6 +253,19 @@ internal static class Program
                 var picker = (ComboBox)window.FindName("LanguagePicker");
                 var labels = picker.Items.OfType<ComboBoxItem>().Select(i => i.Content as string).ToArray();
                 Check(labels.Contains("跟随系统") && labels.Contains("简体中文") && labels.Contains("繁体中文"), "Language picker options convert to Mainland simplified wording");
+
+                // Runtime-generated widget text (previously hard-coded Traditional) must also be
+                // Simplified in Simplified mode: time progress, calendar note, weather labels, etc.
+                using var progress = new HomeUtilityWidget(new HomeWidgetSettings("lang-progress", "TimeProgress")) { Resources = window.Resources };
+                progress.Measure(new Size(360, 260)); progress.Arrange(new Rect(0, 0, 360, 260));
+                var statusTexts = Descendants(progress).OfType<TextBlock>().Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t)).ToArray();
+                Check(statusTexts.Any(t => t.Contains("本周") || t.Contains("本週") || t.Contains("今日")), "Time progress widget renders period labels");
+                Check(statusTexts.All(t => ChineseLocale.Convert(t) == t), "Time progress widget text is Simplified (no Traditional residue)");
+
+                using var noteWidget = new HomeUtilityWidget(new HomeWidgetSettings("lang-note", "Note")) { Resources = window.Resources };
+                noteWidget.Measure(new Size(340, 260)); noteWidget.Arrange(new Rect(0, 0, 340, 260));
+                var noteTexts = Descendants(noteWidget).OfType<TextBlock>().Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t)).ToArray();
+                Check(noteTexts.All(t => ChineseLocale.Convert(t) == t), "Note widget runtime text is Simplified");
             }
             finally { ChineseLocale.Preference = previousLang; ChineseLocalization.Apply(window); }
 

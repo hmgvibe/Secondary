@@ -19,7 +19,7 @@ public partial class MainWindow
         {
             var header = new StackPanel { MinWidth = 240 };
             header.Children.Add(new TextBlock { Text = HomeUtilityWidget.Title(kind), FontSize = 15, FontWeight = FontWeights.SemiBold });
-            var description = new TextBlock { Text = kind switch { "Calendar" => "查看日期與月份", "Note" => "隨手記下想法 · 本機儲存", "Countdown" => "設定專注時間 · 1–1440 分鐘", "Todo" => "新增、勾選完成 · 最多 20 項", "Counter" => "加減計數 · 自動儲存", "TimeProgress" => "今日、本週、今年的時間進度", "Media" => "目前播放內容與控制", "Weather" => "輸入城市查看即時天氣", "EventCountdown" => "自訂紀念日或目標日期", "AiUsage" => "Claude 與 Codex 的五小時、每週額度", _ => "記錄經過時間 · 隨時暫停" }, FontSize = 12, Margin = new Thickness(0,4,0,0) };
+            var description = new TextBlock { Text = kind switch { "Calendar" => ChineseLocale.Convert("查看日期與月份"), "Note" => ChineseLocale.Convert("隨手記下想法 · 本機儲存"), "Countdown" => ChineseLocale.Convert("設定專注時間 · 1–1440 分鐘"), "Todo" => ChineseLocale.Convert("新增、勾選完成 · 最多 20 項"), "Counter" => ChineseLocale.Convert("加減計數 · 自動儲存"), "TimeProgress" => ChineseLocale.Convert("今日、本週、今年的時間進度"), "Media" => ChineseLocale.Convert("目前播放內容與控制"), "Weather" => ChineseLocale.Convert("輸入城市查看即時天氣"), "EventCountdown" => ChineseLocale.Convert("自訂紀念日或目標日期"), "AiUsage" => ChineseLocale.Convert("Claude 與 Codex 的五小時、每週額度"), _ => ChineseLocale.Convert("記錄經過時間 · 隨時暫停") }, FontSize = 12, Margin = new Thickness(0,4,0,0) };
             description.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush"); header.Children.Add(description);
             var item = new MenuItem { Header = header, Style = (Style)FindResource("WidgetMenuItem"), IsEnabled = utilityWidgets.Count < 12 };
             System.Windows.Automation.AutomationProperties.SetName(item,HomeUtilityWidget.Title(kind));
@@ -28,7 +28,7 @@ public partial class MainWindow
         menu.Items.Add(new Separator());
         if (utilityWidgets.Count > 0)
         {
-            menu.Items.Add(new MenuItem { Header = "選取現有組件", Style = (Style)FindResource("WidgetMenuItem"), IsEnabled = false });
+            menu.Items.Add(new MenuItem { Header = ChineseLocale.Convert("選取現有組件"), Style = (Style)FindResource("WidgetMenuItem"), IsEnabled = false });
             var ordinal = 0;
             foreach (var widget in utilityWidgets.Values)
             {
@@ -41,7 +41,7 @@ public partial class MainWindow
                 menu.Items.Add(item);
             }
         }
-        menu.Items.Add(new MenuItem { Header = $"已加入 {utilityWidgets.Count} / 12  ·  可重複新增", FontSize = 12, Style = (Style)FindResource("WidgetMenuItem"), IsEnabled = false });
+        menu.Items.Add(new MenuItem { Header = ChineseLocale.Convert($"已加入 {utilityWidgets.Count} / 12  ·  可重複新增"), FontSize = 12, Style = (Style)FindResource("WidgetMenuItem"), IsEnabled = false });
         menu.PlacementTarget = (UIElement)sender; menu.IsOpen = true;
     }
     public bool AddHomeWidget(string kind)
@@ -59,7 +59,7 @@ public partial class MainWindow
         if (!model.SaveHome(home with { Widgets = (home.Widgets ?? []).Append(widget).ToArray() })) { HomeMediaStatus.Text = model.Status; return false; }
         AttachUtilityWidget(widget);
         utilityWidgets[widget.Id].Frame.SelectForEditing();
-        if (crowded) HomeMediaStatus.Text = "首頁空間已滿；新組件已放在最上層，可拖動調整或從組件清單選取。";
+        if (crowded) HomeMediaStatus.Text = ChineseLocale.Convert("首頁空間已滿；新組件已放在最上層，可拖動調整或從組件清單選取。");
         else HomeMediaStatus.Text = "";
         UpdateHomeActivity(); return true;
     }
@@ -87,10 +87,10 @@ public partial class MainWindow
             return current is not null && SaveUtilityWidget(next with { Placement = current.Placement });
         };
         var menu = new ContextMenu { Style = (Style)FindResource("WidgetMenu") };
-        var remove = new MenuItem { Header = "移除" + HomeUtilityWidget.Title(settings.Kind), Style = (Style)FindResource("WidgetMenuItem") };
+        var remove = new MenuItem { Header = ChineseLocale.Convert("移除") + HomeUtilityWidget.Title(settings.Kind), Style = (Style)FindResource("WidgetMenuItem") };
         remove.Click += (_, _) =>
         {
-            if (ShortcutDialogs.Confirm(this, "移除組件", "移除此組件？其中的資料及未儲存編輯也會一併移除。", "移除"))
+            if (ShortcutDialogs.Confirm(this, ChineseLocale.Convert("移除組件"), ChineseLocale.Convert("移除此組件？其中的資料及未儲存編輯也會一併移除。"), ChineseLocale.Convert("移除")))
                 RemoveHomeWidget(settings.Id);
         };
         if (settings.Kind == "AiUsage")
@@ -103,18 +103,18 @@ public partial class MainWindow
                 foreach (var (item, providers) in choices) item.IsChecked = content.Settings.UsageProviders == providers;
                 online!.IsEnabled = content.Settings.ShowsClaude();
             }
-            foreach (var (providers, header) in new[] { ("Both", "顯示 Claude 和 Codex"), ("Claude", "只顯示 Claude"), ("Codex", "只顯示 Codex") })
+            foreach (var (providers, header) in new[] { ("Both", ChineseLocale.Convert("顯示 Claude 和 Codex")), ("Claude", ChineseLocale.Convert("只顯示 Claude")), ("Codex", ChineseLocale.Convert("只顯示 Codex")) })
             {
                 var choice = new MenuItem { Header = header, IsCheckable = true, Style = (Style)FindResource("WidgetMenuItem") };
                 choice.Click += (_, _) => { content.SetUsageProviders(providers); Refresh(); };
                 choices.Add((choice, providers)); menu.Items.Add(choice);
             }
             menu.Items.Add(new Separator());
-            online = new MenuItem { Header = "Claude 線上用量（非官方）", IsCheckable = true, IsChecked = content.Settings.ClaudeOnline, Style = (Style)FindResource("WidgetMenuItem") };
+            online = new MenuItem { Header = ChineseLocale.Convert("Claude 線上用量（非官方）"), IsCheckable = true, IsChecked = content.Settings.ClaudeOnline, Style = (Style)FindResource("WidgetMenuItem") };
             online.Click += (_, _) =>
             {
                 var enable = !content.Settings.ClaudeOnline;
-                if (enable && !ShortcutDialogs.Confirm(this, "啟用 Claude 線上用量", content.Settings.UsageSource == "Main" ? OnlineUsageMainWarning : OnlineUsageWarning, "啟用"))
+                if (enable && !ShortcutDialogs.Confirm(this, ChineseLocale.Convert("啟用 Claude 線上用量"), ChineseLocale.Convert(content.Settings.UsageSource == "Main" ? OnlineUsageMainWarning : OnlineUsageWarning), ChineseLocale.Convert("啟用")))
                 { online.IsChecked = false; return; }
                 content.SetClaudeOnline(enable);
                 online.IsChecked = content.Settings.ClaudeOnline;

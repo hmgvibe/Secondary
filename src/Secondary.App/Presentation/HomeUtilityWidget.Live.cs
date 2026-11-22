@@ -82,7 +82,7 @@ public sealed partial class HomeUtilityWidget
         var heading = new DockPanel();
         mediaSourceButton = ActionButton("", ToggleMediaSource);
         mediaSourceButton.FontSize = 11; mediaSourceButton.MinHeight = 28; mediaSourceButton.Padding = new Thickness(10, 2, 10, 2); mediaSourceButton.Margin = new Thickness(8, 0, 0, 0);
-        AutomationProperties.SetName(mediaSourceButton, "切換媒體來源：本機或主電腦");
+        AutomationProperties.SetName(mediaSourceButton, ChineseLocale.Convert("切換媒體來源：本機或主電腦"));
         DockPanel.SetDock(mediaSourceButton, Dock.Right); heading.Children.Add(mediaSourceButton);
         mediaHeading = Label("", 10); mediaHeading.VerticalAlignment = VerticalAlignment.Center;
         mediaHeading.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
@@ -100,8 +100,8 @@ public sealed partial class HomeUtilityWidget
         mediaArtwork.HorizontalAlignment = HorizontalAlignment.Left;
         hero.Children.Add(mediaArtwork);
         var meta = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        mediaTitle = Label("尚未播放媒體", 19); mediaTitle.FontWeight = FontWeights.SemiBold;
-        mediaArtist = Label("等待 Windows 媒體工作階段", 12);
+        mediaTitle = Label(ChineseLocale.Convert("尚未播放媒體"), 19); mediaTitle.FontWeight = FontWeights.SemiBold;
+        mediaArtist = Label(ChineseLocale.Convert("等待 Windows 媒體工作階段"), 12);
         mediaArtist.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         meta.Children.Add(mediaTitle); meta.Children.Add(mediaArtist);
         Grid.SetColumn(meta, 1); hero.Children.Add(meta);
@@ -131,9 +131,9 @@ public sealed partial class HomeUtilityWidget
             controls.Children.Add(button);
         }
         mediaToggle.SetResourceReference(Control.BackgroundProperty, "SelectedBrush");
-        AutomationProperties.SetName(previous, "上一首");
-        AutomationProperties.SetName(mediaToggle, "播放或暫停");
-        AutomationProperties.SetName(next, "下一首");
+        AutomationProperties.SetName(previous, ChineseLocale.Convert("上一首"));
+        AutomationProperties.SetName(mediaToggle, ChineseLocale.Convert("播放或暫停"));
+        AutomationProperties.SetName(next, ChineseLocale.Convert("下一首"));
         body.Children.Add(controls);
         mediaState = Label("", 11); mediaState.TextAlignment = TextAlignment.Center;
         mediaState.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
@@ -142,8 +142,8 @@ public sealed partial class HomeUtilityWidget
 
     private void UpdateMediaHeading()
     {
-        mediaHeading!.Text = MainMedia ? "NOW PLAYING  /  主電腦" : "NOW PLAYING  /  SYSTEM AUDIO";
-        mediaSourceButton!.Content = MainMedia ? "來源：主電腦" : "來源：本機";
+        mediaHeading!.Text = MainMedia ? ChineseLocale.Convert("NOW PLAYING  /  主電腦") : "NOW PLAYING  /  SYSTEM AUDIO";
+        mediaSourceButton!.Content = MainMedia ? ChineseLocale.Convert("來源：主電腦") : ChineseLocale.Convert("來源：本機");
     }
     private void ToggleMediaSource()
     {
@@ -163,18 +163,18 @@ public sealed partial class HomeUtilityWidget
         if (client is not null && remoteMediaWatch is null && widgetActive) { remoteMediaWatch = client.Watch(OnMediaSourceChanged); watchedClient = client; }
         if (client is null || !client.Connected || client.Media is not { } media)
         {
-            mediaTitle!.Text = "尚未播放媒體";
-            mediaArtist!.Text = client is null ? "連線模式無法使用；可切回本機" : !client.Connected ? "主電腦未連線；連上後自動顯示，或切回本機" : client.Status;
-            mediaState!.Text = client?.Connected == true ? "主電腦「" + client.HelperName + "」" : "";
+            mediaTitle!.Text = ChineseLocale.Convert("尚未播放媒體");
+            mediaArtist!.Text = client is null ? ChineseLocale.Convert("連線模式無法使用；可切回本機") : !client.Connected ? ChineseLocale.Convert("主電腦未連線；連上後自動顯示，或切回本機") : client.Status;
+            mediaState!.Text = client?.Connected == true ? ChineseLocale.Convert("主電腦「") + client.HelperName + "」" : "";
             mediaTime!.Text = "—:—  /  —:—";
             mediaFraction = 0; UpdateMediaProgress();
             mediaPrevious!.IsEnabled = mediaToggle!.IsEnabled = mediaNext!.IsEnabled = false;
             if (artworkKey is not null) { artworkKey = null; mediaArtwork!.Child = mediaArtworkIcon; }
             return;
         }
-        mediaTitle!.Text = string.IsNullOrWhiteSpace(media.Title) ? "未提供標題" : media.Title;
-        mediaArtist!.Text = string.IsNullOrWhiteSpace(media.Artist) ? "未提供演出者" : media.Artist;
-        mediaState!.Text = "主電腦 · " + (media.Playing ? "播放中" : "已暫停");
+        mediaTitle!.Text = string.IsNullOrWhiteSpace(media.Title) ? ChineseLocale.Convert("未提供標題") : media.Title;
+        mediaArtist!.Text = string.IsNullOrWhiteSpace(media.Artist) ? ChineseLocale.Convert("未提供演出者") : media.Artist;
+        mediaState!.Text = ChineseLocale.Convert("主電腦 · ") + (media.Playing ? ChineseLocale.Convert("播放中") : ChineseLocale.Convert("已暫停"));
         mediaToggle!.Content = media.Playing ? "\uE769" : "\uE768";
         mediaPrevious!.IsEnabled = !mediaControlling && media.CanPrevious;
         mediaNext!.IsEnabled = !mediaControlling && media.CanNext;
@@ -215,8 +215,8 @@ public sealed partial class HomeUtilityWidget
             if (disposed || !widgetActive || request.IsCancellationRequested) return;
             if (session is null)
             {
-                mediaTitle!.Text = "尚未播放媒體";
-                mediaArtist!.Text = "等待 Windows 媒體工作階段";
+                mediaTitle!.Text = ChineseLocale.Convert("尚未播放媒體");
+                mediaArtist!.Text = ChineseLocale.Convert("等待 Windows 媒體工作階段");
                 mediaState!.Text = "";
                 mediaTime!.Text = "—:—  /  —:—";
                 mediaFraction = 0; UpdateMediaProgress();
@@ -227,9 +227,9 @@ public sealed partial class HomeUtilityWidget
             var props = snapshot.Properties!;
             if (disposed || !widgetActive || request.IsCancellationRequested) return;
             var playback = snapshot.Playback!;
-            mediaTitle!.Text = string.IsNullOrWhiteSpace(props.Title) ? "未提供標題" : props.Title;
-            mediaArtist!.Text = string.IsNullOrWhiteSpace(props.Artist) ? "未提供演出者" : props.Artist;
-            mediaState!.Text = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? "播放中" : "已暫停";
+            mediaTitle!.Text = string.IsNullOrWhiteSpace(props.Title) ? ChineseLocale.Convert("未提供標題") : props.Title;
+            mediaArtist!.Text = string.IsNullOrWhiteSpace(props.Artist) ? ChineseLocale.Convert("未提供演出者") : props.Artist;
+            mediaState!.Text = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? ChineseLocale.Convert("播放中") : ChineseLocale.Convert("已暫停");
             mediaToggle!.Content = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? "\uE769" : "\uE768";
             mediaPrevious!.IsEnabled = !mediaControlling && playback.Controls.IsPreviousEnabled;
             mediaNext!.IsEnabled = !mediaControlling && playback.Controls.IsNextEnabled;
@@ -257,7 +257,7 @@ public sealed partial class HomeUtilityWidget
         {
             if (!disposed && widgetActive && !request.IsCancellationRequested)
             {
-                mediaState!.Text = "無法讀取系統媒體工作階段";
+                mediaState!.Text = ChineseLocale.Convert("無法讀取系統媒體工作階段");
                 mediaPrevious!.IsEnabled = mediaToggle!.IsEnabled = mediaNext!.IsEnabled = false;
             }
         }
@@ -349,15 +349,15 @@ public sealed partial class HomeUtilityWidget
         {
             if (MainMedia)
             {
-                if (RemoteMediaClient.Current is not { Connected: true } client) { mediaState!.Text = "主電腦未連線"; return; }
-                mediaState!.Text = "正在控制主電腦的播放器…";
+                if (RemoteMediaClient.Current is not { Connected: true } client) { mediaState!.Text = ChineseLocale.Convert("主電腦未連線"); return; }
+                mediaState!.Text = ChineseLocale.Convert("正在控制主電腦的播放器…");
                 var sent = await client.ControlAsync(command);
-                if (!disposed) mediaState!.Text = sent ? "指令已送到主電腦" : "主電腦的播放器不支援此操作";
+                if (!disposed) mediaState!.Text = sent ? ChineseLocale.Convert("指令已送到主電腦") : ChineseLocale.Convert("主電腦的播放器不支援此操作");
                 return;
             }
             var session = (await MediaWidgetSource.Shared.ManagerAsync().WaitAsync(TimeSpan.FromSeconds(5))).GetCurrentSession();
-            if (session is null) { mediaState!.Text = "目前沒有可控制的媒體"; return; }
-            mediaState!.Text = "正在控制播放器…";
+            if (session is null) { mediaState!.Text = ChineseLocale.Convert("目前沒有可控制的媒體"); return; }
+            mediaState!.Text = ChineseLocale.Convert("正在控制播放器…");
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             async Task<bool> SendAsync() => command switch
             {
@@ -368,34 +368,34 @@ public sealed partial class HomeUtilityWidget
                 _ => await session.TryPlayAsync().AsTask(deadline.Token)
             };
             var ok = await SendAsync().WaitAsync(deadline.Token);
-            if (!disposed) mediaState!.Text = ok ? "指令已送出" : "播放器不支援此操作";
+            if (!disposed) mediaState!.Text = ok ? ChineseLocale.Convert("指令已送出") : ChineseLocale.Convert("播放器不支援此操作");
             await RefreshMediaAsync();
         }
-        catch (Exception) { if (!disposed) mediaState!.Text = "媒體控制失敗"; }
+        catch (Exception) { if (!disposed) mediaState!.Text = ChineseLocale.Convert("媒體控制失敗"); }
         finally { mediaControlling = false; if (!disposed && widgetActive) _ = RefreshMediaAsync(); }
     }
 
     private void RenderWeather()
     {
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-        var settings = SettingsButton("設定天氣城市", () =>
+        var settings = SettingsButton(ChineseLocale.Convert("設定天氣城市"), () =>
         {
             weatherEditor!.Visibility = weatherEditor.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
             weatherDisplay!.Visibility = weatherEditor.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
             if (weatherEditor.Visibility == Visibility.Visible) weatherCityInput!.Focus();
         });
         DockPanel.SetDock(settings, Dock.Right); header.Children.Add(settings);
-        weatherCity = Label(Settings.Location?.Name ?? (Settings.City.Length == 0 ? "設定城市" : Settings.City), 15);
+        weatherCity = Label(Settings.Location?.Name ?? (Settings.City.Length == 0 ? ChineseLocale.Convert("設定城市") : Settings.City), 15);
         weatherCity.FontWeight = FontWeights.SemiBold; weatherCity.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(weatherCity); body.Children.Add(header);
 
         weatherEditor = new StackPanel { Visibility = Settings.Location is null ? Visibility.Visible : Visibility.Collapsed };
-        weatherEditor.Children.Add(Label("城市名稱", 12));
+        weatherEditor.Children.Add(Label(ChineseLocale.Convert("城市名稱"), 12));
         var row = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
         weatherCityInput = new TextBox { Text = Settings.City, MaxLength = 100, MinHeight = 36 };
         weatherCityInput.SetResourceReference(StyleProperty, "WidgetInput");
-        AutomationProperties.SetName(weatherCityInput, "天氣城市；Enter 查詢候選地點");
-        var search = ActionButton("查詢", () => _ = SearchWeatherCitiesAsync());
+        AutomationProperties.SetName(weatherCityInput, ChineseLocale.Convert("天氣城市；Enter 查詢候選地點"));
+        var search = ActionButton(ChineseLocale.Convert("查詢"), () => _ = SearchWeatherCitiesAsync());
         weatherCityInput.PreviewKeyDown += (_, e) => { if (e.Key == Key.Enter) { _ = SearchWeatherCitiesAsync(); e.Handled = true; } };
         weatherCityInput.TextChanged += (_, _) =>
         {
@@ -406,20 +406,20 @@ public sealed partial class HomeUtilityWidget
         DockPanel.SetDock(search, Dock.Right); row.Children.Add(search); row.Children.Add(weatherCityInput);
         weatherEditor.Children.Add(row);
         weatherCandidates = new ComboBox { Visibility = Visibility.Collapsed, MinHeight = 36, Margin = new Thickness(0, 6, 0, 0), HorizontalContentAlignment = HorizontalAlignment.Stretch };
-        AutomationProperties.SetName(weatherCandidates, "選擇天氣城市、行政區及國家");
+        AutomationProperties.SetName(weatherCandidates, ChineseLocale.Convert("選擇天氣城市、行政區及國家"));
         weatherEditor.Children.Add(weatherCandidates);
-        weatherSelect = ActionButton("使用此地點", () =>
+        weatherSelect = ActionButton(ChineseLocale.Convert("使用此地點"), () =>
         {
             if (weatherCandidates.SelectedItem is not WeatherLocation location) return;
-            if (!Commit(Settings with { City = weatherCityInput.Text.Trim(), Location = location })) { weatherEditorStatus!.Text = "儲存地點失敗，請重試。"; return; }
+            if (!Commit(Settings with { City = weatherCityInput.Text.Trim(), Location = location })) { weatherEditorStatus!.Text = ChineseLocale.Convert("儲存地點失敗，請重試。"); return; }
             weatherRequest?.Cancel(); lastWeather = null; weatherAttempt = default; weatherFailed = false;
-            weatherCity!.Text = location.Name; weatherReading!.Text = "—°"; weatherDetails!.Text = "正在查詢…";
+            weatherCity!.Text = location.Name; weatherReading!.Text = "—°"; weatherDetails!.Text = ChineseLocale.Convert("正在查詢…");
             weatherMeta!.Text = ""; weatherUpdated!.Text = ""; weatherEditorStatus!.Text = "";
             weatherEditor.Visibility = Visibility.Collapsed; weatherDisplay!.Visibility = Visibility.Visible;
             _ = RefreshWeatherAsync(force: true);
         });
         weatherSelect.Visibility = Visibility.Collapsed; weatherEditor.Children.Add(weatherSelect);
-        weatherEditorStatus = Label("查詢會將城市名稱傳送至 Open-Meteo。選擇城市、行政區及國家後才儲存。", 11);
+        weatherEditorStatus = Label(ChineseLocale.Convert("查詢會將城市名稱傳送至 Open-Meteo。選擇城市、行政區及國家後才儲存。"), 11);
         weatherEditorStatus.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         weatherEditor.Children.Add(weatherEditorStatus); body.Children.Add(weatherEditor);
 
@@ -435,7 +435,7 @@ public sealed partial class HomeUtilityWidget
         weatherReading.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(weatherReading, 1); hero.Children.Add(weatherReading);
         weatherDisplay.Children.Add(hero);
-        weatherDetails = Label("正在等待天氣資料", 15); weatherDetails.FontWeight = FontWeights.SemiBold;
+        weatherDetails = Label(ChineseLocale.Convert("正在等待天氣資料"), 15); weatherDetails.FontWeight = FontWeights.SemiBold;
         weatherDisplay.Children.Add(weatherDetails);
         weatherMeta = Label("", 12); weatherMeta.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         weatherDisplay.Children.Add(weatherMeta);
@@ -443,10 +443,10 @@ public sealed partial class HomeUtilityWidget
         weatherDisplay.Children.Add(weatherUpdated);
         var attribution = Label("", 10);
         attribution.Margin = new Thickness(0, 8, 0, 0);
-        attribution.Inlines.Add(SourceLink("天氣資料：Open-Meteo", "https://open-meteo.com/"));
+        attribution.Inlines.Add(SourceLink(ChineseLocale.Convert("天氣資料：Open-Meteo"), "https://open-meteo.com/"));
         attribution.Inlines.Add(new Run(" · "));
         attribution.Inlines.Add(SourceLink("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"));
-        attribution.ToolTip = "資料按原值顯示，數字四捨五入；約每 15 分鐘更新。";
+        attribution.ToolTip = ChineseLocale.Convert("資料按原值顯示，數字四捨五入；約每 15 分鐘更新。");
         weatherDisplay.Children.Add(attribution); body.Children.Add(weatherDisplay);
     }
     private static Hyperlink SourceLink(string text, string url)
@@ -464,10 +464,10 @@ public sealed partial class HomeUtilityWidget
     {
         if (disposed) return;
         var query = weatherCityInput!.Text.Trim();
-        if (query.Length < 2) { weatherEditorStatus!.Text = "請輸入至少 2 個字的城市名稱。"; return; }
+        if (query.Length < 2) { weatherEditorStatus!.Text = ChineseLocale.Convert("請輸入至少 2 個字的城市名稱。"); return; }
         weatherSearchRequest?.Cancel();
         var request = weatherSearchRequest = new CancellationTokenSource();
-        weatherEditorStatus!.Text = "正在搜尋城市…";
+        weatherEditorStatus!.Text = ChineseLocale.Convert("正在搜尋城市…");
         try
         {
             var locations = await weatherSource.SearchAsync(query, request.Token);
@@ -475,10 +475,10 @@ public sealed partial class HomeUtilityWidget
             weatherCandidates!.ItemsSource = locations;
             weatherCandidates.SelectedIndex = locations.Length > 0 ? 0 : -1;
             weatherCandidates.Visibility = weatherSelect!.Visibility = locations.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-            weatherEditorStatus.Text = locations.Length > 0 ? "請核對城市、行政區及國家，再按「使用此地點」。" : "找不到城市；請嘗試城市的英文名稱。";
+            weatherEditorStatus.Text = locations.Length > 0 ? ChineseLocale.Convert("請核對城市、行政區及國家，再按「使用此地點」。") : ChineseLocale.Convert("找不到城市；請嘗試城市的英文名稱。");
         }
         catch (OperationCanceledException) when (request.IsCancellationRequested) { }
-        catch (Exception) { if (!disposed && !request.IsCancellationRequested) weatherEditorStatus.Text = "城市查詢失敗；請檢查網路後重試。"; }
+        catch (Exception) { if (!disposed && !request.IsCancellationRequested) weatherEditorStatus.Text = ChineseLocale.Convert("城市查詢失敗；請檢查網路後重試。"); }
         finally
         {
             if (ReferenceEquals(weatherSearchRequest, request)) weatherSearchRequest = null;
@@ -494,8 +494,8 @@ public sealed partial class HomeUtilityWidget
         if (!force && (weatherBusy || lastWeather is not null && now - lastWeather.FetchedAt < WeatherDataService.Freshness || now - weatherAttempt < TimeSpan.FromMinutes(2))) return;
         weatherRequest?.Cancel();
         var request = new CancellationTokenSource(); weatherRequest = request; weatherBusy = true; weatherAttempt = now;
-        if (lastWeather is null) weatherDetails!.Text = "正在查詢…";
-        else weatherUpdated!.Text += " · 正在更新";
+        if (lastWeather is null) weatherDetails!.Text = ChineseLocale.Convert("正在查詢…");
+        else weatherUpdated!.Text += ChineseLocale.Convert(" · 正在更新");
         try
         {
             var reading = await weatherSource.ReadAsync(location, force, request.Token);
@@ -508,8 +508,8 @@ public sealed partial class HomeUtilityWidget
             if (!disposed && !request.IsCancellationRequested)
             {
                 weatherFailed = true; UpdateWeatherState();
-                if (lastWeather is null) weatherDetails!.Text = "天氣查詢失敗；檢查網路後再試。";
-                if (lastWeather is null) weatherUpdated!.Text = "尚無成功更新 · 更新失敗，稍後重試";
+                if (lastWeather is null) weatherDetails!.Text = ChineseLocale.Convert("天氣查詢失敗；檢查網路後再試。");
+                if (lastWeather is null) weatherUpdated!.Text = ChineseLocale.Convert("尚無成功更新 · 更新失敗，稍後重試");
             }
         }
         finally
@@ -524,11 +524,11 @@ public sealed partial class HomeUtilityWidget
         weatherCity!.Text = reading.Location.Name;
         weatherReading!.Text = $"{reading.Temperature:0.#}°C";
         weatherIcon!.Text = WeatherSymbol(reading.Code); weatherDetails!.Text = WeatherDescription(reading.Code);
-        weatherMeta!.Text = $"體感 {reading.ApparentTemperature:0.#}° · 濕度 {reading.Humidity}%\n風速 {reading.WindSpeed:0.#} km/h";
+        weatherMeta!.Text = ChineseLocale.Convert($"體感 {reading.ApparentTemperature:0.#}° · 濕度 {reading.Humidity}%\n風速 {reading.WindSpeed:0.#} km/h");
         var stale = weatherSource.UtcNow - reading.FetchedAt >= WeatherDataService.Freshness;
-        weatherUpdated!.Text = $"更新 {reading.FetchedAt.ToLocalTime():HH:mm}" + (stale ? " · 資料已過期" : " · 最新快取");
-        if (weatherFailed) weatherUpdated.Text += " · 更新失敗，稍後重試";
-        weatherUpdated.ToolTip = $"地點：{reading.Location}\n最後成功查詢：{reading.FetchedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n服務資料時間（地點當地時間）：{reading.SourceTime}";
+        weatherUpdated!.Text = ChineseLocale.Convert($"更新 {reading.FetchedAt.ToLocalTime():HH:mm}") + (stale ? ChineseLocale.Convert(" · 資料已過期") : ChineseLocale.Convert(" · 最新快取"));
+        if (weatherFailed) weatherUpdated.Text += ChineseLocale.Convert(" · 更新失敗，稍後重試");
+        weatherUpdated.ToolTip = ChineseLocale.Convert($"地點：{reading.Location}\n最後成功查詢：{reading.FetchedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n服務資料時間（地點當地時間）：{reading.SourceTime}");
         UpdateResponsiveLayout();
     }
     private void PauseWeatherRequests()
@@ -539,14 +539,14 @@ public sealed partial class HomeUtilityWidget
         var search = weatherSearchRequest; weatherSearchRequest = null;
         weatherBusy = false; weatherAttempt = default;
         forecast?.Cancel(); search?.Cancel();
-        if (!disposed && search is not null) weatherEditorStatus!.Text = "查詢已暫停；返回後可重新查詢。";
+        if (!disposed && search is not null) weatherEditorStatus!.Text = ChineseLocale.Convert("查詢已暫停；返回後可重新查詢。");
     }
     private static string WeatherDescription(int code) => code switch
     {
-        0 => "晴朗", 1 or 2 => "局部多雲", 3 => "陰天", 45 or 48 => "有霧",
-        51 or 53 or 55 or 56 or 57 => "毛毛雨", 61 or 63 or 65 or 66 or 67 => "下雨",
-        71 or 73 or 75 or 77 or 85 or 86 => "下雪", 80 or 81 or 82 => "陣雨",
-        95 or 96 or 99 => "雷雨", _ => "天氣變化"
+        0 => ChineseLocale.Convert("晴朗"), 1 or 2 => ChineseLocale.Convert("局部多雲"), 3 => ChineseLocale.Convert("陰天"), 45 or 48 => ChineseLocale.Convert("有霧"),
+        51 or 53 or 55 or 56 or 57 => ChineseLocale.Convert("毛毛雨"), 61 or 63 or 65 or 66 or 67 => ChineseLocale.Convert("下雨"),
+        71 or 73 or 75 or 77 or 85 or 86 => ChineseLocale.Convert("下雪"), 80 or 81 or 82 => ChineseLocale.Convert("陣雨"),
+        95 or 96 or 99 => ChineseLocale.Convert("雷雨"), _ => ChineseLocale.Convert("天氣變化")
     };
 
     private static string WeatherSymbol(int code) => code switch
@@ -557,7 +557,7 @@ public sealed partial class HomeUtilityWidget
 
     private void RenderEventCountdown()
     {
-        eventSettingsButton = SettingsButton("設定倒數日", () =>
+        eventSettingsButton = SettingsButton(ChineseLocale.Convert("設定倒數日"), () =>
         {
             eventEditor!.Visibility = eventEditor.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
             eventDisplay!.Visibility = eventEditor.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
@@ -567,19 +567,19 @@ public sealed partial class HomeUtilityWidget
             Margin = new Thickness(0, 36, 0, 0) };
         var title = new TextBox { Text = Settings.EventTitle, MaxLength = 80, MinHeight = 36 };
         title.SetResourceReference(StyleProperty, "WidgetInput");
-        System.Windows.Automation.AutomationProperties.SetName(title, "倒數日名稱");
-        eventEditor.Children.Add(Label("事件名稱")); eventEditor.Children.Add(title);
+        System.Windows.Automation.AutomationProperties.SetName(title, ChineseLocale.Convert("倒數日名稱"));
+        eventEditor.Children.Add(Label(ChineseLocale.Convert("事件名稱"))); eventEditor.Children.Add(title);
         var date = new TextBox { Text = Settings.EventDate, MaxLength = 10, MinHeight = 36 };
         date.SetResourceReference(StyleProperty, "WidgetInput");
-        System.Windows.Automation.AutomationProperties.SetName(date, "目標日期，西元年-月-日");
-        eventEditor.Children.Add(Label("目標日期 · YYYY-MM-DD")); eventEditor.Children.Add(date);
-        eventEditor.Children.Add(ActionButton("儲存日期", () =>
+        System.Windows.Automation.AutomationProperties.SetName(date, ChineseLocale.Convert("目標日期，西元年-月-日"));
+        eventEditor.Children.Add(Label(ChineseLocale.Convert("目標日期 · YYYY-MM-DD"))); eventEditor.Children.Add(date);
+        eventEditor.Children.Add(ActionButton(ChineseLocale.Convert("儲存日期"), () =>
         {
             if (!DateOnly.TryParseExact(date.Text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var target))
-            { eventEditorStatus!.Text = "日期格式請填 YYYY-MM-DD。"; return; }
-            if (title.Text.Trim().Length == 0) { eventEditorStatus!.Text = "請輸入事件名稱。"; return; }
+            { eventEditorStatus!.Text = ChineseLocale.Convert("日期格式請填 YYYY-MM-DD。"); return; }
+            if (title.Text.Trim().Length == 0) { eventEditorStatus!.Text = ChineseLocale.Convert("請輸入事件名稱。"); return; }
             if (!Commit(Settings with { EventTitle = title.Text, EventDate = target.ToString("yyyy-MM-dd") }))
-            { eventEditorStatus!.Text = "儲存失敗，請重試。"; return; }
+            { eventEditorStatus!.Text = ChineseLocale.Convert("儲存失敗，請重試。"); return; }
             eventEditorStatus!.Text = "";
             UpdateEventCountdown();
             eventEditor.Visibility = Visibility.Collapsed;
@@ -603,10 +603,10 @@ public sealed partial class HomeUtilityWidget
     {
         if (eventReading is null || eventDescription is null) return;
         if (!DateOnly.TryParseExact(Settings.EventDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var target))
-        { eventReading.Text = "—"; eventDescription.Text = "設定日期後開始倒數"; return; }
+        { eventReading.Text = "—"; eventDescription.Text = ChineseLocale.Convert("設定日期後開始倒數"); return; }
         var days = target.DayNumber - DateOnly.FromDateTime(DateTime.Now).DayNumber;
-        eventReading.Text = days > 0 ? $"{days} 天" : days == 0 ? "就是今天" : $"已過 {Math.Abs((long)days)} 天";
-        eventDescription.Text = target.ToString("yyyy 年 MM 月 dd 日", CultureInfo.InvariantCulture);
+        eventReading.Text = days > 0 ? ChineseLocale.Convert($"{days} 天") : days == 0 ? ChineseLocale.Convert("就是今天") : ChineseLocale.Convert($"已過 {Math.Abs((long)days)} 天");
+        eventDescription.Text = target.ToString(ChineseLocale.Convert("yyyy 年 MM 月 dd 日"), CultureInfo.InvariantCulture);
         UpdateResponsiveLayout();
     }
 }

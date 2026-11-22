@@ -158,7 +158,8 @@ public partial class MainWindow : Window
         icon.IsHitTestVisible = false;
         var tooltip = new ToolTip
         {
-            Content = name,
+            Content = ChineseLocale.Convert(name),
+            Tag = name,
             Style = (Style)FindResource("NavigationToolTip"),
             Placement = System.Windows.Controls.Primitives.PlacementMode.Custom,
             CustomPopupPlacementCallback = (popup, target, _) => new[]
@@ -178,7 +179,7 @@ public partial class MainWindow : Window
         ToolTipService.SetInitialShowDelay(button, 250);
         ToolTipService.SetBetweenShowDelay(button, 50);
         ToolTipService.SetShowDuration(button, 60000);
-        AutomationProperties.SetName(button, name);
+        AutomationProperties.SetName(button, ChineseLocale.Convert(name));
         AutomationProperties.SetAutomationId(button, "Navigation." + key);
         button.Checked += (_, _) => { if (!updatingNavigation) Navigate(key); };
         NavigationItems.Children.Add(button);
@@ -341,7 +342,17 @@ public partial class MainWindow : Window
     private void OnChineseLocaleChanged()
     {
         if (!IsLoaded) return;
-        Dispatcher.Invoke(ApplyChineseLocalization);
+        Dispatcher.Invoke(() =>
+        {
+            ApplyChineseLocalization();
+            // ToolTips live in a Popup, outside the visual tree, so the walker above cannot
+            // reach them. Refresh their text from the stored authored (Traditional) name.
+            foreach (var button in NavigationItems.Children.OfType<RadioButton>())
+            {
+                if (button.ToolTip is ToolTip tip && tip.Tag is string source)
+                    tip.Content = ChineseLocale.Convert(source);
+            }
+        });
         UpdateHomeActivity();
     }
 
