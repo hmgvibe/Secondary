@@ -171,24 +171,39 @@ public static class ChineseLocale
         { "編輯", "编辑" }, { "刪除", "删除" }, { "搜尋", "搜索" },
         { "連線模式", "连接模式" }, { "一般模式", "普通模式" }, { "遊戲模式", "游戏模式" },
         { "導航欄", "导航栏" }, { "快捷導航", "快捷导航" }, { "首頁", "首页" },
+
+        // Full UI audit (scripts/audit_chinese.py) — remaining Taiwan/HK vocabulary whose
+        // glyph-only form is not natural Mainland wording.
+        { "主電腦", "主机" }, { "捷徑", "快捷方式" }, { "選單", "菜单" },
+        { "回應", "响应" }, { "匯入", "导入" }, { "匯出", "导出" },
+        { "影片", "视频" }, { "全域", "全局" }, { "訊息", "消息" },
+        { "逾時", "超时" }, { "感測器", "传感器" }, { "資料夾", "文件夹" },
+        { "伺服器", "服务器" }, { "辨識", "识别" }, { "回傳", "返回" },
+        { "網際網路", "互联网" }, { "記錄檔", "日志文件" }, { "快取", "缓存" },
+        { "物件", "对象" }, { "位元組", "字节" }, { "位元", "位" },
+        { "功能表", "菜单" }, { "狀態列", "状态栏" }, { "檔案總管", "文件资源管理器" },
+        { "行動裝置", "移动设备" }, { "光碟", "光盘" }, { "視訊", "视频" },
     };
 
     private static Dictionary<char, List<KeyValuePair<string, string>>> BuildPhraseIndex()
     {
-        var map = new Dictionary<char, List<KeyValuePair<string, string>>>();
+        // Keyed by the exact phrase so a Mainland entry always overrides the OpenCC glyph
+        // entry for the same key. Building two equal-length entries into one list and relying
+        // on List.Sort (unstable) to pick the right one was an ordering accident.
+        var byKey = new Dictionary<string, string>(StringComparer.Ordinal);
         for (var i = 0; i < ChineseData.PhraseKeys.Length; i++)
         {
             var key = ChineseData.PhraseKeys[i];
-            if (string.IsNullOrEmpty(key)) continue;
-            if (!map.TryGetValue(key[0], out var list)) map[key[0]] = list = new List<KeyValuePair<string, string>>();
-            list.Add(new KeyValuePair<string, string>(key, ChineseData.PhraseValues[i]));
+            if (!string.IsNullOrEmpty(key)) byKey[key] = ChineseData.PhraseValues[i];
         }
-        // Mainland vocabulary overrides take precedence (longer entries matched first).
         for (var i = 0; i < MainlandPhrases.GetLength(0); i++)
+            byKey[MainlandPhrases[i, 0]] = MainlandPhrases[i, 1];
+
+        var map = new Dictionary<char, List<KeyValuePair<string, string>>>();
+        foreach (var pair in byKey)
         {
-            var key = MainlandPhrases[i, 0];
-            if (!map.TryGetValue(key[0], out var list)) map[key[0]] = list = new List<KeyValuePair<string, string>>();
-            list.Add(new KeyValuePair<string, string>(key, MainlandPhrases[i, 1]));
+            if (!map.TryGetValue(pair.Key[0], out var list)) map[pair.Key[0]] = list = new List<KeyValuePair<string, string>>();
+            list.Add(new KeyValuePair<string, string>(pair.Key, pair.Value));
         }
         foreach (var pair in map) pair.Value.Sort((a, b) => b.Key.Length.CompareTo(a.Key.Length));
         return map;

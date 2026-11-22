@@ -285,6 +285,16 @@ Check(ChineseLocale.Convert("儲存便箋") == "保存便签", "Mainland vocabul
 Check(ChineseLocale.Convert("連線") == "连接" && ChineseLocale.Convert("網路") == "网络" && ChineseLocale.Convert("程式") == "程序", "Common Taiwan terms map to Mainland vocabulary");
 Check(ChineseLocale.Convert("跟隨系統") == "跟随系统" && ChineseLocale.Convert("簡體中文") == "简体中文", "Language picker options convert to natural simplified wording");
 Check(ChineseLocale.Convert("Ctrl+Alt+G 123") == "Ctrl+Alt+G 123", "Latin and digits pass through unchanged");
+// Full-audit vocabulary: every Taiwan/HK term found in the authored UI converts to natural Mainland wording.
+Check(ChineseLocale.Convert("主電腦") == "主机" && ChineseLocale.Convert("捷徑") == "快捷方式" && ChineseLocale.Convert("選單") == "菜单", "Remote/UI terms: 主電腦/捷徑/選單 -> 主机/快捷方式/菜单");
+Check(ChineseLocale.Convert("回應") == "响应" && ChineseLocale.Convert("訊息") == "消息" && ChineseLocale.Convert("逾時") == "超时", "Status terms: 回應/訊息/逾時 -> 响应/消息/超时");
+Check(ChineseLocale.Convert("匯入") == "导入" && ChineseLocale.Convert("匯出") == "导出" && ChineseLocale.Convert("影片") == "视频", "Media terms: 匯入/匯出/影片 -> 导入/导出/视频");
+Check(ChineseLocale.Convert("全域") == "全局" && ChineseLocale.Convert("感測器") == "传感器" && ChineseLocale.Convert("資料夾") == "文件夹", "System terms: 全域/感測器/資料夾 -> 全局/传感器/文件夹");
+Check(ChineseLocale.Convert("伺服器") == "服务器" && ChineseLocale.Convert("辨識") == "识别" && ChineseLocale.Convert("回傳") == "返回", "Tech terms: 伺服器/辨識/回傳 -> 服务器/识别/返回");
+Check(ChineseLocale.Convert("網際網路") == "互联网" && ChineseLocale.Convert("記錄檔") == "日志文件" && ChineseLocale.Convert("快取") == "缓存", "More terms: 網際網路/記錄檔/快取 -> 互联网/日志文件/缓存");
+Check(ChineseLocale.Convert("物件") == "对象" && ChineseLocale.Convert("位元組") == "字节" && ChineseLocale.Convert("視訊") == "视频", "Object/media terms: 物件/位元組/視訊 -> 对象/字节/视频");
+Check(ChineseLocale.Convert("主電腦上的捷徑") == "主机上的快捷方式", "Mixed phrase converts every term");
+Check(ChineseLocale.Convert(ChineseLocale.Convert("主電腦")) == "主机", "Conversion is idempotent on new vocabulary");
 Check(ChineseLocale.Convert(ChineseLocale.Convert("設定")) == "设置", "Conversion is idempotent on simplified text");
 Check(ChineseLocale.Convert("") == "", "Empty text stays empty");
 Check(ChineseLocale.DateCulture.Name == "zh-CN", "Simplified date culture is zh-CN");
