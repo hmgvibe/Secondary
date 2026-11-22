@@ -452,7 +452,9 @@ public partial class MainWindow : Window
     private void OnKeyDown(object sender, KeyEventArgs e) { if (e.Key != Key.Escape) return; if (CancelWidgetInteraction()) { } else if (HomeCustomizeOpen) CloseHomeCustomize(); else if (SettingsOpen) CloseSettings(); else if (TransitionRunning) CancelTransition(); else ReturnToWindow(); e.Handled = true; }
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!AllowClose) { e.Cancel = true; Hide(); }
+        // 點 X 只取消關閉：介面留在畫面上、托盤常駐；dock/工作列不顯示圖示（ShowInTaskbar=False）。
+        // 真正退出由托盤「退出 Secondary」設定 AllowClose 後觸發。
+        if (!AllowClose) e.Cancel = true;
         base.OnClosing(e);
     }
     protected override void OnClosed(EventArgs e) { DisposeGameTelemetry(); StopSensorCapture(); Launchpad.Dispose(); CancelTransition(); DisposeHome(); SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged; hotkey?.Dispose(); theme.Dispose(); model.TopologyChanged -= OnTopologyChanged; model.Dispose(); base.OnClosed(e); }
