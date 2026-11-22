@@ -235,6 +235,27 @@ internal static class Program
             LaunchpadOptimizationChecks.Run(window, model, Check, OutputDirectory(args));
             ShortcutPathOptimizationChecks.Run(Check, OutputDirectory(args));
             ConnectionUiChecks.Run(window, Check, OutputDirectory(args));
+
+            // Chinese localization regressions: icon font stacks must never be replaced by the
+            // CJK stack (private-use glyphs would render as tofu), and only real CJK stacks are.
+            Check(!ChineseLocalization.ShouldReplaceFont("Segoe Fluent Icons, Segoe MDL2 Assets"), "Combined icon font stack is preserved (nav icons stay visible)");
+            Check(!ChineseLocalization.ShouldReplaceFont("Segoe MDL2 Assets") && !ChineseLocalization.ShouldReplaceFont("Consolas") && !ChineseLocalization.ShouldReplaceFont("Bahnschrift"), "Symbol and digit fonts are preserved");
+            Check(ChineseLocalization.ShouldReplaceFont("Segoe UI Variable, Microsoft JhengHei UI"), "CJK font stack is unified");
+            Check(ChineseLocalization.ShouldReplaceFont("Microsoft YaHei UI") && ChineseLocalization.ShouldReplaceFont("Noto Sans CJK SC"), "Named CJK fonts are unified");
+            Check(!ChineseLocalization.ShouldReplaceFont(null) && !ChineseLocalization.ShouldReplaceFont(""), "Empty font source is left untouched");
+
+            // Language picker drop-down items convert to natural simplified wording.
+            var previousLang = ChineseLocale.Preference;
+            try
+            {
+                ChineseLocale.Preference = ChineseLanguage.Simplified;
+                ChineseLocalization.Apply(window);
+                var picker = (ComboBox)window.FindName("LanguagePicker");
+                var labels = picker.Items.OfType<ComboBoxItem>().Select(i => i.Content as string).ToArray();
+                Check(labels.Contains("跟随系统") && labels.Contains("简体中文") && labels.Contains("繁体中文"), "Language picker options convert to Mainland simplified wording");
+            }
+            finally { ChineseLocale.Preference = previousLang; ChineseLocalization.Apply(window); }
+
             if (args.Contains("--live"))
             {
                 LiveOptimizationChecks.Run(window, model, Check, OutputDirectory(args));

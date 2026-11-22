@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -26,10 +27,15 @@ public static class ChineseLocalization
         ? "Segoe UI Variable, Microsoft YaHei UI, Microsoft JhengHei UI"
         : "Segoe UI Variable, Microsoft JhengHei UI, Microsoft YaHei UI";
 
-    // Fonts chosen for digits/icons must not be replaced by the CJK stack.
-    private static readonly HashSet<string> PreserveFonts = new(StringComparer.OrdinalIgnoreCase)
+    // Only stacks that explicitly name a CJK font are switched to the unified CJK stack.
+    // Everything else (icons, digits, symbols — including combined stacks such as
+    // "Segoe Fluent Icons, Segoe MDL2 Assets") is left untouched. Matching individual
+    // stack entries instead of the whole string is essential: icon glyphs live in private
+    // use area code points that CJK fonts cannot render, so replacing their font shows tofu.
+    private static readonly string[] CjkFontMarkers =
     {
-        "Bahnschrift", "Consolas", "Segoe MDL2 Assets", "Segoe Fluent Icons", "Segoe UI Symbol", "monospace"
+        "Microsoft JhengHei", "Microsoft YaHei", "Segoe UI Variable", "SimSun", "SimHei",
+        "DengXian", "Noto Sans CJK", "Noto Sans SC", "Noto Sans TC", "微軟正黑體", "微软雅黑"
     };
 
     public static void Apply(DependencyObject root)
@@ -63,6 +69,13 @@ public static class ChineseLocalization
             case ButtonBase button when button.Content is string buttonText:
                 Translate(button, ButtonBase.ContentProperty, buttonText);
                 break;
+            case ComboBox combo:
+                // Drop-down items live in a Popup, outside the window's visual tree, so the
+                // recursive walk never reaches them. Walk the logical Items collection here.
+                foreach (var entry in combo.Items)
+                    if (entry is ComboBoxItem ci && ci.Content is string ciText)
+                        Translate(ci, ComboBoxItem.ContentProperty, ciText);
+                break;
             case ComboBoxItem item when item.Content is string itemText:
                 Translate(item, ComboBoxItem.ContentProperty, itemText);
                 break;
@@ -91,10 +104,18 @@ public static class ChineseLocalization
         if (!string.Equals(current, target, StringComparison.Ordinal)) element.SetValue(property, target);
     }
 
+    /// <summary>True only when a font stack explicitly names a CJK font and should be unified.</summary>
+    internal static bool ShouldReplaceFont(string? source)
+    {
+        if (string.IsNullOrEmpty(source)) return false;
+        // A FontFamily.Source may be a comma-separated fallback list. Replace only when at
+        // least one entry is a CJK font; icon/symbol/digit stacks never contain one.
+        return source.Split(',').Any(part =>
+            CjkFontMarkers.Any(marker => part.Trim().Contains(marker, StringComparison.OrdinalIgnoreCase)));
+    }
+
     private static void ApplyFont(DependencyObject element, DependencyProperty property, FontFamily? family)
     {
-        var name = family?.Source;
-        if (!string.IsNullOrEmpty(name) && PreserveFonts.Contains(name)) return;
-        element.SetValue(property, new FontFamily(FontStack));
+        if (ShouldReplaceFont(family?.Source)) element.SetValue(property, new FontFamily(FontStack));
     }
 }
