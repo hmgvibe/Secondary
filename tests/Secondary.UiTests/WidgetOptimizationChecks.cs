@@ -175,6 +175,27 @@ internal static class WidgetOptimizationChecks
         sole.Cancel();
         try { await soleWait; } catch (OperationCanceledException) { }
         check(networkToken.IsCancellationRequested, "Cancelling the last weather widget stops the underlying network request");
+        // A failed direct request retries the same host through the fallback client.
+        var directCalls = 0; var fallbackCalls = 0;
+        using var directClient = new HttpClient(new FakeHttp((_, _) =>
+        {
+            Interlocked.Increment(ref directCalls);
+            throw new HttpRequestException("direct unavailable");
+        }));
+        using var fallbackClient = new HttpClient(new FakeHttp((_, _) =>
+        {
+            Interlocked.Increment(ref fallbackCalls);
+            return Task.FromResult(JsonResponse("{\"results\":[]}"));
+        }));
+        var resilient = new WeatherDataService(directClient, null, fallbackClient);
+        var fallbackPlaces = await resilient.SearchAsync("Taipei", CancellationToken.None);
+        check(fallbackPlaces.Length == 0 && directCalls == 1 && fallbackCalls == 1, "Weather retries a failed direct request through the fallback client");
+        // Data/parse errors and user cancellation must NOT trigger a fallback.
+        using var badDataClient = new HttpClient(new FakeHttp((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(new string(' ', WeatherDataService.MaximumResponseBytes + 1)) })));
+        using var unusedFallback = new HttpClient(new FakeHttp((_, _) => { Interlocked.Increment(ref fallbackCalls); return Task.FromResult(JsonResponse("{\"results\":[]}")); }));
+        var badDataFallbacks = fallbackCalls;
+        try { await new WeatherDataService(badDataClient, null, unusedFallback).SearchAsync("Taipei", CancellationToken.None); } catch (InvalidDataException) { }
+        check(fallbackCalls == badDataFallbacks, "Weather does not retry a data-validation error through the fallback client");
     }
     private static void CheckWeatherUi(MainWindow window, Action<bool, string> check)
     {

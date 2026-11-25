@@ -491,7 +491,7 @@ public sealed partial class HomeUtilityWidget
         var now = weatherSource.UtcNow;
         lastWeather ??= weatherSource.Cached(location);
         UpdateWeatherState();
-        if (!force && (weatherBusy || lastWeather is not null && now - lastWeather.FetchedAt < WeatherDataService.Freshness || now - weatherAttempt < TimeSpan.FromMinutes(2))) return;
+        if (!force && (weatherBusy || lastWeather is not null && now - lastWeather.FetchedAt < WeatherDataService.Freshness || now - weatherAttempt < TimeSpan.FromSeconds(30))) return;
         weatherRequest?.Cancel();
         var request = new CancellationTokenSource(); weatherRequest = request; weatherBusy = true; weatherAttempt = now;
         if (lastWeather is null) weatherDetails!.Text = ChineseLocale.Convert("正在查詢…");

@@ -22,15 +22,22 @@ internal sealed class WeatherDataService
 {
     internal const int MaximumResponseBytes = 256 * 1024;
     internal static readonly TimeSpan Freshness = TimeSpan.FromMinutes(15);
-    internal static readonly WeatherDataService Shared = new(new HttpClient { Timeout = TimeSpan.FromSeconds(12) });
+    // Open-Meteo is reachable directly in mainland China, so the primary client bypasses the
+    // system proxy. A user's always-on VPN otherwise routes this foreign host through an
+    // unstable node and weather silently goes stale. If direct fails (e.g. a network that
+    // requires a proxy), retry the same host through the system proxy as a fallback.
+    private static HttpClient DirectClient() => new(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(9) };
+    private static HttpClient ProxiedClient() => new() { Timeout = TimeSpan.FromSeconds(9) };
+    internal static readonly WeatherDataService Shared = new(DirectClient(), null, ProxiedClient());
     private readonly HttpClient client;
+    private readonly HttpClient fallback;
     private readonly Func<DateTimeOffset> clock;
     private readonly object sync = new();
     private readonly Dictionary<string, WeatherLocation[]> places = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SharedRequest<WeatherLocation[]>> searches = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, WeatherReading> readings = new();
     private readonly Dictionary<string, SharedRequest<WeatherReading>> requests = new();
-    internal WeatherDataService(HttpClient client, Func<DateTimeOffset>? clock = null) { this.client = client; this.clock = clock ?? (() => DateTimeOffset.UtcNow); }
+    internal WeatherDataService(HttpClient client, Func<DateTimeOffset>? clock = null, HttpClient? fallback = null) { this.client = client; this.fallback = fallback ?? client; this.clock = clock ?? (() => DateTimeOffset.UtcNow); }
     internal DateTimeOffset UtcNow => clock();
     internal async Task<WeatherLocation[]> SearchAsync(string query, CancellationToken token)
     {
@@ -124,7 +131,20 @@ internal sealed class WeatherDataService
     }
     private async Task<JsonDocument> ReadJsonAsync(string url, CancellationToken token)
     {
-        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+        try { return await FetchJsonAsync(client, url, token).ConfigureAwait(false); }
+        catch (Exception ex) when (ShouldFallback(ex, token))
+        {
+            // Direct request failed (timeout / DNS / connection). Retry the same host through
+            // the alternate route so a proxy-only network still works.
+            return await FetchJsonAsync(fallback, url, token).ConfigureAwait(false);
+        }
+    }
+    private bool ShouldFallback(Exception ex, CancellationToken token)
+        => !token.IsCancellationRequested && !ReferenceEquals(client, fallback)
+           && ex is HttpRequestException or TaskCanceledException or IOException or System.Net.Sockets.SocketException;
+    private async Task<JsonDocument> FetchJsonAsync(HttpClient http, string url, CancellationToken token)
+    {
+        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength > MaximumResponseBytes) throw new InvalidDataException("Weather response too large.");
         await using var input = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
