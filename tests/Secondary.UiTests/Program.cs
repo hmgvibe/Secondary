@@ -108,7 +108,7 @@ internal static class Program
         using var displays = new DisplayService();
         var testDirectory = Path.Combine(Path.GetTempPath(), "Secondary.UiTests-" + Guid.NewGuid());
         using var model = new ShellViewModel(displays, new SettingsStore(Path.Combine(testDirectory, "settings.json")));
-        var window = new MainWindow(model, registerHotkey: false);
+        var window = new MainWindow(model, registerHotkey: false, shortcutsPath: Path.Combine(testDirectory, "shortcuts.json"));
         using var theme = new ThemeService(window);
         var root = (FrameworkElement)window.Content;
         try
@@ -731,6 +731,25 @@ internal static class Program
             using var framedFile = File.Create(Path.Combine(OutputDirectory(args)!, "event-widget-header.png")); framedPng.Save(framedFile);
             eventPreview.Dispose(); previewFrame.Detach();
         }
+        foreach (var id in model.Settings.Home!.Widgets!.Select(w => w.Id).ToArray()) window.RemoveHomeWidget(id);
+        var shortcutPath = Path.Combine(directory, "shortcuts.json");
+        var pinnedEntry = new ShortcutEntry("home-pin-1", "首页固定项", "日常", "↗", [new ShortcutStep("Open", "https://example.invalid/home")]);
+        Check(new ShortcutLibrary(shortcutPath).Save([pinnedEntry]), "Shortcuts widget shares the launchpad shortcut profile");
+        window.Launchpad.ReloadFromDisk();
+        Check(window.AddHomeWidget("Shortcuts"), "Add shortcuts widget");
+        Layout(window, root, 1200, 820);
+        var shortcutsWidget = canvas.Children.OfType<HomeWidget>().SelectMany(w => w.Children.OfType<HomeUtilityWidget>()).Single(w => w.Settings.Kind == "Shortcuts");
+        Check(shortcutsWidget.PinnedShortcutIds.Length == 0 && Descendants(shortcutsWidget).OfType<TextBlock>().Any(t => t.Text == "（还没有固定的快捷方式）"), "Empty shortcuts widget explains pinning");
+        shortcutsWidget.PinShortcut(pinnedEntry.Id);
+        Check(shortcutsWidget.PinnedShortcutIds.SequenceEqual([pinnedEntry.Id]) && Descendants(shortcutsWidget).OfType<Button>().Any(b => b.Content as string == "↗  首页固定项"), "Pinning an existing shortcut renders it on the home page");
+        Check(model.Settings.Home!.Widgets!.Single(w => w.Kind == "Shortcuts").ShortcutIds!.SequenceEqual([pinnedEntry.Id]), "Pinned ids persist in home settings");
+        shortcutsWidget.ImportShortcutUrl("https://example.invalid/imported");
+        Check(new ShortcutLibrary(shortcutPath).Load().Length == 2 && shortcutsWidget.PinnedShortcutIds.Length == 2, "Dropping a URL imports and pins a shortcut");
+        shortcutsWidget.PinShortcut(pinnedEntry.Id, remove: true);
+        Check(shortcutsWidget.PinnedShortcutIds.Length == 1 && new ShortcutLibrary(shortcutPath).Load().Length == 2, "Removing from the widget keeps the shared shortcut");
+        Descendants(shortcutsWidget).OfType<Button>().Single(b => b.Content as string == "管理全部快捷方式").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(window.CurrentPage == "shortcuts" && window.Launchpad.EntryCount == 2, "Widget opens the full launchpad and reloads entries");
+        window.Navigate("home");
         foreach (var id in model.Settings.Home!.Widgets!.Select(w => w.Id).ToArray()) window.RemoveHomeWidget(id);
         model.SaveHome(new());
     }

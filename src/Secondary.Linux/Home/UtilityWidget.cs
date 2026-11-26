@@ -43,8 +43,8 @@ public sealed partial class UtilityWidget : Border, IDisposable
     public string StatusText => status.Text ?? "";
     public string ReadoutText => readout.Text ?? "";
     public event Func<HomeWidgetSettings, bool>? SaveRequested;
-    public static string Title(string kind) => kind switch { "Calendar" => "日历", "Note" => "便签", "Countdown" => "倒数计时", "Stopwatch" => "码表", "Todo" => "待办清单", "Counter" => "计数器", "TimeProgress" => "时间进度", "Media" => "媒体", "Weather" => "天气", "EventCountdown" => "倒数日", "AiUsage" => "AI 用量", _ => kind };
-    public static string Description(string kind) => kind switch { "Calendar" => "查看日期与月份", "Note" => "随手记下想法 · 本机保存", "Countdown" => "设置专注时间 · 1–1440 分钟", "Todo" => "添加、勾选完成 · 最多 20 项", "Counter" => "加减计数 · 自动保存", "TimeProgress" => "今日、本周、今年的时间进度", "Media" => "目前播放内容与控制", "Weather" => "输入城市查看即时天气", "EventCountdown" => "自订纪念日或目标日期", "AiUsage" => "Claude 与 Codex 的五小时、每周额度", _ => "记录经过时间 · 随时暂停" };
+    public static string Title(string kind) => kind switch { "Calendar" => "日历", "Note" => "便签", "Countdown" => "倒数计时", "Stopwatch" => "码表", "Todo" => "待办清单", "Counter" => "计数器", "TimeProgress" => "时间进度", "Media" => "媒体", "Weather" => "天气", "EventCountdown" => "倒数日", "AiUsage" => "AI 用量", "Shortcuts" => "快捷方式（仅 Windows）", _ => kind };
+    public static string Description(string kind) => kind switch { "Calendar" => "查看日期与月份", "Note" => "随手记下想法 · 本机保存", "Countdown" => "设置专注时间 · 1–1440 分钟", "Todo" => "添加、勾选完成 · 最多 20 项", "Counter" => "加减计数 · 自动保存", "TimeProgress" => "今日、本周、今年的时间进度", "Media" => "目前播放内容与控制", "Weather" => "输入城市查看即时天气", "EventCountdown" => "自订纪念日或目标日期", "AiUsage" => "Claude 与 Codex 的五小时、每周额度", "Shortcuts" => "此组件需要 Windows 拖放与快捷导航，Linux 暂不支持", _ => "记录经过时间 · 随时暂停" };
 
     public UtilityWidget(HomeWidgetSettings settings) : this(settings, WeatherDataService.Shared, Platform.MprisMediaSource.Shared) { }
     internal UtilityWidget(HomeWidgetSettings settings, AiUsageService usageSource) : this(settings, WeatherDataService.Shared, Platform.MprisMediaSource.Shared, usageSource) { }
@@ -71,6 +71,7 @@ public sealed partial class UtilityWidget : Border, IDisposable
             case "AiUsage": RenderUsage(); break;
             case "Calendar": RenderCalendar(); break;
             case "Note": RenderNote(); break;
+            case "Shortcuts": RenderUnsupported(); break;
             default: RenderTimer(); break;
         }
         if (eventSettingsButton is not null)
@@ -87,6 +88,12 @@ public sealed partial class UtilityWidget : Border, IDisposable
     }
 
     private static void Muted(TextBlock text) => text.Bind(TextBlock.ForegroundProperty, text.GetResourceObservable("MutedBrush"));
+    private void RenderUnsupported()
+    {
+        var text = new TextBlock { Text = "此组件仅支持 Windows 版；请在 Windows 上使用快捷方式小组件。", TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 24, 0, 0) };
+        Muted(text); body.Children.Add(text);
+    }
     private static Button ActionButton(string title, Action action)
     {
         var button = new Button { Content = title, Margin = new Thickness(4, 8, 4, 0), Padding = new Thickness(14, 6), MinHeight = 36, Height = 36, FontSize = 13 };
@@ -174,7 +181,7 @@ public sealed partial class UtilityWidget : Border, IDisposable
         SetMediaSubscription(active && Settings.Kind == "Media");
         if (Settings.Kind == "AiUsage") SetUsageSubscription(active && MainUsage && !UsagePaused);
         refresh.Interval = Settings.Kind switch { "Media" => TimeSpan.FromSeconds(5), "Weather" or "TimeProgress" or "Calendar" or "EventCountdown" or "AiUsage" => TimeSpan.FromMinutes(1), _ => TimeSpan.FromSeconds(1) };
-        if (active && Settings.Kind is not ("Note" or "Todo" or "Counter") && !UsagePaused) { OnTick(null, EventArgs.Empty); refresh.Start(); }
+        if (active && Settings.Kind is not ("Note" or "Todo" or "Counter" or "Shortcuts") && !UsagePaused) { OnTick(null, EventArgs.Empty); refresh.Start(); }
     }
 
     private void RenderCalendar()

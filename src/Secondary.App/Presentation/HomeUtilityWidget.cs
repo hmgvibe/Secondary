@@ -35,7 +35,12 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
     public HomeWidgetSettings Settings { get; private set; }
     public bool IsRefreshing => refresh.IsEnabled;
     public event Func<HomeWidgetSettings, bool>? SaveRequested;
-    public static string Title(string kind) => kind switch { "Calendar" => ("日历"), "Note" => ("便签"), "Countdown" => ("倒数计时"), "Stopwatch" => ("码表"), "Todo" => ("待办清单"), "Counter" => ("计数器"), "TimeProgress" => ("时间进度"), "Media" => ("媒体"), "Weather" => ("天气"), "EventCountdown" => ("倒数日"), "AiUsage" => ("AI 用量"), _ => kind };
+    public static string Title(string kind) => kind switch { "Calendar" => ("日历"), "Note" => ("便签"), "Countdown" => ("倒数计时"), "Stopwatch" => ("码表"), "Todo" => ("待办清单"), "Counter" => ("计数器"), "TimeProgress" => ("时间进度"), "Media" => ("媒体"), "Weather" => ("天气"), "EventCountdown" => ("倒数日"), "AiUsage" => ("AI 用量"), "Shortcuts" => ("快捷方式"), _ => kind };
+    public const string ManageShortcutsCommand = "__manage_shortcuts__";
+    // Set by MainWindow so pinned shortcuts can reuse the launchpad's confirmation + execution flow.
+    // The widget is passed along so multiple windows never cross-trigger each other.
+    public static Action<HomeUtilityWidget, string>? LaunchShortcutById;
+    public static Func<HomeUtilityWidget, string>? ShortcutsFilePath;
     public HomeUtilityWidget(HomeWidgetSettings settings) : this(settings, WeatherDataService.Shared) { }
     internal HomeUtilityWidget(HomeWidgetSettings settings, AiUsageService usageSource) : this(settings, WeatherDataService.Shared, usageSource) { }
     internal HomeUtilityWidget(HomeWidgetSettings settings, WeatherDataService weatherSource, AiUsageService? usageSource = null)
@@ -57,6 +62,7 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
         else if (settings.Kind == "EventCountdown") RenderEventCountdown();
         else if (settings.Kind == "AiUsage") RenderUsage();
         else if (settings.Kind == "Calendar") RenderCalendar();
+        else if (settings.Kind == "Shortcuts") RenderShortcuts();
         else if (settings.Kind == "Note")
         {
             note = new TextBox { Text = Settings.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 144, MaxLength = 4000, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };

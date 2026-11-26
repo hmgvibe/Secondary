@@ -99,11 +99,12 @@ internal static class HomeChecks
         window.Clock.Configure(model.Settings.Home ?? new HomeSettings());
 
         // Utility widgets: every kind, free placement, persistence and the 12 limit.
-        foreach (var kind in HomeWidgetSettings.Kinds) Check(window.AddHomeWidget(kind), "Adds widget " + kind);
+        foreach (var kind in HomeWidgetSettings.LinuxKinds) Check(window.AddHomeWidget(kind), "Adds widget " + kind);
+        Check(!window.AddHomeWidget("Shortcuts"), "Windows-only shortcuts widget is not offered on Linux");
         Pump();
         var saved = new SettingsStore(settingsPath).Load().Home!.Widgets!;
-        Check(saved.Length == 11 && saved.Select(w => w.Kind).SequenceEqual(HomeWidgetSettings.Kinds), "Every widget kind is saved in order");
-        Check(saved.Select(w => (w.Placement!.X, w.Placement.Y)).Distinct().Count() == 11, "New widgets get distinct placements");
+        Check(saved.Length == HomeWidgetSettings.LinuxKinds.Length && saved.Select(w => w.Kind).SequenceEqual(HomeWidgetSettings.LinuxKinds), "Every supported widget kind is saved in order");
+        Check(saved.Select(w => (w.Placement!.X, w.Placement.Y)).Distinct().Count() == HomeWidgetSettings.LinuxKinds.Length, "New widgets get distinct placements");
         Check(window.AddHomeWidget("Note") && !window.AddHomeWidget("Calendar") && window.UtilityWidgetCount == 12, "At most 12 widgets can be added; kinds may repeat");
         Check(window.UtilityWidgets.Values.All(w => w.Content.IsRefreshing == w.Content.Settings.Kind is not ("Note" or "Todo" or "Counter")), "Active widgets refresh only when their content changes over time");
 

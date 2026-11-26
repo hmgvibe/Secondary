@@ -49,6 +49,15 @@ public partial class MainWindow : Window
             : System.IO.Path.Combine(System.IO.Path.GetTempPath(),"Secondary-tests-" + Guid.NewGuid().ToString("N"),"shortcuts.json")));
         Launchpad.CanRun = () => !IsGame && IsVisible && WindowState != WindowState.Minimized;
         ShortcutsPage.Children.Add(Launchpad);
+        HomeUtilityWidget.LaunchShortcutById = (widget, id) =>
+            ((Window.GetWindow(widget) as MainWindow) ?? this).HandleHomeShortcut(id);
+        HomeUtilityWidget.ShortcutsFilePath = widget =>
+        {
+            var owner = Window.GetWindow(widget) as MainWindow;
+            return owner?.Launchpad.LibraryPath
+                ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Secondary", "shortcuts.json");
+        };
+        foreach (var widget in utilityWidgets.Values) widget.Content.ReloadShortcuts();
         ContentScroll.AllowDrop = true;
         ContentScroll.Background = Brushes.Transparent;
         ContentScroll.PreviewDragOver += (_, e) => { if (CurrentPage == "shortcuts") Launchpad.HandleExternalDrag(e,false); };
@@ -123,6 +132,16 @@ public partial class MainWindow : Window
         Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
+    }
+    private void HandleHomeShortcut(string id)
+    {
+        if (id == HomeUtilityWidget.ManageShortcutsCommand)
+        {
+            Navigate("shortcuts");
+            Launchpad.ReloadFromDisk();
+            return;
+        }
+        _ = Launchpad.LaunchById(id);
     }
     private void BuildNavigation()
     {

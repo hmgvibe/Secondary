@@ -18,6 +18,7 @@ namespace Secondary.App.Presentation;
 public sealed partial class LaunchpadView : StackPanel, IDisposable
 {
     private readonly ShortcutLibrary library;
+    private readonly string libraryPath;
     private readonly ShortcutExecutor executor = new();
     private readonly ShortcutRunner runner;
     private ShortcutEntry[] entries;
@@ -36,6 +37,21 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
     public Func<bool> CanRun { get; set; } = () => true;
     public int EntryCount => entries.Length;
     public string GroupLayout => library.GroupLayout;
+    public string LibraryPath => libraryPath;
+    // Called by the home-page shortcuts widget to run a pinned entry through the same
+    // confirmation/approval flow used by the launchpad tiles.
+    public Task LaunchById(string id)
+    {
+        if (disposed) return Task.CompletedTask;
+        entries = library.Load();
+        var entry = entries.FirstOrDefault(e => e.Id == id);
+        if (entry is null) { Refresh(); status.Text = "快捷方式已移除，这次未执行。"; return Task.CompletedTask; }
+        var alreadyRunning = execution is not null;
+        var launch = Launch(entry);
+        if (!alreadyRunning) ExecutionCompletion = launch;
+        return launch;
+    }
+    public void ReloadFromDisk() { if (!disposed) { entries = library.Load(); Refresh(); } }
     public bool IsExecuting => execution is not null;
     public bool IsReviewing => reviewing;
     public string ExecutionStatus => status.Text;
@@ -44,7 +60,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         new ShortcutEntry("measure-" + i, "量测入口 " + i, "量测分组 " + i % 8, Steps: [new("Open", "https://example.invalid/" + i)])).ToArray());
     public LaunchpadView(string path)
     {
-        library = new(path); entries = library.Load(); runner = new(executor);
+        library = new(path); libraryPath = path; entries = library.Load(); runner = new(executor);
         EditDialog = (entry,mainName,main,canChoose) => ShortcutDialogs.Edit(Owner,entry,mainName,main,canChoose);
         InitializeTransfer();
         Children.Add(new TextBlock { Text = "YOUR LAUNCHPAD", FontSize = 11 });
