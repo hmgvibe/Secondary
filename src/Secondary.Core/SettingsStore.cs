@@ -6,7 +6,7 @@ public sealed record AppSettings(int Version = 3, string? DisplayId = null,
     AppMode Mode = AppMode.Normal, string NormalSection = "home",
     string Theme = "System", string Hotkey = "Ctrl+Alt+G", bool GameHighSampling = false,
     bool GameAnimation = true, HomeSettings? Home = null, string NavigationSize = "Standard", string NavigationPosition = "Bottom",
-    string Language = "Traditional");
+    string Language = "Traditional", string? WeatherApiKey = null);
 
 public static class LanguagePolicy
 {

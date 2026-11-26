@@ -196,6 +196,34 @@ internal static class WidgetOptimizationChecks
         var badDataFallbacks = fallbackCalls;
         try { await new WeatherDataService(badDataClient, null, unusedFallback).SearchAsync("Taipei", CancellationToken.None); } catch (InvalidDataException) { }
         check(fallbackCalls == badDataFallbacks, "Weather does not retry a data-validation error through the fallback client");
+        await CheckQWeatherAsync(check);
+    }
+    private static async Task CheckQWeatherAsync(Action<bool, string> check)
+    {
+        var hosts = new List<string>();
+        using var client = new HttpClient(new FakeHttp((request, token) =>
+        {
+            hosts.Add(request.RequestUri!.Host);
+            var json = request.RequestUri.Host.StartsWith("geoapi", StringComparison.Ordinal)
+                ? "{\"code\":\"200\",\"location\":[{\"name\":\"北京\",\"country\":\"中国\",\"adm1\":\"北京市\",\"lat\":39.9,\"lon\":116.4}]}"
+                : "{\"code\":\"200\",\"now\":{\"temp\":\"26\",\"feelsLike\":\"28\",\"humidity\":\"74\",\"windSpeed\":\"5\",\"icon\":\"101\",\"obsTime\":\"2026-10-13T20:00+08:00\"}}";
+            return Task.FromResult(JsonResponse(json));
+        }));
+        try
+        {
+            WeatherDataService.Configure("test-key");
+            check(WeatherDataService.UsesQWeather, "QWeather key activates the QWeather provider");
+            var source = new WeatherDataService(client);
+            var places = await source.SearchAsync("北京", CancellationToken.None);
+            check(places.Length == 1 && places[0].Latitude == 39.9 && hostStarts(hosts, "geoapi.qweather.com"), "QWeather geocoding maps lat/lon and country");
+            var reading = await source.ReadAsync(places[0], false, CancellationToken.None);
+            check(reading.Temperature == 26 && reading.ApparentTemperature == 28 && reading.Humidity == 74 && hostStarts(hosts, "devapi.qweather.com"), "QWeather current weather maps temp/feels-like/humidity");
+            check(reading.Code == 2, "QWeather icon code maps to the widget's cloud glyph");
+        }
+        finally { WeatherDataService.Configure(null); }
+        check(!WeatherDataService.UsesQWeather, "Clearing the key returns to Open-Meteo");
+
+        static bool hostStarts(List<string> hosts, string host) => hosts.Any(h => h.Equals(host, StringComparison.OrdinalIgnoreCase));
     }
     private static void CheckWeatherUi(MainWindow window, Action<bool, string> check)
     {

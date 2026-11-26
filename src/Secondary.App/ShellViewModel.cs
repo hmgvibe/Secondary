@@ -62,9 +62,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         Notify(nameof(HasUnsavedSettings));
     }
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-    public void SaveRuntime(string? theme = null, string? hotkey = null, bool? highSampling = null, bool? gameAnimation = null, string? navigationSize = null, string? navigationPosition = null, string? language = null)
+    public void SaveRuntime(string? theme = null, string? hotkey = null, bool? highSampling = null, bool? gameAnimation = null, string? navigationSize = null, string? navigationPosition = null, string? language = null, string? weatherApiKey = null)
     {
-        var next = Modes.Snapshot(Settings) with { Theme = theme ?? Settings.Theme, Hotkey = hotkey ?? Settings.Hotkey, GameHighSampling = highSampling ?? Settings.GameHighSampling, GameAnimation = gameAnimation ?? Settings.GameAnimation, NavigationSize = navigationSize ?? Settings.NavigationSize, NavigationPosition = navigationPosition ?? Settings.NavigationPosition, Language = language is null ? Settings.Language : LanguagePolicy.Validate(language) };
+        var next = Modes.Snapshot(Settings) with { Theme = theme ?? Settings.Theme, Hotkey = hotkey ?? Settings.Hotkey, GameHighSampling = highSampling ?? Settings.GameHighSampling, GameAnimation = gameAnimation ?? Settings.GameAnimation, NavigationSize = navigationSize ?? Settings.NavigationSize, NavigationPosition = navigationPosition ?? Settings.NavigationPosition, Language = language is null ? Settings.Language : LanguagePolicy.Validate(language), WeatherApiKey = weatherApiKey is null ? Settings.WeatherApiKey : (string.IsNullOrWhiteSpace(weatherApiKey) ? null : weatherApiKey.Trim()) };
         if (next == Settings && !store.NeedsSave) return;
         Settings = next;
         if (!store.Save(Settings)) Status = "设置保存失败：" + store.LastError;

@@ -101,34 +101,88 @@ internal sealed class WeatherDataService
         if (cancel) request.Cancel();
     }
     private static string Key(WeatherLocation location) => location.Latitude.ToString("R", CultureInfo.InvariantCulture) + "," + location.Longitude.ToString("R", CultureInfo.InvariantCulture);
+    // QWeather (和风天气) is the preferred source in mainland China: direct, no VPN, and
+    // Simplified-Chinese city names. It requires a free developer key the user supplies in
+    // Settings. When no key is configured we transparently fall back to Open-Meteo, which also
+    // needs no key. The key is held in a static slot so every widget shares one configuration.
+    private static string? qweatherKey;
+    internal static void Configure(string? apiKey) => qweatherKey = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim();
+    internal static bool UsesQWeather => qweatherKey is not null;
+
     private async Task<WeatherLocation[]> SearchCoreAsync(string query, CancellationToken token)
     {
         // The geocoder expects the city as the search term. Region/country text
         // after a comma is used to rank the visible candidates, never silently saved.
         var segments = query.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var name = segments.FirstOrDefault() ?? query;
-        var url = "https://geocoding-api.open-meteo.com/v1/search?name=" + Uri.EscapeDataString(name) + "&count=5&language=zh&format=json";
-        using var json = await ReadJsonAsync(url, token).ConfigureAwait(false);
-        if (!json.RootElement.TryGetProperty("results", out var results)) return [];
-        var locations = results.EnumerateArray().Select(place => new WeatherLocation(
-            String(place, "name"), String(place, "country"), String(place, "admin1"),
-            place.GetProperty("latitude").GetDouble(), place.GetProperty("longitude").GetDouble()).Normalize())
-            .OfType<WeatherLocation>().ToArray();
+        WeatherLocation[] locations;
+        var key = qweatherKey;
+        if (key is not null)
+        {
+            var qwUrl = "https://geoapi.qweather.com/v2/city/lookup?location=" + Uri.EscapeDataString(name) + "&number=10&key=" + Uri.EscapeDataString(key);
+            using var qw = await ReadJsonAsync(qwUrl, token).ConfigureAwait(false);
+            if (String(qw.RootElement, "code") != "200") return [];
+            locations = qw.RootElement.TryGetProperty("location", out var places)
+                ? places.EnumerateArray().Select(place => new WeatherLocation(
+                    String(place, "name"), String(place, "country"), String(place, "adm1"),
+                    Number(place, "lat"), Number(place, "lon")).Normalize())
+                    .OfType<WeatherLocation>().ToArray()
+                : [];
+        }
+        else
+        {
+            var url = "https://geocoding-api.open-meteo.com/v1/search?name=" + Uri.EscapeDataString(name) + "&count=5&language=zh&format=json";
+            using var json = await ReadJsonAsync(url, token).ConfigureAwait(false);
+            if (!json.RootElement.TryGetProperty("results", out var results)) return [];
+            locations = results.EnumerateArray().Select(place => new WeatherLocation(
+                String(place, "name"), String(place, "country"), String(place, "admin1"),
+                place.GetProperty("latitude").GetDouble(), place.GetProperty("longitude").GetDouble()).Normalize())
+                .OfType<WeatherLocation>().ToArray();
+        }
         return segments.Length <= 1 ? locations : locations.OrderByDescending(p => (p.Region + " " + p.Country).Contains(segments[^1], StringComparison.OrdinalIgnoreCase)).ToArray();
     }
     private async Task<WeatherReading> ReadCoreAsync(WeatherLocation location, CancellationToken token)
     {
         var coords = Key(location).Split(',');
-        var url = $"https://api.open-meteo.com/v1/forecast?latitude={coords[0]}&longitude={coords[1]}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto";
-        using var json = await ReadJsonAsync(url, token).ConfigureAwait(false);
-        var current = json.RootElement.GetProperty("current");
-        var temperature = current.GetProperty("temperature_2m").GetDouble();
-        var apparent = current.GetProperty("apparent_temperature").GetDouble();
-        var humidity = current.GetProperty("relative_humidity_2m").GetInt32();
-        var wind = current.GetProperty("wind_speed_10m").GetDouble();
-        if (!double.IsFinite(temperature) || !double.IsFinite(apparent) || !double.IsFinite(wind) || humidity is < 0 or > 100) throw new InvalidDataException("Invalid weather values.");
-        return new WeatherReading(location, temperature, apparent, humidity, wind, current.GetProperty("weather_code").GetInt32(), clock(), String(current, "time"));
+        var key = qweatherKey;
+        if (key is not null)
+        {
+            // lon,lat order for QWeather; coordinates limited to two decimals by the API.
+            var lat = Math.Round(double.Parse(coords[0], CultureInfo.InvariantCulture), 2);
+            var lon = Math.Round(double.Parse(coords[1], CultureInfo.InvariantCulture), 2);
+            var url = FormattableString.Invariant($"https://devapi.qweather.com/v7/weather/now?location={lon},{lat}&key={key}");
+            using var json = await ReadJsonAsync(url, token).ConfigureAwait(false);
+            if (String(json.RootElement, "code") != "200") throw new InvalidDataException("和风天气返回错误代码 " + String(json.RootElement, "code"));
+            var now = json.RootElement.GetProperty("now");
+            var temperature = Number(now, "temp");
+            var apparent = Number(now, "feelsLike");
+            var humidity = (int)Number(now, "humidity");
+            var wind = Number(now, "windSpeed");
+            var code = QWeatherCode((int)Number(now, "icon"));
+            if (!double.IsFinite(temperature) || !double.IsFinite(apparent) || !double.IsFinite(wind) || humidity is < 0 or > 100) throw new InvalidDataException("Invalid weather values.");
+            return new WeatherReading(location, temperature, apparent, humidity, wind, code, clock(), String(now, "obsTime"));
+        }
+        var openUrl = $"https://api.open-meteo.com/v1/forecast?latitude={coords[0]}&longitude={coords[1]}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto";
+        using var openJson = await ReadJsonAsync(openUrl, token).ConfigureAwait(false);
+        var current = openJson.RootElement.GetProperty("current");
+        var t = current.GetProperty("temperature_2m").GetDouble();
+        var a = current.GetProperty("apparent_temperature").GetDouble();
+        var h = current.GetProperty("relative_humidity_2m").GetInt32();
+        var w = current.GetProperty("wind_speed_10m").GetDouble();
+        if (!double.IsFinite(t) || !double.IsFinite(a) || !double.IsFinite(w) || h is < 0 or > 100) throw new InvalidDataException("Invalid weather values.");
+        return new WeatherReading(location, t, a, h, w, current.GetProperty("weather_code").GetInt32(), clock(), String(current, "time"));
     }
+    // Map QWeather icon codes to the WMO weather codes used by the widget glyphs.
+    private static int QWeatherCode(int icon) => icon switch
+    {
+        100 or 150 => 0, 101 or 102 or 103 => 2, 104 => 3,
+        200 or 201 or 202 => 3, 300 or 301 or 302 or 303 => 61,
+        400 or 401 or 402 or 403 or 404 or 405 => 95,
+        500 or 501 or 502 or 503 or 507 or 508 => 61, 504 or 506 => 65,
+        511 => 66, 600 or 601 or 602 or 603 or 604 => 71, 605 or 606 or 607 => 75,
+        700 or 701 or 702 or 703 => 45, 800 or 801 => 51, 802 => 53, 803 => 55,
+        900 => 95, 901 => 96, _ => 3
+    };
     private async Task<JsonDocument> ReadJsonAsync(string url, CancellationToken token)
     {
         try { return await FetchJsonAsync(client, url, token).ConfigureAwait(false); }
@@ -172,5 +226,16 @@ internal sealed class WeatherDataService
         }
         internal void Cancel() { try { deadline.Cancel(); } catch (ObjectDisposedException) { } }
     }
-    private static string String(JsonElement element, string property) => element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
+    private static string String(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out var value)) return "";
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? "",
+            JsonValueKind.Number => value.GetRawText(),
+            _ => ""
+        };
+    }
+    private static double Number(JsonElement element, string property)
+        => element.TryGetProperty(property, out var value) && double.TryParse(value.ValueKind == JsonValueKind.String ? value.GetString() : value.GetRawText(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : double.NaN;
 }

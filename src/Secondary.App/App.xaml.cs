@@ -46,6 +46,8 @@ public partial class App : Application
             }
         }
         var store = new SettingsStore(settingsPath);
+        var initialSettings = store.Load();
+        Secondary.Shared.WeatherDataService.Configure(initialSettings.WeatherApiKey);
         displays = new DisplayService();
         var model = new ShellViewModel(displays, store);
         var window = new MainWindow(model, registerHotkey: !benchmark,

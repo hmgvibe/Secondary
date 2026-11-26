@@ -443,9 +443,14 @@ public sealed partial class HomeUtilityWidget
         weatherDisplay.Children.Add(weatherUpdated);
         var attribution = Label("", 10);
         attribution.Margin = new Thickness(0, 8, 0, 0);
-        attribution.Inlines.Add(SourceLink(("天气数据：Open-Meteo"), "https://open-meteo.com/"));
-        attribution.Inlines.Add(new Run(" · "));
-        attribution.Inlines.Add(SourceLink("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"));
+        if (Secondary.Shared.WeatherDataService.UsesQWeather)
+            attribution.Inlines.Add(SourceLink(("天气数据：和风天气"), "https://www.qweather.com/"));
+        else
+        {
+            attribution.Inlines.Add(SourceLink(("天气数据：Open-Meteo"), "https://open-meteo.com/"));
+            attribution.Inlines.Add(new Run(" · "));
+            attribution.Inlines.Add(SourceLink("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"));
+        }
         attribution.ToolTip = ("数据按原值显示，数字四舍五入；约每 15 分钟更新。");
         weatherDisplay.Children.Add(attribution); body.Children.Add(weatherDisplay);
     }
@@ -487,7 +492,14 @@ public sealed partial class HomeUtilityWidget
     }
     private async Task RefreshWeatherAsync(bool force = false)
     {
-        if (disposed || !widgetActive || Settings.Location is not { } location) return;
+        if (disposed) return;
+        if (!widgetActive || Settings.Location is not { } location)
+        {
+            // Never leave the UI stuck on "正在查询…" when no refresh will happen.
+            if (lastWeather is null && weatherDetails is not null)
+                weatherDetails.Text = Settings.Location is null ? "设置城市后显示天气" : "天气已暂停；返回首页后重试";
+            return;
+        }
         var now = weatherSource.UtcNow;
         lastWeather ??= weatherSource.Cached(location);
         UpdateWeatherState();
@@ -498,11 +510,16 @@ public sealed partial class HomeUtilityWidget
         else weatherUpdated!.Text += (" · 正在更新");
         try
         {
-            var reading = await weatherSource.ReadAsync(location, force, request.Token);
+            var reading = await weatherSource.ReadAsync(location, force, request.Token).WaitAsync(TimeSpan.FromSeconds(15), request.Token);
             if (disposed || !widgetActive || request.IsCancellationRequested || Settings.Location != location) return;
             lastWeather = reading; weatherFailed = false; UpdateWeatherState();
         }
-        catch (OperationCanceledException) when (request.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (request.IsCancellationRequested)
+        {
+            // Cancelled because the widget was paused or superseded - clear any pending hint.
+            if (!disposed && lastWeather is null && weatherDetails is not null && weatherDetails.Text == "正在查询…")
+                weatherDetails.Text = "天气查询已暂停；返回首页后重试";
+        }
         catch (Exception)
         {
             if (!disposed && !request.IsCancellationRequested)

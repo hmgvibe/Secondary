@@ -37,6 +37,8 @@ public partial class MainWindow : Window
         theme = new ThemeService(this);
         themeChoice = Enum.Parse<ThemeChoice>(model.Settings.Theme);
         ThemePicker.SelectedIndex = (int)themeChoice;
+        WeatherKeyInput.Text = model.Settings.WeatherApiKey ?? "";
+        WeatherKeyStatus.Text = Secondary.Shared.WeatherDataService.UsesQWeather ? "当前使用：和风天气" : "当前使用：Open-Meteo（免密钥）";
         HotkeyInput.Text = model.Settings.Hotkey;
         GameAnimationToggle.IsChecked = model.Settings.GameAnimation;
         NavigationSizePicker.SelectedIndex = model.Settings.NavigationSize == "Small" ? 1 : 0;
@@ -288,6 +290,24 @@ public partial class MainWindow : Window
     }
     // Game mode removed: hotkey registration is no longer available.
     private void ApplyHotkey(string text) { }
+    private void OnSaveWeatherKey(object sender, RoutedEventArgs e)
+    {
+        var key = WeatherKeyInput.Text.Trim();
+        Secondary.Shared.WeatherDataService.Configure(key);
+        model.SaveRuntime(weatherApiKey: key);
+        WeatherKeyStatus.Text = Secondary.Shared.WeatherDataService.UsesQWeather
+            ? "当前使用：和风天气；已保存。下次进入天气组件生效。"
+            : "当前使用：Open-Meteo（免密钥）；已保存。";
+        model.Status = WeatherKeyStatus.Text;
+    }
+    private void OnClearWeatherKey(object sender, RoutedEventArgs e)
+    {
+        WeatherKeyInput.Text = "";
+        Secondary.Shared.WeatherDataService.Configure(null);
+        model.SaveRuntime(weatherApiKey: null);
+        WeatherKeyStatus.Text = "已清除；当前使用 Open-Meteo（免密钥）。";
+        model.Status = WeatherKeyStatus.Text;
+    }
 
     private void OnThemeChoice(object sender, SelectionChangedEventArgs e)
     {
