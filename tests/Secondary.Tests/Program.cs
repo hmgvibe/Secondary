@@ -21,8 +21,8 @@ Check(new[] { "Media", "Weather", "EventCountdown" }.All(HomeWidgetSettings.Supp
 var liveWidget = new HomeWidgetSettings("event", "EventCountdown", City: "  Taipei  ", EventTitle: "  旅行  ", EventDate: "2026-12-31");
 Check(System.Text.Json.JsonSerializer.Deserialize<HomeWidgetSettings>(System.Text.Json.JsonSerializer.Serialize(liveWidget))!.Normalize() is { City: "Taipei", EventTitle: "旅行", EventDate: "2026-12-31" }, "Weather city and event date survive settings round trip");
 Check(new HomeWidgetSettings("bad", "EventCountdown", EventDate: "2026-02-30").Normalize().EventDate == "", "Invalid event date is rejected");
-var groupedShortcuts = new[] { new ShortcutEntry("a", "A", "工作", Steps: [new("Open", "https://example.com/a")]), new ShortcutEntry("b", "B", "遊戲", Steps: [new("Open", "https://example.com/b")]) };
-Check(ShortcutPolicy.MoveToGroup(groupedShortcuts, "a", "遊戲", "b") is [{ Id: "a", Group: "遊戲" }, { Id: "b", Group: "遊戲" }], "Dragging a shortcut into another group updates its group");
+var groupedShortcuts = new[] { new ShortcutEntry("a", "A", "工作", Steps: [new("Open", "https://example.com/a")]), new ShortcutEntry("b", "B", "游戏", Steps: [new("Open", "https://example.com/b")]) };
+Check(ShortcutPolicy.MoveToGroup(groupedShortcuts, "a", "游戏", "b") is [{ Id: "a", Group: "游戏" }, { Id: "b", Group: "游戏" }], "Dragging a shortcut into another group updates its group");
 var sensorReading = new MonitoringReading("GPU temperature", "LibreHardwareMonitor 0.9.6", "/gpu/temperature/0", DateTimeOffset.UtcNow, 42, "°C", ReadingState.Available);
 var sensorJson = System.Text.Json.JsonSerializer.Serialize(new SensorSnapshot(1, [sensorReading]));
 Check(SensorSnapshot.Parse(sensorJson).Readings[0].Value == 42, "Sensor snapshot round trip with identity");
@@ -167,7 +167,7 @@ try
     }
     Check(Enum.GetValues<AppMode>().SequenceEqual(new[] { AppMode.Normal, AppMode.Game }), "No light or full modes remain");
     var home = new HomeSettings("Flip", 1.3, "#65DCEC", .2, .8, false, true, false, "Video", @"C:\Wallpapers\loop.mp4");
-    var widgets = new[] { new HomeWidgetSettings("note", "Note", new WidgetPlacement(.2,.7,.8), "便箋測試"), new HomeWidgetSettings("timer", "Countdown", Minutes: 25) };
+    var widgets = new[] { new HomeWidgetSettings("note", "Note", new WidgetPlacement(.2,.7,.8), "便签测试"), new HomeWidgetSettings("timer", "Countdown", Minutes: 25) };
     Check(store.Save(new AppSettings(Home: new HomeSettings(Widgets: widgets))) && store.Load().Home!.Widgets!.SequenceEqual(widgets.Select(w => w.Normalize())), "Utility widget contents and placement survive reload");
     var cleanWidgets = new HomeSettings(Widgets: [new("a","Note",Text:new string('x',5000),Minutes:0),new("a","Calendar"),new("b","Unknown")]).Normalize().Widgets!;
     Check(cleanWidgets.Length == 1 && cleanWidgets[0].Text.Length == 4000 && cleanWidgets[0].Minutes == 1, "Widget normalization removes duplicates and unsupported kinds and bounds content");
@@ -192,8 +192,8 @@ try
     Check(HomeSettings.ValidColor("Auto") && HomeSettings.ValidColor("#aAbB00") && !HomeSettings.ValidColor("#123") && !HomeSettings.ValidColor(null), "Clock color validation");
     var midnight = new DateTime(2026, 9, 15, 0, 0, 0);
     var shortcuts = new ShortcutLibrary(Path.Combine(directory,"shortcuts.json"));
-    var link = new ShortcutEntry("a","網站",Steps:[new("Open","https://example.com")]);
-    var folder = new ShortcutEntry("b","資料夾","工作",Steps:[new("Open",@"C:\Work")]);
+    var link = new ShortcutEntry("a","网站",Steps:[new("Open","https://example.com")]);
+    var folder = new ShortcutEntry("b","文件夹","工作",Steps:[new("Open",@"C:\Work")]);
     var approvedLink = link with { ApprovedFingerprint = ShortcutApproval.Fingerprint(link,"review") };
     Check(!ShortcutApproval.IsApproved(link,"review") && ShortcutApproval.IsApproved(approvedLink,"review"), "Only explicitly confirmed shortcut skips first-run confirmation");
     Check(ShortcutApproval.IsApproved(approvedLink with { Name = "改名", Group = "其他", Icon = "★" },"review"), "Cosmetic changes preserve approval");
@@ -203,7 +203,7 @@ try
     Check(shortcuts.Save([approvedLink]) && ShortcutApproval.IsApproved(shortcuts.Load().Single(),"review"), "Approval survives application restart");
     Check(shortcuts.Save([link,folder]), "Shortcut library saves atomically");
     Check(shortcuts.Load().Select(e => e.Id).SequenceEqual(new[] { "a","b" }), "Shortcut order persists");
-    Check(ShortcutPolicy.Filter([link,folder],"資料","工作").Single().Id == "b", "Shortcut search combines group and text");
+    Check(ShortcutPolicy.Filter([link,folder],"文件","工作").Single().Id == "b", "Shortcut search combines group and text");
     Check(ShortcutPolicy.Move([link,folder],"b","a")[0].Id == "b", "Shortcut drag reorder changes persisted order");
     Check(ShortcutPolicy.Validate(link with { Steps = [new("Open","javascript:alert(1)")] }) is not null, "Shortcut blocks non HTTP schemes");
     Check(ShortcutPolicy.Validate(link with { Steps = [new("Open",@"C:\x.ps1")] }) is not null, "Script cannot bypass explicit script step");
@@ -228,9 +228,9 @@ try
     try
     {
         var desktopFile = Path.Combine(desktopDirectory, "org.example.Editor.desktop");
-        File.WriteAllText(desktopFile, "[Desktop Entry]\nType=Application\nName=Text Editor\nName[zh_CN]=文本编辑器\nName[zh_TW]=文字編輯器\nExec=editor %U\n\n[Desktop Action New]\nName=Other\n");
+        File.WriteAllText(desktopFile, "[Desktop Entry]\nType=Application\nName=Text Editor\nName[zh_CN]=文本编辑器\nName[zh_TW]=文字编辑器\nExec=editor %U\n\n[Desktop Action New]\nName=Other\n");
         var imported = ShortcutImport.FromPath(desktopFile, "日常", linux);
-        Check(imported.Name == "文字編輯器" && imported.Steps![0] is { Kind: "Open" } && imported.Steps[0].Target == desktopFile, "Linux imports a .desktop launcher under its Traditional Chinese name");
+        Check(imported.Name == "文字编辑器" && imported.Steps![0] is { Kind: "Open" } && imported.Steps[0].Target == desktopFile, "Linux imports a .desktop launcher under its Traditional Chinese name");
         var script = Path.Combine(desktopDirectory, "backup.sh"); File.WriteAllText(script, "echo ok\n");
         Check(ShortcutImport.FromPath(script, "日常", linux).Steps![0].Kind == "Script", "Dropped .sh files become script steps on Linux");
         File.WriteAllText(desktopFile, "[Desktop Entry]\nType=Application\nExec=editor\n");
@@ -274,32 +274,14 @@ ShortcutTransferChecks.Run(Check);
 AiUsageChecks.Run(Check);
 await ClaudeOnlineChecks.Run(Check);
 
-// Chinese writing-system conversion: simplified display, lossless return to original wording.
-ChineseLocale.Preference = ChineseLanguage.Traditional;
-Check(ChineseLocale.Convert("設定") == "設定" && ChineseLocale.Convert("繁體中文便箋") == "繁體中文便箋", "Traditional preference keeps original wording");
-ChineseLocale.Preference = ChineseLanguage.Simplified;
-Check(ChineseLocale.Convert("設定") == "设置", "Mainland vocabulary overrides glyph-only conversion (設定 -> 设置)");
-Check(ChineseLocale.Convert("繁體中文") == "繁体中文", "Simplified converts multiple characters");
-Check(ChineseLocale.Convert("尊敬的用戶") == "尊敬的用户", "Character conversion applies across a phrase");
-Check(ChineseLocale.Convert("儲存便箋") == "保存便签", "Mainland vocabulary applies to sticky-note wording (儲存 -> 保存)");
-Check(ChineseLocale.Convert("連線") == "连接" && ChineseLocale.Convert("網路") == "网络" && ChineseLocale.Convert("程式") == "程序", "Common Taiwan terms map to Mainland vocabulary");
-Check(ChineseLocale.Convert("跟隨系統") == "跟随系统" && ChineseLocale.Convert("簡體中文") == "简体中文", "Language picker options convert to natural simplified wording");
-Check(ChineseLocale.Convert("Ctrl+Alt+G 123") == "Ctrl+Alt+G 123", "Latin and digits pass through unchanged");
-// Full-audit vocabulary: every Taiwan/HK term found in the authored UI converts to natural Mainland wording.
-Check(ChineseLocale.Convert("主電腦") == "主机" && ChineseLocale.Convert("捷徑") == "快捷方式" && ChineseLocale.Convert("選單") == "菜单", "Remote/UI terms: 主電腦/捷徑/選單 -> 主机/快捷方式/菜单");
-Check(ChineseLocale.Convert("回應") == "响应" && ChineseLocale.Convert("訊息") == "消息" && ChineseLocale.Convert("逾時") == "超时", "Status terms: 回應/訊息/逾時 -> 响应/消息/超时");
-Check(ChineseLocale.Convert("匯入") == "导入" && ChineseLocale.Convert("匯出") == "导出" && ChineseLocale.Convert("影片") == "视频", "Media terms: 匯入/匯出/影片 -> 导入/导出/视频");
-Check(ChineseLocale.Convert("全域") == "全局" && ChineseLocale.Convert("感測器") == "传感器" && ChineseLocale.Convert("資料夾") == "文件夹", "System terms: 全域/感測器/資料夾 -> 全局/传感器/文件夹");
-Check(ChineseLocale.Convert("伺服器") == "服务器" && ChineseLocale.Convert("辨識") == "识别" && ChineseLocale.Convert("回傳") == "返回", "Tech terms: 伺服器/辨識/回傳 -> 服务器/识别/返回");
-Check(ChineseLocale.Convert("網際網路") == "互联网" && ChineseLocale.Convert("記錄檔") == "日志文件" && ChineseLocale.Convert("快取") == "缓存", "More terms: 網際網路/記錄檔/快取 -> 互联网/日志文件/缓存");
-Check(ChineseLocale.Convert("物件") == "对象" && ChineseLocale.Convert("位元組") == "字节" && ChineseLocale.Convert("視訊") == "视频", "Object/media terms: 物件/位元組/視訊 -> 对象/字节/视频");
-Check(ChineseLocale.Convert("主電腦上的捷徑") == "主机上的快捷方式", "Mixed phrase converts every term");
-Check(ChineseLocale.Convert(ChineseLocale.Convert("主電腦")) == "主机", "Conversion is idempotent on new vocabulary");
-Check(ChineseLocale.Convert(ChineseLocale.Convert("設定")) == "设置", "Conversion is idempotent on simplified text");
+// The app authors all UI text directly in Simplified Chinese. The conversion shim is now
+// the identity function; these assertions guard that no Traditional glyphs slipped back in.
+Check(ChineseLocale.Convert("设置") == "设置" && ChineseLocale.Convert("繁体中文便签") == "繁体中文便签", "Conversion is identity for simplified literals");
+Check(ChineseLocale.Convert("尊敬的用户") == "尊敬的用户" && ChineseLocale.Convert("保存便签") == "保存便签", "Idempotent on mainland vocabulary");
+Check(ChineseLocale.Convert("连接") == "连接" && ChineseLocale.Convert("网络") == "网络" && ChineseLocale.Convert("程序") == "程序", "Taiwan terms are authored as mainland words");
+Check(ChineseLocale.Convert("主机") == "主机" && ChineseLocale.Convert("快捷方式") == "快捷方式" && ChineseLocale.Convert("菜单") == "菜单", "Remote/UI terms authored in simplified");
 Check(ChineseLocale.Convert("") == "", "Empty text stays empty");
-Check(ChineseLocale.DateCulture.Name == "zh-CN", "Simplified date culture is zh-CN");
-ChineseLocale.Preference = ChineseLanguage.Traditional;
-Check(ChineseLocale.DateCulture.Name == "zh-TW", "Traditional date culture is zh-TW");
+Check(ChineseLocale.DateCulture.Name == "zh-CN", "Date culture is fixed to zh-CN");
 Console.WriteLine($"{passed} tests passed.");
 
 sealed class TrackingModule : ISectionModule

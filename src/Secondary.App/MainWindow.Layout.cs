@@ -26,6 +26,6 @@ public partial class MainWindow
     }
     private void OnRetrySaveSettings(object sender, RoutedEventArgs e)
     {
-        if (model.RetrySaveSettings()) model.Status = "設定已重新儲存。";
+        if (model.RetrySaveSettings()) model.Status = "设置已重新保存。";
     }
 }

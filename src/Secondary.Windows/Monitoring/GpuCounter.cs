@@ -10,26 +10,26 @@ internal sealed class GpuCounter : IDisposable
 {
     private IntPtr query, counter;
     private bool primed;
-    public string Status { get; private set; } = "等待兩次採樣";
+    public string Status { get; private set; } = "等待两次采样";
     public GpuCounter()
     {
         if (PdhOpenQueryW(null, IntPtr.Zero, out query) != 0 ||
             PdhAddEnglishCounterW(query, @"\GPU Engine(*)\Utilization Percentage", IntPtr.Zero, out counter) != 0)
-        { Dispose(); Status = "驅動未提供 GPU 計數器"; }
+        { Dispose(); Status = "驱动未提供 GPU 计数器"; }
     }
     public double? Read()
     {
         if (query == IntPtr.Zero) return null;
-        if (PdhCollectQueryData(query) != 0) { Status = "GPU 計數器暫時無資料"; primed = false; return null; }
+        if (PdhCollectQueryData(query) != 0) { Status = "GPU 计数器暂时无数据"; primed = false; return null; }
         if (!primed) { primed = true; return null; }
         uint bytes = 0;
         PdhGetFormattedCounterArrayW(counter, 0x200, ref bytes, out _, IntPtr.Zero);
-        if (bytes == 0 || bytes > 8 * 1024 * 1024) { Status = "GPU 計數器無可用實例"; return null; }
+        if (bytes == 0 || bytes > 8 * 1024 * 1024) { Status = "GPU 计数器无可用实例"; return null; }
         var buffer = Marshal.AllocHGlobal((int)bytes);
         try
         {
             if (PdhGetFormattedCounterArrayW(counter, 0x200, ref bytes, out var count, buffer) != 0)
-            { Status = "GPU 實例變動，等待重試"; return null; }
+            { Status = "GPU 实例变动，等待重试"; return null; }
             var engines = new Dictionary<string, double>();
             var stride = Marshal.SizeOf<CounterItem>();
             for (var i = 0; i < count; i++)
@@ -43,7 +43,7 @@ internal sealed class GpuCounter : IDisposable
                 engines.TryGetValue(engine, out var current);
                 engines[engine] = current + Math.Max(0, item.Value);
             }
-            if (engines.Count == 0) { Status = "GPU 計數器尚無有效資料"; return null; }
+            if (engines.Count == 0) { Status = "GPU 计数器尚无有效数据"; return null; }
             double busiest = 0;
             foreach (var value in engines.Values) busiest = Math.Max(busiest, value);
             Status = "所有 GPU 中最忙引擎";

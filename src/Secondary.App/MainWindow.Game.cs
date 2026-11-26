@@ -51,7 +51,7 @@ public partial class MainWindow
         if (initializing || gameDisposed || GameSensorsToggle is null) return;
         var active = IsLoaded && IsVisible && WindowState != WindowState.Minimized && CurrentPage == "game" && !sessionLocked && !suspended;
         var remote = connection?.State == LinkState.Connected;
-        if (gameTarget is not null && gameTargetRemote != remote) { gameTarget = null; GameProcessPicker.Content = "選擇遊戲程序  ⌄"; }
+        if (gameTarget is not null && gameTargetRemote != remote) { gameTarget = null; GameProcessPicker.Content = "选择游戏程序  ⌄"; }
         var configuration = active ? $"{remote}:{SamplingPicker.SelectedIndex}:{GameSensorsToggle.IsChecked}:{gameTarget?.Id}:{gameTarget?.StartedUtcTicks}" : null;
         if (configuration == gameConfiguration) return;
         gameConfiguration = configuration;
@@ -62,9 +62,9 @@ public partial class MainWindow
         gameTimer?.Stop();
         gameSession = null;
         ClearGameReadings();
-        if (!active) { connectionNote = null; GameSourceState.Text = "PAUSED"; GameNotice.Text = "監測已暫停；返回可見遊戲頁後重新建立採樣基準。"; return; }
+        if (!active) { connectionNote = null; GameSourceState.Text = "PAUSED"; GameNotice.Text = "监测已暂停；返回可见游戏页后重新建立采样基准。"; return; }
         // Losing the main computer falls back to this device's own data and says why.
-        connectionNote = remote ? null : lastGameRemote ? "已與主電腦中斷連線（" + connection?.Status + "），改用這臺設備的資料。" : connectionNote;
+        connectionNote = remote ? null : lastGameRemote ? "已与主机断开连接（" + connection?.Status + "），改用这台设备的数据。" : connectionNote;
         lastGameRemote = remote;
         var previous = gameCompletion;
         var owner = new CancellationTokenSource();
@@ -74,7 +74,7 @@ public partial class MainWindow
             : new GameTelemetrySession(SamplingPicker.SelectedIndex == 1, GameSensorsToggle.IsChecked == true, gameTarget);
         gameSession = session;
         GameSourceState.Text = remote ? "REMOTE · WARMUP" : "LIVE / WARMUP";
-        GameNotice.Text = remote ? $"正在等待主電腦「{connection!.ConnectedName}」的資料。" : (connectionNote is { } note ? note + "\n" : "") + "正在建立採樣基準；CPU、記憶體與網路為整機數據。";
+        GameNotice.Text = remote ? $"正在等待主机「{connection!.ConnectedName}」的数据。" : (connectionNote is { } note ? note + "\n" : "") + "正在建立采样基准；CPU、内存与网络为整机数据。";
         gameCompletion = Task.Run(async () =>
         {
             try
@@ -88,7 +88,7 @@ public partial class MainWindow
             {
                 AppDiagnostics.Write("game-worker", error);
                 if (!owner.IsCancellationRequested && !Dispatcher.HasShutdownStarted)
-                    await Dispatcher.InvokeAsync(() => { if (ReferenceEquals(gameSession, session)) GameNotice.Text = "監測工作已停止；切換頁面可重試。"; });
+                    await Dispatcher.InvokeAsync(() => { if (ReferenceEquals(gameSession, session)) GameNotice.Text = "监测工作已停止；切换页面可重试。"; });
             }
         });
         // Dispose a previous generation only after it has stopped touching its token.
@@ -102,17 +102,17 @@ public partial class MainWindow
     {
         FpsValue.Text = LowValue.Text = FrameValue.Text = CpuValue.Text = GpuValue.Text = MemoryValue.Text = VramValue.Text = "—";
         CpuGauge.Value = GpuGauge.Value = MemoryGauge.Value = VramGauge.Value = double.NaN;
-        CpuDetails.Text = "整機 CPU · 等待基準";
-        GpuDetails.Text = "所有 GPU 最忙引擎 · 等待基準";
+        CpuDetails.Text = "整机 CPU · 等待基准";
+        GpuDetails.Text = "所有 GPU 最忙引擎 · 等待基准";
         MemoryDetails.Text = VramDetails.Text = "— / —";
-        VramCaption.Text = "需手動啟用硬體感測";
+        VramCaption.Text = "需手动启用硬件感测";
         DownloadValue.Text = "━  ↓ —"; UploadValue.Text = "┄  ↑ —";
         cpuHistory = new(); gpuHistory = new(); frameHistory = new(); downloadHistory = new(); uploadHistory = new();
         CpuTrace.Update([]); GpuTrace.Update([]); FrameTrace.Update([]); DownloadTrace.Update([]); UploadTrace.Update([]);
-        LowCaption.Text = "最近 60 秒 · 至少 100 幀";
-        FrameScale.Text = "幀間隔 · ms"; NetworkScale.Text = "整機網路 · 共用刻度";
+        LowCaption.Text = "最近 60 秒 · 至少 100 帧";
+        FrameScale.Text = "帧间隔 · ms"; NetworkScale.Text = "整机网络 · 共用刻度";
         displayedSwapChain = null;
-        TelemetryStatus.Text = "無有效樣本";
+        TelemetryStatus.Text = "无有效样本";
     }
     private static string Number(double? value, string format = "0.0") => value?.ToString(format, CultureInfo.CurrentCulture) ?? "—";
     private static string Rate(double? value) => value.HasValue ? value >= 1048576 ? Number(value / 1048576) + " MiB/s" : Number(value / 1024) + " KiB/s" : "—";
@@ -134,7 +134,7 @@ public partial class MainWindow
         FpsValue.Text = Number(snapshot.Frames.Fps, "0");
         LowValue.Text = Number(snapshot.Frames.LowOnePercent, "0");
         FrameValue.Text = Number(snapshot.Frames.Milliseconds, "0.00");
-        LowCaption.Text = snapshot.Frames.Truncated ? "緩衝已滿，1% Low 暫不可用" : $"最近 60 秒 · {snapshot.Frames.Count} 幀";
+        LowCaption.Text = snapshot.Frames.Truncated ? "缓冲已满，1% Low 暂不可用" : $"最近 60 秒 · {snapshot.Frames.Count} 帧";
         DownloadValue.Text = "━  ↓ " + Rate(sample?.Download);
         UploadValue.Text = "┄  ↑ " + Rate(sample?.Upload);
         var readings = snapshot.Sensors?.Readings ?? [];
@@ -154,7 +154,7 @@ public partial class MainWindow
         var gpuUsage = gpuRoot is not null ? GpuMetric("GPU Core", "%") : snapshot.Gpu;
         GpuGauge.Value = gpuUsage ?? double.NaN;
         GpuValue.Text = Number(gpuUsage, "0") + (gpuUsage.HasValue ? "%" : "");
-        if (gpuRoot is null) GpuDetails.Text = "所有 GPU 中最忙引擎（整機）\n" + snapshot.GpuStatus;
+        if (gpuRoot is null) GpuDetails.Text = "所有 GPU 中最忙引擎（整机）\n" + snapshot.GpuStatus;
         else GpuDetails.Text = gpuReadings[0].Metric.Split(" / ")[0] + "\n" + Number(GpuMetric("GPU Core", "°C")) + " °C · " + Number(GpuMetric("GPU Core", "MHz"), "0") + " MHz\n" + Number(GpuMetric("GPU Package", "W")) + " W";
         GpuDetails.ToolTip = gpuRoot;
         var used = GpuMetric("GPU Memory Used", "MB");
@@ -163,11 +163,11 @@ public partial class MainWindow
         VramGauge.Value = vram ?? double.NaN;
         VramValue.Text = Number(vram, "0") + (vram.HasValue ? "%" : "");
         VramDetails.Text = vram.HasValue ? Number(used / 1024) + " / " + Number(total / 1024) + " GiB" : "— / —";
-        VramCaption.Text = vram.HasValue ? "以上 GPU 的專用顯存" : gpuRoot is null ? snapshot.SensorStatus : "此 GPU 未提供可辨識的專用顯存資料";
+        VramCaption.Text = vram.HasValue ? "以上 GPU 的专用显存" : gpuRoot is null ? snapshot.SensorStatus : "此 GPU 未提供可识别的专用显存数据";
         var cpu = readings.Where(r => r.Identity.StartsWith("/intelcpu/", StringComparison.Ordinal) || r.Identity.StartsWith("/amdcpu/", StringComparison.Ordinal)).ToArray();
         double? CpuMax(string unit) => cpu.Where(r => r.Unit == unit).Select(r => r.Value).Max();
-        CpuDetails.Text = cpu.Length > 0 ? "整機 CPU · 感測最高值\n" + Number(CpuMax("°C")) + " °C · " + Number(CpuMax("MHz"), "0") + " MHz\n" + Number(CpuMax("W")) + " W" :
-            "整機 CPU\n" + (readings.FirstOrDefault(r => r.Identity == "cpu/pawnio")?.Reason ?? snapshot.SensorStatus);
+        CpuDetails.Text = cpu.Length > 0 ? "整机 CPU · 感测最高值\n" + Number(CpuMax("°C")) + " °C · " + Number(CpuMax("MHz"), "0") + " MHz\n" + Number(CpuMax("W")) + " W" :
+            "整机 CPU\n" + (readings.FirstOrDefault(r => r.Identity == "cpu/pawnio")?.Reason ?? snapshot.SensorStatus);
         if (snapshot.Frames.SwapChain is { } activeChain && activeChain != displayedSwapChain)
         { displayedSwapChain = activeChain; frameHistory = new(); }
         cpuHistory.Add(time, sample?.Cpu); gpuHistory.Add(time, gpuUsage); frameHistory.Add(time, snapshot.Frames.Milliseconds);
@@ -181,19 +181,19 @@ public partial class MainWindow
         DownloadTrace.Maximum = UploadTrace.Maximum = Math.Max(1, down.Concat(up).Max(p => p.Value ?? 0) * 1.1);
         NetworkScale.Text = "0–" + Rate(DownloadTrace.Maximum);
         DownloadTrace.Update(down); UploadTrace.Update(up);
-        static string State(TelemetrySourceState state) => state switch { TelemetrySourceState.Available => "正常", TelemetrySourceState.Stale => "過期", TelemetrySourceState.Failed => "失敗", TelemetrySourceState.Stopped => "停止", TelemetrySourceState.Disabled => "未啟用", _ => "等待" };
+        static string State(TelemetrySourceState state) => state switch { TelemetrySourceState.Available => "正常", TelemetrySourceState.Stale => "过期", TelemetrySourceState.Failed => "失败", TelemetrySourceState.Stopped => "停止", TelemetrySourceState.Disabled => "未启用", _ => "等待" };
         GameSourceState.Text = (remote is not null ? "REMOTE · " : "") + (snapshot.CpuState == TelemetrySourceState.Available && snapshot.MemoryState == TelemetrySourceState.Available
             ? "LIVE / " : snapshot.SystemState == TelemetrySourceState.Stale ? "STALE / " : "PARTIAL / ") + (SamplingPicker.SelectedIndex == 1 ? "HIGH" : "LOW");
-        CompactSourceText.Text = (remote is not null ? "主電腦「" + remote.LastView.HelperName + "」· " : "") + (snapshot.SystemState is TelemetrySourceState.Failed or TelemetrySourceState.Stale ? snapshot.SystemStatus : snapshot.FrameStatus);
+        CompactSourceText.Text = (remote is not null ? "主机「" + remote.LastView.HelperName + "」· " : "") + (snapshot.SystemState is TelemetrySourceState.Failed or TelemetrySourceState.Stale ? snapshot.SystemStatus : snapshot.FrameStatus);
         GameNotice.Text = (remote is not null ? remote.LastView.Status + "\n" : connectionNote is { } note ? note + "\n" : "") +
             snapshot.FrameStatus + (snapshot.Frames.SwapChain is { } chain ? " · " + chain : "") +
-            (remote is not null ? "\nCPU／記憶體／網路為主電腦的整機數據；FPS 為主電腦上應用程式的幀率。" : "\nCPU／記憶體／網路為整機數據；FPS 為應用程式幀率，非顯示器刷新率。");
-        TelemetryStatus.Text = $"{sample?.Time.ToLocalTime():HH:mm:ss} / 基本 {(SamplingPicker.SelectedIndex == 1 ? "1" : "3")}s · GPU／硬體 {(SamplingPicker.SelectedIndex == 1 ? "2" : "10")}s · UI 1 Hz\n{snapshot.SensorStatus}";
-        TelemetryStatus.Text += $"\nCPU：{State(snapshot.CpuState)} · 記憶體：{State(snapshot.MemoryState)} · 網路：{State(snapshot.NetworkState)} · GPU：{State(snapshot.GpuState)} · 幀：{State(snapshot.FrameState)}";
+            (remote is not null ? "\nCPU／内存／网络为主机的整机数据；FPS 为主机上应用程序的帧率。" : "\nCPU／内存／网络为整机数据；FPS 为应用程序帧率，非显示器刷新率。");
+        TelemetryStatus.Text = $"{sample?.Time.ToLocalTime():HH:mm:ss} / 基本 {(SamplingPicker.SelectedIndex == 1 ? "1" : "3")}s · GPU／硬件 {(SamplingPicker.SelectedIndex == 1 ? "2" : "10")}s · UI 1 Hz\n{snapshot.SensorStatus}";
+        TelemetryStatus.Text += $"\nCPU：{State(snapshot.CpuState)} · 内存：{State(snapshot.MemoryState)} · 网络：{State(snapshot.NetworkState)} · GPU：{State(snapshot.GpuState)} · 帧：{State(snapshot.FrameState)}";
         CpuValue.ToolTip = snapshot.SystemStatus;
         GpuValue.ToolTip = snapshot.GpuStatus + "\n" + snapshot.SensorStatus;
         FpsValue.ToolTip = snapshot.FrameStatus;
-        FrameTrace.ToolTip = snapshot.Frames.Milliseconds is double interval ? $"目前平均幀間隔 {interval:0.00} ms；最近 60 秒曲線" : snapshot.FrameStatus;
+        FrameTrace.ToolTip = snapshot.Frames.Milliseconds is double interval ? $"目前平均帧间隔 {interval:0.00} ms；最近 60 秒曲线" : snapshot.FrameStatus;
         if (snapshot.TargetExited && gameTarget is not null)
         { GameProcessPicker.Content = gameTarget.Name + " · 已退出"; gameTarget = null; }
     }
@@ -212,13 +212,13 @@ public partial class MainWindow
             var menu = new ContextMenu { PlacementTarget = GameProcessPicker };
             menu.Resources = Resources;
             var search = new TextBox { Width = 260, MinHeight = 38, Padding = new Thickness(8) };
-            System.Windows.Automation.AutomationProperties.SetName(search, "搜尋遊戲程序名稱或 PID");
+            System.Windows.Automation.AutomationProperties.SetName(search, "搜索游戏程序名称或 PID");
             var searchPanel = new StackPanel();
-            searchPanel.Children.Add(new TextBlock { Text = (remote is not null ? "主電腦「" + remote.ConnectedName + "」的程序 · " : "") + "搜尋名稱 / PID · 最多顯示 80 筆", FontSize = 12, Margin = new Thickness(0,0,0,6) });
+            searchPanel.Children.Add(new TextBlock { Text = (remote is not null ? "主机「" + remote.ConnectedName + "」的程序 · " : "") + "搜索名称 / PID · 最多显示 80 笔", FontSize = 12, Margin = new Thickness(0,0,0,6) });
             searchPanel.Children.Add(search);
             menu.Items.Add(new MenuItem { Header = searchPanel, StaysOpenOnClick = true, Focusable = false });
-            var none = new MenuItem { Header = "不追蹤程序（只監測整機）" };
-            none.Click += (_, _) => { gameTarget = null; GameProcessPicker.Content = "選擇遊戲程序  ⌄"; gameConfiguration = "restart"; ConfigureGameTelemetry(); };
+            var none = new MenuItem { Header = "不追踪程序（只监测整机）" };
+            none.Click += (_, _) => { gameTarget = null; GameProcessPicker.Content = "选择游戏程序  ⌄"; gameConfiguration = "restart"; ConfigureGameTelemetry(); };
             menu.Items.Add(none);
             void Populate()
             {
@@ -229,7 +229,7 @@ public partial class MainWindow
                     item.Click += (_, _) => { gameTarget = target; gameTargetRemote = remote is not null; GameProcessPicker.Content = target.Name + " · " + target.Id; gameConfiguration = "restart"; ConfigureGameTelemetry(); };
                     menu.Items.Add(item);
                 }
-                if (menu.Items.Count == 2) menu.Items.Add(new MenuItem { Header = "沒有符合條件且可讀取的程序", IsEnabled = false });
+                if (menu.Items.Count == 2) menu.Items.Add(new MenuItem { Header = "没有符合条件且可读取的程序", IsEnabled = false });
             }
             search.TextChanged += (_, _) => Populate();
             Populate();
@@ -237,7 +237,7 @@ public partial class MainWindow
             menu.IsOpen = true;
             search.Focus();
         }
-        catch (Exception error) { GameNotice.Text = (connection?.State == LinkState.Connected ? "無法取得主電腦的程序：" : "無法列舉程序：") + error.Message; }
+        catch (Exception error) { GameNotice.Text = (connection?.State == LinkState.Connected ? "无法取得主机的程序：" : "无法列举程序：") + error.Message; }
         finally { GameProcessPicker.IsEnabled = true; }
     }
     internal void DisposeGameTelemetry()

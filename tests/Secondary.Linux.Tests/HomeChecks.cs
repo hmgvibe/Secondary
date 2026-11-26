@@ -108,16 +108,16 @@ internal static class HomeChecks
         Check(window.UtilityWidgets.Values.All(w => w.Content.IsRefreshing == w.Content.Settings.Kind is not ("Note" or "Todo" or "Counter")), "Active widgets refresh only when their content changes over time");
 
         var note = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "Note");
-        note.Content.NoteEditor!.Text = "買牛奶";
-        Check(note.Content.StatusText == "尚未儲存", "Editing a note marks it unsaved");
+        note.Content.NoteEditor!.Text = "买牛奶";
+        Check(note.Content.StatusText == "尚未保存", "Editing a note marks it unsaved");
         note.Content.NoteEditor.Focus();
         note.Content.NoteEditor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.S, KeyModifiers = KeyModifiers.Control, Source = note.Content.NoteEditor });
-        Check(note.Content.StatusText == "已儲存" && Saved(settingsPath, note.Content.Settings.Id).Text == "買牛奶", "Ctrl+S saves the note");
+        Check(note.Content.StatusText == "已保存" && Saved(settingsPath, note.Content.Settings.Id).Text == "买牛奶", "Ctrl+S saves the note");
 
         var todo = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "Todo").Content;
-        todo.TodoEntry!.Text = "寫報告"; todo.AddTodo();
+        todo.TodoEntry!.Text = "写报告"; todo.AddTodo();
         todo.TodoEntry.Text = "  "; todo.AddTodo();
-        Check(todo.StatusText == "請先輸入待辦內容" && Saved(settingsPath, todo.Settings.Id).Tasks!.Length == 1, "Todo adds items and rejects blank ones");
+        Check(todo.StatusText == "请先输入待办内容" && Saved(settingsPath, todo.Settings.Id).Tasks!.Length == 1, "Todo adds items and rejects blank ones");
         todo.TodoEntry.Text = "草稿"; todo.ToggleTodo(0);
         Check(Saved(settingsPath, todo.Settings.Id).Tasks![0].Done && todo.TodoEntry.Text == "草稿", "Toggling an item keeps the new-item draft");
         todo.RemoveTodo(0);
@@ -136,11 +136,11 @@ internal static class HomeChecks
         var progress = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "TimeProgress").Content;
         Check(progress.ProgressTexts.All(t => t.Contains('%')), "Time progress shows today, this week and this year");
         var usageFrame = window.UtilityWidgets.Values.First(w => w.Content.Settings.Kind == "AiUsage");
-        var online = usageFrame.Frame.ContextMenu!.Items.OfType<MenuItem>().Single(i => i.Header as string == "Claude 線上用量（非官方）");
+        var online = usageFrame.Frame.ContextMenu!.Items.OfType<MenuItem>().Single(i => i.Header as string == "Claude 线上用量（非官方）");
         Check(online.ToggleType == MenuItemToggleType.CheckBox && online.IsChecked != true && online.IsEnabled,
             "The AI usage title menu offers the unofficial Claude online source unchecked");
-        var menuChoices = usageFrame.Frame.ContextMenu.Items.OfType<MenuItem>().Where(i => i.Header is string h && h.Contains("顯示")).ToArray();
-        Check(menuChoices.Select(i => i.Header as string).SequenceEqual(new[] { "顯示 Claude 和 Codex", "只顯示 Claude", "只顯示 Codex" }) &&
+        var menuChoices = usageFrame.Frame.ContextMenu.Items.OfType<MenuItem>().Where(i => i.Header is string h && h.Contains("显示")).ToArray();
+        Check(menuChoices.Select(i => i.Header as string).SequenceEqual(new[] { "显示 Claude 和 Codex", "只显示 Claude", "只显示 Codex" }) &&
             menuChoices.All(i => i.ToggleType == MenuItemToggleType.Radio) && menuChoices[0].IsChecked == true, "The AI usage title menu offers the three service choices with both selected");
         menuChoices[2].RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent)); Pump();
         Check(Saved(settingsPath, usageFrame.Content.Settings.Id).UsageProviders == "Codex" && menuChoices[2].IsChecked == true && menuChoices[0].IsChecked != true && !online.IsEnabled,
@@ -163,7 +163,7 @@ internal static class HomeChecks
         Check(menuTexts.Length > 0 && menuTexts.All(t => t.FontFamily == windowFont) && windowFont.Name.StartsWith("Noto Sans CJK TC", StringComparison.Ordinal),
             "Context menu text uses the same font as the window (" + string.Join(",", menuTexts.Select(t => t.FontFamily.Name).Distinct()) + ")");
         menuFrame.ContextMenu.Close(); Pump();
-        var flyout = new MenuFlyout { Items = { new MenuItem { Header = "測試" } } };
+        var flyout = new MenuFlyout { Items = { new MenuItem { Header = "测试" } } };
         flyout.ShowAt(window.FindControl<Button>("AddHomeWidgetButton")!); Pump();
         var flyoutTexts = ((MenuItem)flyout.Items[0]!).GetVisualDescendantsOfType<TextBlock>().ToArray();
         Check(flyoutTexts.Length > 0 && flyoutTexts.All(t => t.FontFamily == windowFont), "Add-widget flyout text uses the same font as the window");
@@ -345,7 +345,7 @@ internal static class HomeChecks
         File.WriteAllBytes(Path.Combine(directory, "clip.mp4"), [0, 0, 0, 0]);
         Check(window.ApplyHome(), "A video background file can be chosen");
         Pump();
-        Check(!window.HomeBackground.HasVideo && window.HomeStatus.Contains("已回退靜態背景", StringComparison.Ordinal), "Video without a usable decoder falls back to the static background with a reason");
+        Check(!window.HomeBackground.HasVideo && window.HomeStatus.Contains("已回退静态背景", StringComparison.Ordinal), "Video without a usable decoder falls back to the static background with a reason");
         var videos = new List<FakeVideo>();
         var factory = MainWindow.VideoFactory;
         MainWindow.VideoFactory = path => { var video = new FakeVideo(); videos.Add(video); return video; };
@@ -357,16 +357,16 @@ internal static class HomeChecks
         window.Navigate("home"); Pump();
         Check(videos.Count == 2 && videos[1].Playing, "Returning home starts a fresh decoder");
         window.SetAccessibility(false, false); Pump();
-        Check(videos[1].Disposed && !window.HomeBackground.HasVideo && window.HomeStatus.Contains("減少動畫", StringComparison.Ordinal), "Reduced motion stops the video and says why");
+        Check(videos[1].Disposed && !window.HomeBackground.HasVideo && window.HomeStatus.Contains("减少动画", StringComparison.Ordinal), "Reduced motion stops the video and says why");
         window.SetAccessibility(false, true); Pump();
-        videos[^1].Fail("測試解碼失敗。"); Pump();
-        Check(videos[^1].Disposed && !window.HomeBackground.HasVideo && window.HomeStatus.Contains("測試解碼失敗", StringComparison.Ordinal), "A playback failure falls back to the static background with the reason");
+        videos[^1].Fail("测试解码失败。"); Pump();
+        Check(videos[^1].Disposed && !window.HomeBackground.HasVideo && window.HomeStatus.Contains("测试解码失败", StringComparison.Ordinal), "A playback failure falls back to the static background with the reason");
         MainWindow.VideoFactory = factory;
         window.HomeBackground.VideoFactory = factory;
 
         // Removal asks first; widgets and their data reload in a new window.
         var target = window.UtilityWidgets.Keys.Last();
-        var confirm = window.ConfirmAsync("移除組件", "確定？", "移除");
+        var confirm = window.ConfirmAsync("移除组件", "确定？", "移除");
         window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
         Check(confirm.IsCompleted && !confirm.Result && !window.ConfirmOpen, "Esc cancels the confirmation dialog");
         Check(window.RemoveHomeWidget(target) && window.UtilityWidgetCount == 11 && new SettingsStore(settingsPath).Load().Home!.Widgets!.Length == 11, "Removing a widget deletes it from settings");
@@ -374,7 +374,7 @@ internal static class HomeChecks
         model.Dispose();
         var reloaded = new MainWindow(new ShellModel(new SettingsStore(settingsPath)), new DesktopLauncher(Path.Combine(directory, "data"), "/apps/s")) { Width = 1200, Height = 820 };
         reloaded.Show(); Pump();
-        Check(reloaded.UtilityWidgetCount == 11 && reloaded.UtilityWidgets.Values.Any(w => w.Content.Settings.Kind == "Note" && w.Content.NoteEditor!.Text == "買牛奶"), "Widgets and their content survive a restart");
+        Check(reloaded.UtilityWidgetCount == 11 && reloaded.UtilityWidgets.Values.Any(w => w.Content.Settings.Kind == "Note" && w.Content.NoteEditor!.Text == "买牛奶"), "Widgets and their content survive a restart");
         reloaded.AllowClose = true; reloaded.Close(); Pump();
     }
 
@@ -383,7 +383,7 @@ internal static class HomeChecks
     {
         var source = MprisMediaSource.Shared;
         var snapshot = source.ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
-        Check(snapshot is { Title: "Secondary 測試曲", Playing: true, CanPrevious: false } && snapshot.Duration == TimeSpan.FromMinutes(3), "Live MPRIS player is read over the session bus");
+        Check(snapshot is { Title: "Secondary 测试曲", Playing: true, CanPrevious: false } && snapshot.Duration == TimeSpan.FromMinutes(3), "Live MPRIS player is read over the session bus");
         var changes = 0;
         using (source.Subscribe(() => Interlocked.Increment(ref changes)))
         {
@@ -418,12 +418,12 @@ internal static class HomeChecks
         widget.SetActive(true);
         Check(WaitFor(() => widget.UsageSnapshot is not null), "The AI usage widget reads local usage in the background");
         var texts = widget.UsageTexts;
-        Check(texts.Contains("24%") && texts.Contains("6%") && texts.Contains("3 小時 12 分後重置") && texts.Contains("6 天 4 小時後重置") && texts.Contains("3 分鐘前更新"),
+        Check(texts.Contains("24%") && texts.Contains("6%") && texts.Contains("3 小时 12 分后重置") && texts.Contains("6 天 4 小时后重置") && texts.Contains("3 分钟前更新"),
             "Linux AI usage shows Codex percentages, reset countdowns and data age: " + string.Join(" | ", texts));
-        Check(texts.Contains("桌面版不提供百分比，用完額度時顯示重置時間") && texts.Count(t => t == "沒有資料") == 2, "Linux AI usage explains missing Claude percentages");
+        Check(texts.Contains("桌面版不提供百分比，用完额度时显示重置时间") && texts.Count(t => t == "没有数据") == 2, "Linux AI usage explains missing Claude percentages");
         var before = widget.UsageSnapshot;
         Check(widget.SetClaudeOnline(true) && saved is { ClaudeOnline: true }, "Enabling Claude online usage saves the widget option");
-        Check(WaitFor(() => !ReferenceEquals(widget.UsageSnapshot, before)) && widget.UsageTexts.Any(t => t.StartsWith("線上用量無法取得：找不到 Claude Code CLI 登入憑證", StringComparison.Ordinal)),
+        Check(WaitFor(() => !ReferenceEquals(widget.UsageSnapshot, before)) && widget.UsageTexts.Any(t => t.StartsWith("线上用量无法取得：找不到 Claude Code CLI 登录凭证", StringComparison.Ordinal)),
             "Enabled online usage without CLI credentials shows it is unavailable");
         widget.SetActive(false);
         Check(!widget.IsRefreshing, "The AI usage widget stops refreshing when inactive");
@@ -447,7 +447,7 @@ internal static class HomeChecks
         host.Content = startPaused; Pump();
         startPaused.SetActive(true);
         for (var i = 0; i < 20; i++) { Pump(); Thread.Sleep(5); }
-        Check(!startPaused.IsRefreshing && startPaused.UsageSnapshot is null && startPaused.UsageAutoUpdate!.IsChecked == false && startPaused.UsageTexts.Count(t => t.StartsWith("已暫停自動更新", StringComparison.Ordinal)) == 1,
+        Check(!startPaused.IsRefreshing && startPaused.UsageSnapshot is null && startPaused.UsageAutoUpdate!.IsChecked == false && startPaused.UsageTexts.Count(t => t.StartsWith("已暂停自动更新", StringComparison.Ordinal)) == 1,
             "A Linux AI usage widget saved as paused starts without reading and says so");
         startPaused.Dispose();
 
@@ -494,7 +494,7 @@ internal static class HomeChecks
         weatherWidget.SearchWeatherCitiesAsync("Taipei").Wait(); Pump();
         weatherWidget.ChooseWeatherLocation();
         for (var i = 0; i < 50 && weatherWidget.WeatherText == "—°"; i++) { Thread.Sleep(20); Pump(); }
-        Check(saved.LastOrDefault()?.Location?.Name == "臺北市" && weatherWidget.WeatherText == "21.5°C" && !weatherWidget.WeatherEditorVisible, "Weather saves the chosen location and shows the reading");
+        Check(saved.LastOrDefault()?.Location?.Name == "台北市" && weatherWidget.WeatherText == "21.5°C" && !weatherWidget.WeatherEditorVisible, "Weather saves the chosen location and shows the reading");
         Check(handler.Requests.All(u => u.Contains("open-meteo.com", StringComparison.Ordinal)), "Weather only contacts Open-Meteo");
         for (var i = 0; i < 50 && mediaWidget.MediaTitle != "Night Drive"; i++) { Thread.Sleep(20); Pump(); }
         Check(mediaWidget.MediaTitle == "Night Drive" && mediaWidget.MediaState == "播放中" && mediaWidget.MediaControlsEnabled, "Media shows the current player and enables its supported controls");
@@ -514,7 +514,7 @@ internal static class HomeChecks
             var url = request.RequestUri!.ToString();
             lock (Requests) Requests.Add(url);
             var json = url.Contains("geocoding", StringComparison.Ordinal)
-                ? """{"results":[{"name":"臺北市","country":"臺灣","admin1":"臺北","latitude":25.05,"longitude":121.53}]}"""
+                ? """{"results":[{"name":"台北市","country":"台湾","admin1":"台北","latitude":25.05,"longitude":121.53}]}"""
                 : """{"current":{"time":"2026-10-18T12:00","temperature_2m":21.5,"apparent_temperature":22.0,"relative_humidity_2m":70,"weather_code":1,"wind_speed_10m":8.2}}""";
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
         }

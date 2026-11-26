@@ -45,7 +45,7 @@ public sealed class ShortcutService
     public Func<bool> Busy { get; set; } = () => false;
     public string? Error => library.Error;
     public ShortcutEntry[] Entries { get { lock (gate) return entries; } }
-    public string Status => running is { } name ? $"捷徑：正在執行「{name}」" : $"主電腦捷徑：{Entries.Length} 個";
+    public string Status => running is { } name ? $"快捷方式：正在执行「{name}」" : $"主机快捷方式：{Entries.Length} 个";
 
     public ShortcutService(string path, IReviewingShortcutExecutor? executor = null)
     {
@@ -83,13 +83,13 @@ public sealed class ShortcutService
         ShortcutEntry? incoming;
         try { incoming = node?.Deserialize<ShortcutEntry>(); }
         catch (Exception error) when (error is JsonException or FormatException or InvalidOperationException or ArgumentException) { incoming = null; }
-        if (incoming is null) return "捷徑內容無法讀取。";
+        if (incoming is null) return "快捷方式内容无法读取。";
         if (ShortcutPolicy.Validate(incoming, ShortcutRules.Windows) is { } problem) return problem;
         lock (gate)
         {
             var existing = entries.FirstOrDefault(e => e.Id == incoming.Id);
             var entry = incoming with { ApprovedFingerprint = existing?.ApprovedFingerprint };
-            if (existing is null && entries.Length >= RemoteShortcuts.MaxEntries) return "主電腦已有 200 個捷徑，請先刪除不用的。";
+            if (existing is null && entries.Length >= RemoteShortcuts.MaxEntries) return "主机已有 200 个快捷方式，请先删除不用的。";
             var next = existing is null ? entries.Append(entry).ToArray() : entries.Select(e => e.Id == entry.Id ? entry : e).ToArray();
             return Store(next);
         }
@@ -98,13 +98,13 @@ public sealed class ShortcutService
     {
         lock (gate)
         {
-            if (id is null || entries.All(e => e.Id != id)) return "主電腦上找不到這個捷徑。";
+            if (id is null || entries.All(e => e.Id != id)) return "主机上找不到这个快捷方式。";
             return Store(change(entries));
         }
     }
     private string? Store(ShortcutEntry[] next)
     {
-        if (!library.Save(next)) return "主電腦儲存失敗：" + library.Error;
+        if (!library.Save(next)) return "主机保存失败：" + library.Error;
         entries = next;
         Changed?.Invoke();
         return null;
@@ -120,7 +120,7 @@ public sealed class ShortcutService
             catch (Exception error) when (error is IOException or ObjectDisposedException or OperationCanceledException) { }
         }
         async Task Finish(bool ok, string text) => await Send(channel, Reply(request, Message("shortcut-result", ("ok", ok), ("text", text))), session).ConfigureAwait(false);
-        if (Busy()) { await Finish(false, "設備正在遊戲模式，主電腦不執行捷徑。").ConfigureAwait(false); return; }
+        if (Busy()) { await Finish(false, "设备正在游戏模式，主机不执行快捷方式。").ConfigureAwait(false); return; }
         ShortcutEntry? entry;
         lock (gate)
         {
@@ -128,37 +128,37 @@ public sealed class ShortcutService
             if (entry is not null && running is null) running = entry.Name;
             else if (entry is not null) entry = null;
         }
-        if (entry is null) { await Finish(false, running is null ? "主電腦上找不到這個捷徑；請重新整理。" : "主電腦已有捷徑正在執行。").ConfigureAwait(false); return; }
+        if (entry is null) { await Finish(false, running is null ? "主机上找不到这个快捷方式；请重新整理。" : "主机已有快捷方式正在执行。").ConfigureAwait(false); return; }
         runs[run] = owner;
         Changed?.Invoke();
         try
         {
-            await Progress("正在讀取主電腦上的執行內容…").ConfigureAwait(false);
+            await Progress("正在读取主机上的执行内容…").ConfigureAwait(false);
             var details = await Task.Run(() => executor.Review(entry), token).ConfigureAwait(false);
             var fingerprint = ShortcutApproval.Fingerprint(entry, details);
             if (entry.ApprovedFingerprint != fingerprint)
             {
-                await Progress("等待主電腦確認：請到主電腦上確認或取消。").ConfigureAwait(false);
+                await Progress("等待主机确认：请到主机上确认或取消。").ConfigureAwait(false);
                 var confirmed = Confirm is { } confirm && await confirm(new ShortcutConfirmation(device, entry.Name, details), token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
-                if (!confirmed) { await Finish(false, "主電腦上已取消或逾時，未執行。").ConfigureAwait(false); return; }
+                if (!confirmed) { await Finish(false, "主机上已取消或超时，未执行。").ConfigureAwait(false); return; }
                 lock (gate)
                 {
                     var current = entries.FirstOrDefault(e => e.Id == id);
-                    if (current is null || !current.Steps!.SequenceEqual(entry.Steps!)) throw new InvalidOperationException("捷徑在確認期間已變更，這次未執行；請重新執行並確認。");
+                    if (current is null || !current.Steps!.SequenceEqual(entry.Steps!)) throw new InvalidOperationException("快捷方式在确认期间已变更，这次未执行；请重新执行并确认。");
                     entry = current with { ApprovedFingerprint = fingerprint };
                     if (Store(entries.Select(e => e.Id == id ? entry : e).ToArray()) is { } problem) throw new IOException(problem);
                 }
             }
             var steps = entry.Steps!.Length;
-            await runner.Run(entry, step => _ = Progress($"在主電腦執行「{entry.Name}」· 步驟 {step}/{steps}"), token).ConfigureAwait(false);
-            await Finish(true, "已在主電腦完成：" + entry.Name).ConfigureAwait(false);
+            await runner.Run(entry, step => _ = Progress($"在主机执行「{entry.Name}」· 步骤 {step}/{steps}"), token).ConfigureAwait(false);
+            await Finish(true, "已在主机完成：" + entry.Name).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) { await Finish(false, "已取消；不會關閉已開啟的程式，也不能撤銷已完成的操作。").ConfigureAwait(false); }
+        catch (OperationCanceledException) { await Finish(false, "已取消；不会关闭已开启的程序，也不能撤销已完成的操作。").ConfigureAwait(false); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException)
         {
             AppDiagnostics.Write("connect-shortcut", error);
-            await Finish(false, "執行停止：" + error.Message).ConfigureAwait(false);
+            await Finish(false, "执行停止：" + error.Message).ConfigureAwait(false);
         }
         finally
         {

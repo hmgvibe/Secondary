@@ -54,10 +54,8 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         this.launcher = launcher ?? DesktopLauncher.FromEnvironment(Environment.GetEnvironmentVariable, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Environment.ProcessPath);
         InitializeComponent();
         DataContext = model;
-        ChineseLocale.Preference = LanguagePolicy.Parse(model.Settings.Language);
         themeChoice = Enum.Parse<ThemeChoice>(model.Settings.Theme);
         ThemePicker.SelectedIndex = (int)themeChoice;
-        LanguagePicker.SelectedIndex = Array.IndexOf(new[] { "System", "Simplified", "Traditional" }, model.Settings.Language) is var lp and >= 0 ? lp : 0;
         ChineseLocale.Changed += OnChineseLocaleChanged;
         NavigationSizePicker.SelectedIndex = model.Settings.NavigationSize == "Small" ? 1 : 0;
         NavigationPositionPicker.SelectedIndex = Array.IndexOf(new[] { "Bottom", "Top", "Left", "Right" }, model.Settings.NavigationPosition) is var p and >= 0 ? p : 0;
@@ -134,16 +132,16 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         NavigationItems.Children.Clear();
         if (model.Modes.Mode == AppMode.Game)
         {
-            AddNavigation("game", "監測", Icons.Monitor);
-            AddNavigation("exit", "退出遊戲模式", Icons.Exit);
+            AddNavigation("game", "监测", Icons.Monitor);
+            AddNavigation("exit", "退出游戏模式", Icons.Exit);
         }
         else
         {
-            AddNavigation("home", "首頁", Icons.Home);
-            AddNavigation("shortcuts", "快捷導航", Icons.Shortcuts);
-            AddNavigation("game", "遊戲模式", Icons.Game);
+            AddNavigation("home", "首页", Icons.Home);
+            AddNavigation("shortcuts", "快捷导航", Icons.Shortcuts);
+            AddNavigation("game", "游戏模式", Icons.Game);
         }
-        AddNavigation("settings", "設定", Icons.Settings);
+        AddNavigation("settings", "设置", Icons.Settings);
         ApplyResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width, Bounds.Height > 0 ? Bounds.Height : Height);
     }
     private void AddNavigation(string key, string label, string icon)
@@ -214,7 +212,7 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
     {
         this.highContrast = highContrast;
         AnimationsEnabled = animations && !highContrast;
-        AccessibilityStatus.Text = $"系統高對比：{(highContrast ? "開" : "關")} · 系統動畫：{(animations ? "開" : "關")}";
+        AccessibilityStatus.Text = $"系统高对比：{(highContrast ? "开" : "关")} · 系统动画：{(animations ? "开" : "关")}";
         ApplyPalette();
         UpdateHomeActivity();
     }
@@ -241,13 +239,6 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         });
     }
 
-    private void OnLanguageChoice(object? sender, SelectionChangedEventArgs e)
-    {
-        if (initializing || LanguagePicker.SelectedItem is not ComboBoxItem { Tag: string tag }) return;
-        var language = LanguagePolicy.Validate(tag);
-        ChineseLocale.Preference = LanguagePolicy.Parse(language); // raises Changed -> refreshes open UI
-        model.SaveRuntime(language: language);
-    }
     private void OnNavigationPreference(object? sender, SelectionChangedEventArgs e)
     {
         if (initializing || NavigationSizePicker.SelectedItem is not ComboBoxItem { Tag: string size } || NavigationPositionPicker.SelectedItem is not ComboBoxItem { Tag: string position }) return;
@@ -273,14 +264,14 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
     private async Task BindShortcutAsync()
     {
         if (!HotkeyGesture.TryParse(model.Settings.Hotkey, out var gesture)) gesture = HotkeyGesture.TryParse("Ctrl+Alt+G", out var fallback) ? fallback : null;
-        if (bindShortcut is null || gesture is null) { HotkeyStatus.Text = "找不到桌面入口服務；請使用下方指令綁定自訂快捷鍵。"; return; }
-        HotkeyStatus.Text = "正在向桌面要求 " + gesture + "，請留意系統對話框。";
+        if (bindShortcut is null || gesture is null) { HotkeyStatus.Text = "找不到桌面入口服务；请使用下方指令绑定自订快捷键。"; return; }
+        HotkeyStatus.Text = "正在向桌面要求 " + gesture + "，请留意系统对话框。";
         var result = await bindShortcut(ShortcutTrigger.ToXdg(gesture));
         ShortcutOutcome = result.State;
         HotkeyStatus.Text = result.State switch
         {
-            ShortcutState.NotAllowed when launcher.State is LauncherState.Missing or LauncherState.Elsewhere => "GNOME 需要先在下方「桌面整合」加入應用程式選單，才允許綁定全域快捷鍵；也可使用下方指令。",
-            ShortcutState.Unsupported or ShortcutState.NotAllowed => result.Detail + "請使用下方指令綁定自訂快捷鍵。",
+            ShortcutState.NotAllowed when launcher.State is LauncherState.Missing or LauncherState.Elsewhere => "GNOME 需要先在下方「桌面整合」加入应用程序菜单，才允许绑定全局快捷键；也可使用下方指令。",
+            ShortcutState.Unsupported or ShortcutState.NotAllowed => result.Detail + "请使用下方指令绑定自订快捷键。",
             _ => result.Detail
         };
     }
@@ -288,7 +279,7 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
     private void OnResetHotkey(object? sender, RoutedEventArgs e) { HotkeyInput.Text = "Ctrl+Alt+G"; ApplyHotkey("Ctrl+Alt+G"); }
     private void ApplyHotkey(string? text)
     {
-        if (!HotkeyGesture.TryParse(text, out var gesture)) { HotkeyStatus.Text = "格式例如 Ctrl+Alt+G，需包含 Ctrl 或 Alt，按鍵為 A–Z、0–9 或 F1–F11。"; return; }
+        if (!HotkeyGesture.TryParse(text, out var gesture)) { HotkeyStatus.Text = "格式例如 Ctrl+Alt+G，需包含 Ctrl 或 Alt，按键为 A–Z、0–9 或 F1–F11。"; return; }
         model.SaveRuntime(hotkey: gesture!.ToString());
         if (connection is not null) connection.Hotkey = gesture.ToString();
         _ = BindShortcutAsync();
@@ -298,13 +289,13 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         var state = launcher.State;
         LauncherStatus.Text = state switch
         {
-            LauncherState.Current => "已加入應用程式選單：" + launcher.Program,
-            LauncherState.Elsewhere => "選單中的 Secondary 指向其他位置；按「更新應用程式選單」改為目前的程式。",
-            LauncherState.Packaged => "安裝包已加入應用程式選單，不需要另外加入。",
-            LauncherState.Shadowed => "之前加入的選單項目蓋過了安裝包的項目，可能指向已刪除的檔案；按「從選單移除」改用安裝包的項目。",
-            _ => "尚未加入應用程式選單。"
+            LauncherState.Current => "已加入应用程序菜单：" + launcher.Program,
+            LauncherState.Elsewhere => "菜单中的 Secondary 指向其他位置；按「更新应用程序菜单」改为目前的程序。",
+            LauncherState.Packaged => "安装包已加入应用程序菜单，不需要另外加入。",
+            LauncherState.Shadowed => "之前加入的菜单项目盖过了安装包的项目，可能指向已删除的文件；按「从菜单移除」改用安装包的项目。",
+            _ => "尚未加入应用程序菜单。"
         };
-        InstallLauncherButton.Content = state == LauncherState.Elsewhere ? "更新應用程式選單" : "加入應用程式選單";
+        InstallLauncherButton.Content = state == LauncherState.Elsewhere ? "更新应用程序菜单" : "加入应用程序菜单";
         InstallLauncherButton.IsEnabled = state is LauncherState.Missing or LauncherState.Elsewhere;
         RemoveLauncherButton.IsEnabled = state is LauncherState.Current or LauncherState.Elsewhere or LauncherState.Shadowed;
     }
@@ -315,23 +306,23 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
             using (var icon = Avalonia.Platform.AssetLoader.Open(new Uri("avares://secondary/Assets/secondary.png"))) launcher.Install(icon);
         }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
-        { LauncherStatus.Text = "無法寫入應用程式選單：" + error.Message; return; }
+        { LauncherStatus.Text = "无法写入应用程序菜单：" + error.Message; return; }
         UpdateLauncherStatus();
         // The portal reads the application ID once per connection, so reconnect before binding again.
-        if (reconnectDesktop is not null) { HotkeyStatus.Text = "已加入選單，正在重新向桌面要求快捷鍵。"; await reconnectDesktop(); }
+        if (reconnectDesktop is not null) { HotkeyStatus.Text = "已加入菜单，正在重新向桌面要求快捷键。"; await reconnectDesktop(); }
     }
     private void OnRemoveLauncher(object? sender, RoutedEventArgs e)
     {
         try { launcher.Remove(); }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
-        { LauncherStatus.Text = "無法移除：" + error.Message; return; }
+        { LauncherStatus.Text = "无法移除：" + error.Message; return; }
         UpdateLauncherStatus();
     }
     private async void OnCopyCommand(object? sender, RoutedEventArgs e)
     {
         if (Clipboard is null || ToggleCommand.Text is not { } command) return;
         await Clipboard.SetTextAsync(command);
-        HotkeyStatus.Text = "已複製指令。";
+        HotkeyStatus.Text = "已复制指令。";
     }
 
     private async void OnFullscreen(object? sender, RoutedEventArgs e)
@@ -339,7 +330,7 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         if (model.Selected is not { } display) return;
         var screens = Screens.All;
         var index = Array.FindIndex(DisplayCatalog.From(screens), d => d.Id == display.Id);
-        if (index < 0) { model.Status = "找不到選擇的顯示器，請重新選擇。"; RefreshDisplays(); return; }
+        if (index < 0) { model.Status = "找不到选择的显示器，请重新选择。"; RefreshDisplays(); return; }
         var target = screens[index];
         model.SaveSelection(display);
         WindowState = WindowState.Normal;
@@ -348,8 +339,8 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         // The compositor may ignore the move; report where the window actually ended up.
         await Task.Delay(600);
         model.Status = Screens.ScreenFromWindow(this)?.Bounds == target.Bounds
-            ? "已在 " + display.Name + " 全螢幕。Esc 返回一般視窗。"
-            : "桌面未允許移動視窗。請先把視窗拖到 " + display.Name + "，再按「進入副屏全螢幕」。";
+            ? "已在 " + display.Name + " 全屏幕。Esc 返回一般窗口。"
+            : "桌面未允许移动窗口。请先把窗口拖到 " + display.Name + "，再按「进入副屏全屏幕」。";
     }
     private void OnWindowed(object? sender, RoutedEventArgs e) => WindowState = WindowState.Normal;
 

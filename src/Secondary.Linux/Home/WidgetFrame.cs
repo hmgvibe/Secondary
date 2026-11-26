@@ -62,15 +62,15 @@ public sealed class WidgetFrame : Grid
         Children.Add(outline);
         mover = new WidgetHandle(WidgetEdges.None) { Cursor = new Cursor(StandardCursorType.SizeAll), ZIndex = 1, CornerRadius = new CornerRadius(8) };
         Children.Add(mover);
-        AddResizeHandle(WidgetEdges.Left, StandardCursorType.LeftSide, "左邊");
-        AddResizeHandle(WidgetEdges.Top, StandardCursorType.TopSide, "上邊");
-        AddResizeHandle(WidgetEdges.Right, StandardCursorType.RightSide, "右邊");
-        AddResizeHandle(WidgetEdges.Bottom, StandardCursorType.BottomSide, "下邊");
+        AddResizeHandle(WidgetEdges.Left, StandardCursorType.LeftSide, "左边");
+        AddResizeHandle(WidgetEdges.Top, StandardCursorType.TopSide, "上边");
+        AddResizeHandle(WidgetEdges.Right, StandardCursorType.RightSide, "右边");
+        AddResizeHandle(WidgetEdges.Bottom, StandardCursorType.BottomSide, "下边");
         AddResizeHandle(WidgetEdges.Left | WidgetEdges.Top, StandardCursorType.TopLeftCorner, "左上角");
         AddResizeHandle(WidgetEdges.Right | WidgetEdges.Top, StandardCursorType.TopRightCorner, "右上角");
         AddResizeHandle(WidgetEdges.Left | WidgetEdges.Bottom, StandardCursorType.BottomLeftCorner, "左下角");
         AddResizeHandle(WidgetEdges.Right | WidgetEdges.Bottom, StandardCursorType.BottomRightCorner, "右下角");
-        SetInteractionNames("時鐘");
+        SetInteractionNames("时钟");
         longPress.Tick += (_, _) => FireLongPress();
         foreach (var handle in resizers.Prepend(mover))
         {
@@ -142,7 +142,7 @@ public sealed class WidgetFrame : Grid
             VerticalAlignment = edges.HasFlag(WidgetEdges.Top) ? VerticalAlignment.Top : edges.HasFlag(WidgetEdges.Bottom) ? VerticalAlignment.Bottom : VerticalAlignment.Stretch
         };
         handleMarkers[handle] = marker;
-        ToolTip.SetTip(handle, name + "縮放；按住 Alt 暫停吸附");
+        ToolTip.SetTip(handle, name + "缩放；按住 Alt 暂停吸附");
         handle.Tag = name;
         resizers.Add(handle); Children.Add(handle);
         ApplyHandleMetrics(handle);
@@ -197,8 +197,8 @@ public sealed class WidgetFrame : Grid
     }
     private void SetInteractionNames(string title)
     {
-        AutomationProperties.SetName(mover, "拖動" + title + "組件；方向鍵移動，Ctrl 加方向鍵縮放，Alt 暫停吸附，Esc 取消拖曳");
-        foreach (var handle in resizers) AutomationProperties.SetName(handle, "調整" + title + "組件" + handle.Tag + "；按住 Alt 暫停吸附");
+        AutomationProperties.SetName(mover, "拖动" + title + "组件；方向键移动，Ctrl 加方向键缩放，Alt 暂停吸附，Esc 取消拖曳");
+        foreach (var handle in resizers) AutomationProperties.SetName(handle, "调整" + title + "组件" + handle.Tag + "；按住 Alt 暂停吸附");
     }
     private static Line CreateGuide()
     {

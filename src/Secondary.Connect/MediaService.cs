@@ -33,7 +33,7 @@ public sealed class WindowsMediaProvider : IMediaProvider
     {
         var snapshot = await MediaWidgetSource.Shared.ReadAsync().WaitAsync(TimeSpan.FromSeconds(5), token).ConfigureAwait(false);
         if (snapshot.Session is not { } session || snapshot.Properties is not { } properties || snapshot.Playback is not { } playback)
-            return (null, "主電腦目前沒有播放中的媒體");
+            return (null, "主机目前没有播放中的媒体");
         var playing = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
         double? position = null, duration = null;
         if (snapshot.Timeline is { } timeline && (timeline.EndTime - timeline.StartTime) is { TotalSeconds: > 0 } length)
@@ -44,7 +44,7 @@ public sealed class WindowsMediaProvider : IMediaProvider
         return (new RemoteMedia(Clip(session.SourceAppUserModelId), Clip(properties.Title), Clip(properties.Artist), playing,
             playback.Controls.IsPreviousEnabled, playback.Controls.IsNextEnabled,
             playback.Controls.IsPlayPauseToggleEnabled || (playing ? playback.Controls.IsPauseEnabled : playback.Controls.IsPlayEnabled),
-            position, duration, key.Length > 1000 ? key[..1000] : key), playing ? "播放中" : "已暫停");
+            position, duration, key.Length > 1000 ? key[..1000] : key), playing ? "播放中" : "已暂停");
     }
 
     public async Task<bool> ControlAsync(string command, CancellationToken token)
@@ -88,7 +88,7 @@ public sealed class MediaService(IMediaProvider? provider = null)
     private CancellationTokenSource? watching;
     public event Action? Changed;
     public bool Watching { get { lock (gate) return watching is not null; } }
-    public string Status => Watching ? "媒體：設備正在顯示主電腦的播放內容" : "媒體：未使用";
+    public string Status => Watching ? "媒体：设备正在显示主机的播放内容" : "媒体：未使用";
 
     public Task Handle(JsonObject message, FrameChannel channel, CancellationToken session)
     {
@@ -163,7 +163,7 @@ public sealed class MediaService(IMediaProvider? provider = null)
             {
                 (RemoteMedia? Media, string Status) state;
                 try { state = await provider.ReadAsync(token).ConfigureAwait(false); }
-                catch (Exception error) when (error is not OperationCanceledException || !token.IsCancellationRequested) { state = (null, "無法讀取主電腦的媒體工作階段"); }
+                catch (Exception error) when (error is not OperationCanceledException || !token.IsCancellationRequested) { state = (null, "无法读取主机的媒体工作阶段"); }
                 var message = RemoteMediaMessages.State(state.Media, state.Status);
                 var text = message.ToJsonString();
                 if (text != last) { await channel.SendAsync(message, token).ConfigureAwait(false); last = text; }

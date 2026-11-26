@@ -8,7 +8,7 @@ using Secondary.Shared.Connection;
 
 namespace Secondary.Linux.Home;
 
-// The main computer's player for media widgets set to "主電腦", over the connection. Covers are written to a
+// The main computer's player for media widgets set to "主机", over the connection. Covers are written to a
 // private temporary file because the widget only loads local artwork files.
 public sealed class RemoteMediaSource : IMediaSource
 {
@@ -17,14 +17,14 @@ public sealed class RemoteMediaSource : IMediaSource
     private readonly object gate = new();
     private string? coverKey, coverPath;
 
-    public static string Status => RemoteMediaClient.Current is not { } client ? "連線模式無法使用；可切回本機"
-        : !client.Connected ? "主電腦未連線；連上後自動顯示，或切回本機" : client.Status;
+    public static string Status => RemoteMediaClient.Current is not { } client ? "连接模式无法使用；可切回本机"
+        : !client.Connected ? "主机未连接；连上后自动显示，或切回本机" : client.Status;
 
     public async Task<MediaSnapshot?> ReadAsync(CancellationToken token)
     {
         if (RemoteMediaClient.Current is not { Connected: true, Media: { } media } client) return null;
         var artwork = media.ArtworkKey.Length == 0 ? null : await CoverAsync(client, media.ArtworkKey, token).ConfigureAwait(false);
-        return new MediaSnapshot("主電腦 · " + media.App, media.Title, media.Artist, media.Playing, media.CanPrevious, media.CanNext, media.CanToggle, media.CanToggle,
+        return new MediaSnapshot("主机 · " + media.App, media.Title, media.Artist, media.Playing, media.CanPrevious, media.CanNext, media.CanToggle, media.CanToggle,
             media.Position is { } position ? TimeSpan.FromSeconds(position) : null, media.Duration is { } duration ? TimeSpan.FromSeconds(duration) : null, artwork);
     }
 

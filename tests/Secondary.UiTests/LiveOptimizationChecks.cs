@@ -35,7 +35,7 @@ internal static class LiveOptimizationChecks
         clock.Configure(new HomeSettings(ClockStyle: "Flip", ShowSeconds: true, ShowDate: false));
         var stage = new Grid { Background = new SolidColorBrush(Color.FromRgb(12, 17, 24)) };
         stage.Children.Add(clock);
-        var host = new Window { Owner = window, Title = "Secondary 翻頁動畫驗證", Content = stage,
+        var host = new Window { Owner = window, Title = "Secondary 翻页动画验证", Content = stage,
             Width = 860, Height = 340, ShowInTaskbar = false, ResizeMode = ResizeMode.NoResize };
         try
         {
@@ -77,15 +77,15 @@ internal static class LiveOptimizationChecks
         }
         finally { host.Close(); }
         var canvas = new Canvas { Background = new SolidColorBrush(Color.FromRgb(12, 17, 24)) };
-        using var note = new HomeUtilityWidget(new HomeWidgetSettings("live-note", "Note", Text: "已儲存內容"));
-        var frame = new HomeWidget(); frame.Attach(canvas, note, "便箋");
-        var noteHost = new Window { Owner = window, Title = "Secondary 縮放驗證", Resources = window.Resources,
+        using var note = new HomeUtilityWidget(new HomeWidgetSettings("live-note", "Note", Text: "已保存内容"));
+        var frame = new HomeWidget(); frame.Attach(canvas, note, "便签");
+        var noteHost = new Window { Owner = window, Title = "Secondary 缩放验证", Resources = window.Resources,
             Content = canvas, Width = 860, Height = 620, ShowInTaskbar = false };
         try
         {
             noteHost.Show(); Pump(); frame.Configure(new WidgetPlacement(X: 0, Y: 0), new Size(320, 300)); Pump();
             var editor = Descendants(note).OfType<TextBox>().Single();
-            editor.Text = "未保存的草稿\n縮放時保留游標"; editor.Select(2, 3);
+            editor.Text = "未保存的草稿\n缩放时保留游标"; editor.Select(2, 3);
             check(editor.Focus(), "Native note editor accepts keyboard focus before resize"); Pump();
             var originalHeight = editor.ActualHeight;
             if (outputDirectory is not null) Save(Render(canvas), Path.Combine(outputDirectory, "note-Normal-NATIVE.png"));

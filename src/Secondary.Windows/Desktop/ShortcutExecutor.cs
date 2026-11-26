@@ -21,25 +21,25 @@ public sealed class ShortcutExecutor : IShortcutExecutor
         {
             var text = $"{i+1}. {s.Kind}\n{s.Target}";
             if (s.Kind == "Wait") return $"{i+1}. 等待 {s.Seconds} 秒";
-            if (s.Kind == "Keys") return text + $"\n程序：{s.ProcessName}\n完整視窗標題：{s.WindowTitle}";
-            if (s.Arguments.Length > 0) text += "\n參數：" + s.Arguments;
-            if (s.WorkingDirectory.Length > 0) text += "\n工作目錄：" + s.WorkingDirectory;
+            if (s.Kind == "Keys") return text + $"\n程序：{s.ProcessName}\n完整窗口标题：{s.WindowTitle}";
+            if (s.Arguments.Length > 0) text += "\n参数：" + s.Arguments;
+            if (s.WorkingDirectory.Length > 0) text += "\n工作目录：" + s.WorkingDirectory;
             if (s.Kind == "Script") { var hash = Hash(s.Target); scriptHashes[s.Target] = hash; text += "\nSHA256：" + hash; }
             return text;
         }));
     }
     private static string Hash(string path)
     {
-        if (new FileInfo(path).Length > 10_000_000) throw new IOException("腳本超過 10 MB，未執行。");
+        if (new FileInfo(path).Length > 10_000_000) throw new IOException("脚本超过 10 MB，未执行。");
         using var file = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(file));
     }
     public async Task Execute(ShortcutStep step, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         if (step.Kind == "Keys") { await SendKeys(step,cancellation); return; }
-        if (step.WorkingDirectory.Length > 0 && !Directory.Exists(step.WorkingDirectory)) throw new DirectoryNotFoundException("工作目錄不存在。");
+        if (step.WorkingDirectory.Length > 0 && !Directory.Exists(step.WorkingDirectory)) throw new DirectoryNotFoundException("工作目录不存在。");
         var web = Uri.TryCreate(step.Target,UriKind.Absolute,out var uri) && uri.Scheme is "http" or "https";
-        if (!web && !File.Exists(step.Target) && !Directory.Exists(step.Target)) throw new FileNotFoundException("目標已移動或不存在。",step.Target);
+        if (!web && !File.Exists(step.Target) && !Directory.Exists(step.Target)) throw new FileNotFoundException("目标已移动或不存在。",step.Target);
         if (step.Kind == "Open")
         {
             using var launched = Process.Start(new ProcessStartInfo(step.Target) { Arguments = step.Arguments, WorkingDirectory = step.WorkingDirectory, UseShellExecute = true, ErrorDialog = false });
@@ -47,7 +47,7 @@ public sealed class ShortcutExecutor : IShortcutExecutor
         }
         // Deny writes/deletion while validating and executing the confirmed file.
         using var script = File.Open(step.Target,FileMode.Open,FileAccess.Read,FileShare.Read);
-        if (script.Length > 10_000_000 || !scriptHashes.TryGetValue(step.Target,out var expected) || Convert.ToHexString(SHA256.HashData(script)) != expected) throw new InvalidOperationException("腳本自確認後已變更，請重新確認。");
+        if (script.Length > 10_000_000 || !scriptHashes.TryGetValue(step.Target,out var expected) || Convert.ToHexString(SHA256.HashData(script)) != expected) throw new InvalidOperationException("脚本自确认后已变更，请重新确认。");
         var ps = Path.GetExtension(step.Target).Equals(".ps1",StringComparison.OrdinalIgnoreCase);
         var system = Environment.GetFolderPath(Environment.SpecialFolder.System);
         var start = new ProcessStartInfo(ps ? Path.Combine(system,"WindowsPowerShell","v1.0","powershell.exe") : Path.Combine(system,"cmd.exe"))
@@ -55,10 +55,10 @@ public sealed class ShortcutExecutor : IShortcutExecutor
         if (ps) { foreach (var arg in new[] { "-NoProfile", "-NonInteractive", "-File", step.Target }) start.ArgumentList.Add(arg); }
         else
         {
-            if (step.Target.IndexOfAny("%!&|<>^()".ToCharArray()) >= 0) throw new InvalidOperationException("批次腳本路徑不可含 shell 特殊字元，請移至簡單路徑。");
+            if (step.Target.IndexOfAny("%!&|<>^()".ToCharArray()) >= 0) throw new InvalidOperationException("批次脚本路径不可含 shell 特殊字元，请移至简单路径。");
             start.Arguments = "/d /s /c \"\"" + step.Target + "\"\"";
         }
-        using var process = Process.Start(start) ?? throw new IOException("無法啟動腳本。");
+        using var process = Process.Start(start) ?? throw new IOException("无法启动脚本。");
         // Synchronous cancellation also works during Dispatcher/application shutdown.
         using var stop = cancellation.Register(() =>
         {
@@ -70,11 +70,11 @@ public sealed class ShortcutExecutor : IShortcutExecutor
             try { if (!process.HasExited) process.Kill(); } catch (InvalidOperationException) { } catch (System.ComponentModel.Win32Exception) { }
             throw;
         }
-        if (process.ExitCode != 0) throw new InvalidOperationException($"腳本失敗，結束碼 {process.ExitCode}；後續步驟已停止。");
+        if (process.ExitCode != 0) throw new InvalidOperationException($"脚本失败，结束码 {process.ExitCode}；后续步骤已停止。");
     }
     private static async Task SendKeys(ShortcutStep step, CancellationToken cancellation)
     {
-        if (!HotkeyGesture.TryParse(step.Target,out var gesture)) throw new InvalidOperationException("無效快捷鍵。");
+        if (!HotkeyGesture.TryParse(step.Target,out var gesture)) throw new InvalidOperationException("无效快捷键。");
         var matches = new List<(int Id,IntPtr Window)>();
         foreach (var process in Process.GetProcesses())
         {
@@ -82,14 +82,14 @@ public sealed class ShortcutExecutor : IShortcutExecutor
                 try { if (process.ProcessName.Equals(step.ProcessName,StringComparison.OrdinalIgnoreCase) && process.MainWindowTitle == step.WindowTitle && process.MainWindowHandle != IntPtr.Zero) matches.Add((process.Id,process.MainWindowHandle)); }
                 catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
         }
-        if (matches.Count != 1) throw new InvalidOperationException("找不到唯一符合程序名稱與完整標題的視窗，未傳送按鍵。");
+        if (matches.Count != 1) throw new InvalidOperationException("找不到唯一符合程序名称与完整标题的窗口，未传送按键。");
         var target = matches[0];
-        if (!SetForegroundWindow(target.Window)) throw new InvalidOperationException("Windows 拒絕切換焦點，未傳送按鍵。");
+        if (!SetForegroundWindow(target.Window)) throw new InvalidOperationException("Windows 拒绝切换焦点，未传送按键。");
         await Task.Delay(150,cancellation);
         GetWindowThreadProcessId(target.Window,out var pid);
-        if (GetForegroundWindow() != target.Window || pid != target.Id || new[] { 0x10,0x11,0x12,0x5B,0x5C }.Any(k => GetAsyncKeyState(k) < 0)) throw new InvalidOperationException("焦點已改變或修飾鍵正被按住，未傳送按鍵。");
+        if (GetForegroundWindow() != target.Window || pid != target.Id || new[] { 0x10,0x11,0x12,0x5B,0x5C }.Any(k => GetAsyncKeyState(k) < 0)) throw new InvalidOperationException("焦点已改变或修饰键正被按住，未传送按键。");
         using var verified = Process.GetProcessById(target.Id);
-        if (verified.MainWindowHandle != target.Window || verified.MainWindowTitle != step.WindowTitle || !verified.ProcessName.Equals(step.ProcessName,StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("目標視窗已變更，未傳送按鍵。");
+        if (verified.MainWindowHandle != target.Window || verified.MainWindowTitle != step.WindowTitle || !verified.ProcessName.Equals(step.ProcessName,StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("目标窗口已变更，未传送按键。");
         var keys = new List<ushort>();
         if ((gesture!.Modifiers & 2) != 0) keys.Add(0x11);
         if ((gesture.Modifiers & 1) != 0) keys.Add(0x12);
@@ -101,7 +101,7 @@ public sealed class ShortcutExecutor : IShortcutExecutor
         {
             var releases = keys.AsEnumerable().Reverse().Select(k => new KeyInput { Type = 1, Key = k, Flags = 2 }).ToArray();
             SendInput((uint)releases.Length,releases,40);
-            throw new InvalidOperationException("Windows 未接受完整按鍵序列，巨集停止；不嘗試提權。");
+            throw new InvalidOperationException("Windows 未接受完整按键序列，巨集停止；不尝试提权。");
         }
     }
     [StructLayout(LayoutKind.Explicit,Size=40)] private struct KeyInput

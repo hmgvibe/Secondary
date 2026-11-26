@@ -48,10 +48,10 @@ internal sealed class PresentMonSessionLease : IDisposable
                 catch (InvalidOperationException) { alive = false; }
                 if (alive) continue;
                 if (await stopSession(identity.Session).ConfigureAwait(false)) File.Delete(file);
-                else status("先前自身 ETW 會話清理未完成，已保留重試紀錄。");
+                else status("先前自身 ETW 会话清理未完成，已保留重试纪录。");
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or System.ComponentModel.Win32Exception)
-            { status("自身幀捕獲恢復紀錄無法處理：" + error.Message); }
+            { status("自身帧捕获恢复纪录无法处理：" + error.Message); }
         }
     }
 }

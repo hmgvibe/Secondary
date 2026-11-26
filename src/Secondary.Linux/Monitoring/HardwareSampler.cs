@@ -26,8 +26,8 @@ public sealed class HardwareSampler(string root = "/", Func<double>? clock = nul
         var readings = new List<MonitoringReading>();
         // A reason explains a missing value; a note qualifies a present one.
         void Add(string identity, string metric, double? value, string unit, string? reason = null, string? note = null) =>
-            readings.Add(new(metric, "sysfs", identity, time, value, unit, value.HasValue ? ReadingState.Available : ReadingState.Unavailable, value.HasValue ? note : reason ?? "此裝置未提供"));
-        Add("/cpu/0/temperature", "CPU / Temperature", CpuTemperature(), "°C", "找不到 coretemp／k10temp 感測器");
+            readings.Add(new(metric, "sysfs", identity, time, value, unit, value.HasValue ? ReadingState.Available : ReadingState.Unavailable, value.HasValue ? note : reason ?? "此设备未提供"));
+        Add("/cpu/0/temperature", "CPU / Temperature", CpuTemperature(), "°C", "找不到 coretemp／k10temp 传感器");
         Add("/cpu/0/clock", "CPU / Clock", CpuClock(), "MHz", "找不到 cpufreq");
         var (power, powerReason) = CpuPower();
         Add("/cpu/0/power", "CPU / Package", power, "W", powerReason);
@@ -62,7 +62,7 @@ public sealed class HardwareSampler(string root = "/", Func<double>? clock = nul
         string? loadReason = null, loadNote = null;
         var nvml = vendor == "nvidia" && Driver(device) == "nvidia" ? Nvidia()?.Read(Slot(device)) : null;
         if (nvml is { } n) (load, temperature, clock, power, used, total) = (n.Load, n.Temperature, n.Clock, n.Power, n.MemoryUsed, n.MemoryTotal);
-        else if (vendor == "nvidia") loadReason = Driver(device) == "nvidia" ? "無法載入 NVML（libnvidia-ml.so.1）" : "nouveau 驅動未提供使用率";
+        else if (vendor == "nvidia") loadReason = Driver(device) == "nvidia" ? "无法载入 NVML（libnvidia-ml.so.1）" : "nouveau 驱动未提供使用率";
         if (vendor == "amd")
         {
             load = Number(Path.Combine(device, "gpu_busy_percent"));
@@ -73,15 +73,15 @@ public sealed class HardwareSampler(string root = "/", Func<double>? clock = nul
         if (load is null && Slot(device) is { } slot && usage.TryGetValue(slot, out var busiest))
         {
             load = busiest;
-            loadNote = "DRM 用戶端最忙引擎";
-            loadReason = "等待第二次採樣";
+            loadNote = "DRM 用户端最忙引擎";
+            loadReason = "等待第二次采样";
         }
         else if (vendor == "intel")
         {
             // Older kernels without fdinfo engine times: time outside the RC6 sleep state is the closest measure.
             var residency = Number(Path.Combine(card, "gt", "gt0", "rc6_residency_ms")) ?? Number(Path.Combine(card, "power", "rc6_residency_ms"));
-            if (residency is { } ms && Rate(card + "/rc6", ms / 1000) is { } idle) { load = Math.Clamp(100 * (1 - idle), 0, 100); loadNote = "以非 RC6 省電時間估算，高於實際使用率"; }
-            loadReason = residency is null ? "Intel 驅動未提供使用率" : "等待第二次採樣";
+            if (residency is { } ms && Rate(card + "/rc6", ms / 1000) is { } idle) { load = Math.Clamp(100 * (1 - idle), 0, 100); loadNote = "以非 RC6 省电时间估算，高于实际使用率"; }
+            loadReason = residency is null ? "Intel 驱动未提供使用率" : "等待第二次采样";
         }
         if (vendor == "intel") clock = Number(Path.Combine(card, "gt_act_freq_mhz")) ?? Number(Path.Combine(device, "tile0", "gt0", "freq0", "act_freq"));
         if (hwmon is not null)
@@ -94,11 +94,11 @@ public sealed class HardwareSampler(string root = "/", Func<double>? clock = nul
         }
         add(id + "/load", name + " / GPU Core", load, "%", loadReason, loadNote);
         var integrated = vendor == "intel" && hwmon is null;
-        add(id + "/temperature", name + " / GPU Core", temperature, "°C", integrated ? "內建顯示卡沒有獨立溫度感測器" : null);
+        add(id + "/temperature", name + " / GPU Core", temperature, "°C", integrated ? "内建显示卡没有独立温度传感器" : null);
         add(id + "/clock", name + " / GPU Core", clock, "MHz");
-        add(id + "/power", name + " / GPU Package", power, "W", integrated ? "內建顯示卡功耗包含在 CPU 封裝內" : null);
-        add(id + "/memory-used", name + " / GPU Memory Used", used, "MB", integrated ? "內建顯示卡使用共用系統記憶體" : null);
-        add(id + "/memory-total", name + " / GPU Memory Total", total, "MB", integrated ? "內建顯示卡使用共用系統記憶體" : null);
+        add(id + "/power", name + " / GPU Package", power, "W", integrated ? "内建显示卡功耗包含在 CPU 封装内" : null);
+        add(id + "/memory-used", name + " / GPU Memory Used", used, "MB", integrated ? "内建显示卡使用共用系统内存" : null);
+        add(id + "/memory-total", name + " / GPU Memory Total", total, "MB", integrated ? "内建显示卡使用共用系统内存" : null);
     }
 
     private double? CpuTemperature()
@@ -125,15 +125,15 @@ public sealed class HardwareSampler(string root = "/", Func<double>? clock = nul
     {
         var zone = Sys("class", "powercap", "intel-rapl:0");
         var file = Path.Combine(zone, "energy_uj");
-        if (!File.Exists(file)) return (null, "找不到 RAPL 功耗介面");
+        if (!File.Exists(file)) return (null, "找不到 RAPL 功耗界面");
         try
         {
             var energy = double.Parse(File.ReadAllText(file).Trim(), CultureInfo.InvariantCulture) / 1e6;
             var range = Number(Path.Combine(zone, "max_energy_range_uj")) / 1e6;
-            return (Rate("rapl", energy, range), "等待第二次採樣");
+            return (Rate("rapl", energy, range), "等待第二次采样");
         }
-        catch (UnauthorizedAccessException) { return (null, "RAPL 功耗需要 root 權限（Linux 預設只讓 root 讀取）"); }
-        catch (Exception error) when (error is IOException or FormatException) { return (null, "RAPL 讀取失敗：" + error.Message); }
+        catch (UnauthorizedAccessException) { return (null, "RAPL 功耗需要 root 权限（Linux 默认只让 root 读取）"); }
+        catch (Exception error) when (error is IOException or FormatException) { return (null, "RAPL 读取失败：" + error.Message); }
     }
 
     // Per-second change of a cumulative counter, allowing for one wrap at the given range.

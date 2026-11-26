@@ -85,8 +85,8 @@ public partial class MainWindow
     {
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "匯出快捷導航設定", SuggestedFileName = suggestedName, DefaultExtension = "json",
-            FileTypeChoices = [new FilePickerFileType("Secondary 快捷導航設定") { Patterns = ["*.json"] }]
+            Title = "导出快捷导航设置", SuggestedFileName = suggestedName, DefaultExtension = "json",
+            FileTypeChoices = [new FilePickerFileType("Secondary 快捷导航设置") { Patterns = ["*.json"] }]
         });
         return file?.TryGetLocalPath();
     }
@@ -94,8 +94,8 @@ public partial class MainWindow
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "匯入快捷導航設定", AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("Secondary 快捷導航設定") { Patterns = ["*.json"] }]
+            Title = "导入快捷导航设置", AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("Secondary 快捷导航设置") { Patterns = ["*.json"] }]
         });
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
@@ -103,7 +103,7 @@ public partial class MainWindow
     {
         CloseAppPicker(false);
         var pending = appPick = new TaskCompletionSource<AppSelection?>();
-        AppPickerStatus.Text = "正在讀取已安裝的 App…"; AddAppsButton.IsEnabled = false;
+        AppPickerStatus.Text = "正在读取已安装的 App…"; AddAppsButton.IsEnabled = false;
         AppPickerOverlay.IsVisible = true;
         var catalog = AppCatalog;
         var apps = await Task.Run(catalog.Load);
@@ -118,9 +118,9 @@ public partial class MainWindow
     private void UpdateAppPickerStatus()
     {
         var count = appPicker?.Selected.Count ?? 0;
-        AppPickerStatus.Text = $"共 {appPicker?.Count ?? 0} 個 App · 已選 {count} 個";
+        AppPickerStatus.Text = $"共 {appPicker?.Count ?? 0} 个 App · 已选 {count} 个";
         AddAppsButton.IsEnabled = count > 0;
-        AddAppsButton.Content = count > 0 ? $"加入 {count} 個" : "加入";
+        AddAppsButton.Content = count > 0 ? $"加入 {count} 个" : "加入";
     }
     public void CloseAppPicker(bool accept)
     {

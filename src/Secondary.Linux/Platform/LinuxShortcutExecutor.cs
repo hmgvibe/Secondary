@@ -36,19 +36,19 @@ public sealed class LinuxShortcutExecutor : IReviewingExecutor
         {
             if (s.Kind == "Wait") return $"{i + 1}. 等待 {s.Seconds} 秒";
             var text = $"{i + 1}. {s.Kind}\n{s.Target}";
-            if (s.Kind == "Keys") return text + "\nLinux 不支援此步驟，執行到這裡會停止。";
-            if (s.Arguments.Length > 0) text += "\n參數：" + s.Arguments;
-            if (s.WorkingDirectory.Length > 0) text += "\n工作目錄：" + s.WorkingDirectory;
+            if (s.Kind == "Keys") return text + "\nLinux 不支持此步骤，执行到这里会停止。";
+            if (s.Arguments.Length > 0) text += "\n参数：" + s.Arguments;
+            if (s.WorkingDirectory.Length > 0) text += "\n工作目录：" + s.WorkingDirectory;
             if (s.Kind == "Script") { var hash = Hash(s.Target); scriptHashes[s.Target] = hash; text += "\nSHA256：" + hash; }
             // A launcher hides its real command; show it before the user approves.
             else if (s.Target.EndsWith(".desktop", StringComparison.OrdinalIgnoreCase) && File.Exists(s.Target))
-                text += "\n應用程式啟動器會執行：" + (DesktopExec(s.Target) ?? "（未提供 Exec）");
+                text += "\n应用程序启动器会执行：" + (DesktopExec(s.Target) ?? "（未提供 Exec）");
             return text;
         }));
     }
     private static string Hash(string path)
     {
-        if (new FileInfo(path).Length > MaxScriptBytes) throw new IOException("腳本超過 10 MB，未執行。");
+        if (new FileInfo(path).Length > MaxScriptBytes) throw new IOException("脚本超过 10 MB，未执行。");
         using var file = File.OpenRead(path);
         return Convert.ToHexString(SHA256.HashData(file));
     }
@@ -68,17 +68,17 @@ public sealed class LinuxShortcutExecutor : IReviewingExecutor
     public async Task Execute(ShortcutStep step, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
-        if (OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Linux 版的捷徑只能在 Linux 上執行。");
+        if (OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Linux 版的快捷方式只能在 Linux 上执行。");
         if (step.Kind == "Keys") throw new InvalidOperationException(ShortcutRules.Linux.KeysUnsupported);
-        if (step.WorkingDirectory.Length > 0 && !Directory.Exists(step.WorkingDirectory)) throw new DirectoryNotFoundException("工作目錄不存在。");
+        if (step.WorkingDirectory.Length > 0 && !Directory.Exists(step.WorkingDirectory)) throw new DirectoryNotFoundException("工作目录不存在。");
         var web = Uri.TryCreate(step.Target, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
-        if (!web && !File.Exists(step.Target) && !Directory.Exists(step.Target)) throw new FileNotFoundException("目標已移動或不存在。", step.Target);
+        if (!web && !File.Exists(step.Target) && !Directory.Exists(step.Target)) throw new FileNotFoundException("目标已移动或不存在。", step.Target);
         if (step.Kind == "Script") { await RunScript(step, cancellation).ConfigureAwait(false); return; }
         if (web || Directory.Exists(step.Target)) { await Desktop("open", web ? uri!.AbsoluteUri : step.Target, cancellation).ConfigureAwait(false); return; }
         var extension = Path.GetExtension(step.Target).ToLowerInvariant();
         if (extension == ".desktop") { await Desktop("launch", step.Target, cancellation).ConfigureAwait(false); return; }
         var executable = (File.GetUnixFileMode(step.Target) & UnixFileMode.UserExecute) != 0;
-        if (extension == ".appimage" && !executable) throw new InvalidOperationException("AppImage 沒有執行權限；請在檔案內容中允許執行後再試。");
+        if (extension == ".appimage" && !executable) throw new InvalidOperationException("AppImage 没有执行权限；请在文件内容中允许执行后再试。");
         if (!executable) { await Desktop("open", step.Target, cancellation).ConfigureAwait(false); return; }
         var start = new ProcessStartInfo(step.Target)
         {
@@ -86,7 +86,7 @@ public sealed class LinuxShortcutExecutor : IReviewingExecutor
             WorkingDirectory = step.WorkingDirectory.Length > 0 ? step.WorkingDirectory : Path.GetDirectoryName(step.Target)!
         };
         // The launched program belongs to the user and keeps running; it is never waited on or stopped.
-        using var launched = Start(start) ?? throw new IOException("無法啟動程式。");
+        using var launched = Start(start) ?? throw new IOException("无法启动程序。");
     }
 
     // gio hands the target to the desktop's default application or launcher, then exits.
@@ -102,26 +102,26 @@ public sealed class LinuxShortcutExecutor : IReviewingExecutor
             fallback.ArgumentList.Add(target);
             process = Start(fallback);
         }
-        using var opener = process ?? throw new IOException("無法交給桌面開啟。");
+        using var opener = process ?? throw new IOException("无法交给桌面开启。");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         deadline.CancelAfter(TimeSpan.FromSeconds(15));
         try { await opener.WaitForExitAsync(deadline.Token).ConfigureAwait(false); }
-        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested) { throw new TimeoutException("桌面沒有回應開啟要求。"); }
-        if (opener.ExitCode != 0) throw new InvalidOperationException(verb == "launch" ? "無法啟動應用程式啟動器；請確認它是有效的 .desktop 檔。" : "桌面無法開啟此目標；請確認有可用的預設程式。");
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested) { throw new TimeoutException("桌面没有响应开启要求。"); }
+        if (opener.ExitCode != 0) throw new InvalidOperationException(verb == "launch" ? "无法启动应用程序启动器；请确认它是有效的 .desktop 档。" : "桌面无法开启此目标；请确认有可用的默认程序。");
     }
 
     private async Task RunScript(ShortcutStep step, CancellationToken cancellation)
     {
-        if (OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Linux 版的腳本只能在 Linux 上執行。");
+        if (OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Linux 版的脚本只能在 Linux 上执行。");
         byte[] content;
         using (var file = File.OpenRead(step.Target))
         {
-            if (file.Length > MaxScriptBytes) throw new IOException("腳本超過 10 MB，未執行。");
+            if (file.Length > MaxScriptBytes) throw new IOException("脚本超过 10 MB，未执行。");
             content = new byte[file.Length];
             await file.ReadExactlyAsync(content, cancellation).ConfigureAwait(false);
         }
         if (!scriptHashes.TryGetValue(step.Target, out var expected) || Convert.ToHexString(SHA256.HashData(content)) != expected)
-            throw new InvalidOperationException("腳本自確認後已變更，請重新確認。");
+            throw new InvalidOperationException("脚本自确认后已变更，请重新确认。");
         // The confirmed bytes run from a private copy, so the original cannot change between check and run.
         Directory.CreateDirectory(scriptDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         var copy = Path.Combine(scriptDirectory, Guid.NewGuid().ToString("N") + ".sh");
@@ -136,7 +136,7 @@ public sealed class LinuxShortcutExecutor : IReviewingExecutor
                 WorkingDirectory = step.WorkingDirectory.Length > 0 ? step.WorkingDirectory : Path.GetDirectoryName(step.Target)!
             };
             start.ArgumentList.Add(copy);
-            using var process = Start(start) ?? throw new IOException("無法啟動腳本。");
+            using var process = Start(start) ?? throw new IOException("无法启动脚本。");
             // Cancelling stops only this script process; anything it started keeps running.
             using var stop = cancellation.Register(() => { try { if (!process.HasExited) process.Kill(); } catch (InvalidOperationException) { } });
             try { await process.WaitForExitAsync(cancellation).ConfigureAwait(false); }
@@ -145,7 +145,7 @@ public sealed class LinuxShortcutExecutor : IReviewingExecutor
                 try { if (!process.HasExited) process.Kill(); } catch (InvalidOperationException) { }
                 throw;
             }
-            if (process.ExitCode != 0) throw new InvalidOperationException($"腳本失敗，結束碼 {process.ExitCode}；後續步驟已停止。");
+            if (process.ExitCode != 0) throw new InvalidOperationException($"脚本失败，结束码 {process.ExitCode}；后续步骤已停止。");
         }
         finally { try { File.Delete(copy); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
     }

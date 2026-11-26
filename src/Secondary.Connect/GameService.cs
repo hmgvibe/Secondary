@@ -26,8 +26,8 @@ public sealed class GameService(Func<RemoteGameRequest, IGameTelemetry>? factory
     public RemoteGameRequest? Current { get; private set; }
     public long SnapshotsSent { get; private set; }
     public string Status => Current is { } request
-        ? $"遊戲監測：傳送中 · {(request.High ? "高" : "低")}採樣率{(request.Sensors ? " · 硬體感測" : "")}{(request.Target is { } target ? " · " + target.Name : "")}"
-        : "遊戲監測：未使用（設備不在遊戲頁時不採樣）";
+        ? $"游戏监测：传送中 · {(request.High ? "高" : "低")}采样率{(request.Sensors ? " · 硬件感测" : "")}{(request.Target is { } target ? " · " + target.Name : "")}"
+        : "游戏监测：未使用（设备不在游戏页时不采样）";
 
     // The session token ends with the device's connection, which also stops sampling.
     public Task Handle(JsonObject message, FrameChannel channel, CancellationToken session)

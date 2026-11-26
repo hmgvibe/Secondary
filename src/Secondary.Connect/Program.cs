@@ -44,10 +44,10 @@ internal static class Program
         catch (SocketException error)
         {
             AppDiagnostics.Write("connect-listen", error);
-            problem = $"無法使用連接埠 {ConnectionProtocol.TcpPort}：{error.Message}。可能有另一個程式正在使用；請結束後重新啟動連接助手。";
+            problem = $"无法使用连接埠 {ConnectionProtocol.TcpPort}：{error.Message}。可能有另一个程序正在使用；请结束后重启连接助手。";
         }
         var shortcuts = new ShortcutService(Path.Combine(folder, "shortcuts.json"));
-        using var tray = new ConnectTray(server, devices, new SignInStartup(), problem ?? devices.LoadError ?? (identity.Recreated ? "連線身分已重新建立，之前配對的設備需要重新配對。" : null),
+        using var tray = new ConnectTray(server, devices, new SignInStartup(), problem ?? devices.LoadError ?? (identity.Recreated ? "连接身分已重新建立，之前配对的设备需要重新配对。" : null),
             shortcuts: shortcuts);
         instance.Listen(() => tray.Invoke(tray.ShowStatus));
         if (!background || problem is not null) tray.ShowStatus();

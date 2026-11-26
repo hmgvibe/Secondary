@@ -13,7 +13,7 @@ internal sealed class CaptureJob : IDisposable
     public CaptureJob()
     {
         handle = CreateJobObjectW(IntPtr.Zero, null);
-        if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error(), "無法建立幀捕獲程序生命週期限制");
+        if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error(), "无法建立帧捕获程序生命周期限制");
         var limits = new ExtendedLimits { Basic = new BasicLimits { Flags = 0x2000 } }; // KILL_ON_JOB_CLOSE
         if (!SetInformationJobObject(handle, 9, ref limits, (uint)Marshal.SizeOf<ExtendedLimits>()))
         { var error = Marshal.GetLastWin32Error(); handle.Dispose(); throw new Win32Exception(error); }
@@ -21,7 +21,7 @@ internal sealed class CaptureJob : IDisposable
     public void Attach(Process process)
     {
         if (!AssignProcessToJobObject(handle, process.SafeHandle))
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "無法綁定幀捕獲程序，已停止捕獲");
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "无法绑定帧捕获程序，已停止捕获");
     }
     public void Dispose() => handle.Dispose();
     [StructLayout(LayoutKind.Sequential)]

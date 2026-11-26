@@ -24,12 +24,12 @@ public sealed class WindowsSampler(bool enableGpu = true) : ISystemSampler
     private readonly Dictionary<string, (long Received, long Sent, long Time)> network = new();
     private NetworkInterface[] adapters = Array.Empty<NetworkInterface>();
     private long inventoryAt, gpuAt;
-    private string storage = "等待讀取";
+    private string storage = "等待读取";
     private DiskUsage[] disks = Array.Empty<DiskUsage>();
-    private string cpuName = "處理器資訊暫時不可用", systemInfo = "等待讀取", connections = "等待讀取";
+    private string cpuName = "处理器信息暂时不可用", systemInfo = "等待读取", connections = "等待读取";
     private GpuCounter? gpu;
     private double? gpuValue;
-    private string gpuStatus = "等待兩次採樣";
+    private string gpuStatus = "等待两次采样";
     public SystemSample Read(bool game, bool high = false)
     {
         var now = Stopwatch.GetTimestamp();
@@ -43,16 +43,16 @@ public sealed class WindowsSampler(bool enableGpu = true) : ISystemSampler
             previousCpu = current;
             cpuState = cpu.HasValue ? TelemetrySourceState.Available : TelemetrySourceState.Waiting;
         }
-        else { previousCpu = null; cpuState = TelemetrySourceState.Failed; issues.Add("CPU 採樣失敗（" + Marshal.GetLastWin32Error() + "）"); }
+        else { previousCpu = null; cpuState = TelemetrySourceState.Failed; issues.Add("CPU 采样失败（" + Marshal.GetLastWin32Error() + "）"); }
         var memory = new MemoryStatus { Length = (uint)Marshal.SizeOf<MemoryStatus>() };
         var memoryValid = GlobalMemoryStatusEx(ref memory);
-        if (!memoryValid) { issues.Add("記憶體採樣失敗（" + Marshal.GetLastWin32Error() + "）"); memory = default; }
+        if (!memoryValid) { issues.Add("内存采样失败（" + Marshal.GetLastWin32Error() + "）"); memory = default; }
         var memoryState = memoryValid && memory.TotalPhysical > 0 ? TelemetrySourceState.Available : TelemetrySourceState.Failed;
         var networkFailed = false;
         if (inventoryAt == 0 || Stopwatch.GetElapsedTime(inventoryAt, now).TotalSeconds >= 30)
         {
             try { adapters = NetworkInterface.GetAllNetworkInterfaces().Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback && n.NetworkInterfaceType != NetworkInterfaceType.Tunnel).ToArray(); }
-            catch (NetworkInformationException) { adapters = Array.Empty<NetworkInterface>(); networkFailed = true; issues.Add("網路介面清單讀取失敗"); }
+            catch (NetworkInformationException) { adapters = Array.Empty<NetworkInterface>(); networkFailed = true; issues.Add("网络界面清单读取失败"); }
             var ids = adapters.Select(n => n.Id).ToHashSet();
             foreach (var id in network.Keys.Where(k => !ids.Contains(k)).ToArray()) network.Remove(id);
             if (!game)
@@ -60,11 +60,11 @@ public sealed class WindowsSampler(bool enableGpu = true) : ISystemSampler
                 try
                 {
                     using var cpuKey = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
-                    cpuName = (cpuKey?.GetValue("ProcessorNameString") as string)?.Trim() ?? "處理器資訊暫時不可用";
+                    cpuName = (cpuKey?.GetValue("ProcessorNameString") as string)?.Trim() ?? "处理器信息暂时不可用";
                 }
-                catch (Exception e) when (e is UnauthorizedAccessException or System.Security.SecurityException or IOException) { cpuName = "處理器資訊暫時不可用"; }
+                catch (Exception e) when (e is UnauthorizedAccessException or System.Security.SecurityException or IOException) { cpuName = "处理器信息暂时不可用"; }
                 systemInfo = RuntimeInformation.OSDescription + " · " + RuntimeInformation.OSArchitecture;
-                connections = adapters.Length == 0 ? "沒有活動網路介面" : string.Join("\n", adapters.Select(a => a.Name));
+                connections = adapters.Length == 0 ? "没有活动网络界面" : string.Join("\n", adapters.Select(a => a.Name));
                 var volumes = new List<DiskUsage>();
                 var failures = 0;
                 try
@@ -78,9 +78,9 @@ public sealed class WindowsSampler(bool enableGpu = true) : ISystemSampler
                         }
                         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { failures++; }
                     }
-                    storage = failures > 0 ? $"{failures} 個磁碟無法讀取；其餘照常顯示" : volumes.Count == 0 ? "沒有可讀取的固定磁碟" : "固定磁碟 · 每 30 秒更新容量";
+                    storage = failures > 0 ? $"{failures} 个磁碟无法读取；其余照常显示" : volumes.Count == 0 ? "没有可读取的固定磁碟" : "固定磁碟 · 每 30 秒更新容量";
                 }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { storage = "磁碟資訊暫時無法讀取"; }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { storage = "磁碟信息暂时无法读取"; }
                 disks = volumes.ToArray();
             }
             inventoryAt = now;
@@ -111,15 +111,15 @@ public sealed class WindowsSampler(bool enableGpu = true) : ISystemSampler
             gpuStatus = gpu.Status;
             gpuAt = now;
         }
-        var power = "無法讀取電源";
+        var power = "无法读取电源";
         if (GetSystemPowerStatus(out var p))
-            power = (p.AcLineStatus == 1 ? "外接電源" : p.AcLineStatus == 0 ? "使用電池" : "電源狀態未知") +
-                (p.BatteryFlag == 255 ? " · 電池狀態未知" : (p.BatteryFlag & 128) != 0 ? " · 無電池" : p.BatteryPercent <= 100 ? $" · 電量 {p.BatteryPercent}%" : " · 電量未知");
+            power = (p.AcLineStatus == 1 ? "外接电源" : p.AcLineStatus == 0 ? "使用电池" : "电源状态未知") +
+                (p.BatteryFlag == 255 ? " · 电池状态未知" : (p.BatteryFlag & 128) != 0 ? " · 无电池" : p.BatteryPercent <= 100 ? $" · 电量 {p.BatteryPercent}%" : " · 电量未知");
         return new(cpu, memory.TotalPhysical, memory.AvailablePhysical, validNetwork ? down : null, validNetwork ? up : null,
-            gpuValue, gpuStatus, game ? "遊戲模式不讀取磁碟" : storage, power, DateTimeOffset.Now,
+            gpuValue, gpuStatus, game ? "游戏模式不读取磁碟" : storage, power, DateTimeOffset.Now,
             game ? Array.Empty<DiskUsage>() : disks, game ? null : cpuName, game ? null : systemInfo, game ? null : connections, game ? 0 : Environment.TickCount64,
             cpuState, memoryState, validNetwork ? TelemetrySourceState.Available : networkFailed ? TelemetrySourceState.Failed : TelemetrySourceState.Waiting,
-            issues.Count > 0 ? string.Join("；", issues) : networkFailed ? "部分網路介面無法讀取；可用介面仍更新" : cpu is null ? "CPU／網路正在建立採樣基準" : "CPU／記憶體／網路採樣持續更新");
+            issues.Count > 0 ? string.Join("；", issues) : networkFailed ? "部分网络界面无法读取；可用界面仍更新" : cpu is null ? "CPU／网络正在建立采样基准" : "CPU／内存／网络采样持续更新");
     }
     public void Dispose() => gpu?.Dispose();
     [StructLayout(LayoutKind.Sequential)]

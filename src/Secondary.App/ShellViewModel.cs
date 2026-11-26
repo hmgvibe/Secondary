@@ -26,14 +26,14 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     public event Action? TopologyChanged;
     private DisplayInfo? selected;
     public DisplayInfo? Selected { get => selected; set { selected = value; Notify(); } }
-    private string status = "選擇顯示器，開始副屏全螢幕。";
+    private string status = "选择显示器，开始副屏全屏幕。";
     public string Status { get => status; set { status = value; Notify(); } }
     public bool HasUnsavedSettings => store.NeedsSave;
     public bool RetrySaveSettings()
     {
         if (!store.NeedsSave) return true;
-        if (!store.Save(Settings)) { Status = "設定重試儲存失敗：" + store.LastError; return false; }
-        Status = "設定已儲存。";
+        if (!store.Save(Settings)) { Status = "设置重试保存失败：" + store.LastError; return false; }
+        Status = "设置已保存。";
         Notify(nameof(HasUnsavedSettings));
         return true;
     }
@@ -43,7 +43,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         this.store = store;
         Settings = store.Load();
         Modes = new ModeController(Settings);
-        if (store.LastError is not null) Status = "設定無法讀取，請重新選擇顯示器。原始設定已保留。";
+        if (store.LastError is not null) Status = "设置无法读取，请重新选择显示器。原始设置已保留。";
         Refresh();
         service.Changed += OnDisplayChange;
     }
@@ -58,7 +58,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     public void SaveSelection(DisplayInfo display)
     {
         Settings = Settings with { DisplayId = display.Id };
-        if (!store.Save(Settings)) Status = "顯示器已切換，但設定儲存失敗：" + store.LastError;
+        if (!store.Save(Settings)) Status = "显示器已切换，但设置保存失败：" + store.LastError;
         Notify(nameof(HasUnsavedSettings));
     }
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -67,7 +67,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         var next = Modes.Snapshot(Settings) with { Theme = theme ?? Settings.Theme, Hotkey = hotkey ?? Settings.Hotkey, GameHighSampling = highSampling ?? Settings.GameHighSampling, GameAnimation = gameAnimation ?? Settings.GameAnimation, NavigationSize = navigationSize ?? Settings.NavigationSize, NavigationPosition = navigationPosition ?? Settings.NavigationPosition, Language = language is null ? Settings.Language : LanguagePolicy.Validate(language) };
         if (next == Settings && !store.NeedsSave) return;
         Settings = next;
-        if (!store.Save(Settings)) Status = "設定儲存失敗：" + store.LastError;
+        if (!store.Save(Settings)) Status = "设置保存失败：" + store.LastError;
         Notify(nameof(HasUnsavedSettings));
     }
     public void SetMonitoringVisible(bool visible)
@@ -77,7 +77,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     public bool SaveHome(HomeSettings home)
     {
         var next = Modes.Snapshot(Settings) with { Home = home.Normalize() };
-        if (!store.Save(next)) { Status = "首頁設定儲存失敗：" + store.LastError; Notify(nameof(HasUnsavedSettings)); return false; }
+        if (!store.Save(next)) { Status = "首页设置保存失败：" + store.LastError; Notify(nameof(HasUnsavedSettings)); return false; }
         Settings = next;
         Notify(nameof(HasUnsavedSettings));
         return true;

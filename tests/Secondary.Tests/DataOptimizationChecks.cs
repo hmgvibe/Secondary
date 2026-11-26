@@ -17,14 +17,14 @@ internal static class DataOptimizationChecks
             File.Delete(blocked); Directory.CreateDirectory(blocked);
             check(store.Save(desired) && !store.NeedsSave && store.LastError is null, "Identical settings retry succeeds after the path is repaired");
             check(new SettingsStore(Path.Combine(blocked, "settings.json")).Load().Theme == "Dark", "Retry persists the intended settings across restart");
-            check(!store.Save(new AppSettings(Theme: new string('x', SettingsStore.MaximumBytes))) && store.NeedsSave && store.LastError!.Contains("過大") &&
+            check(!store.Save(new AppSettings(Theme: new string('x', SettingsStore.MaximumBytes))) && store.NeedsSave && store.LastError!.Contains("过大") &&
                 new SettingsStore(Path.Combine(blocked, "settings.json")).Load().Theme == "Dark", "Oversized settings save reports failure and preserves the previous readable settings");
             check(store.Save(desired) && !store.NeedsSave, "Settings save can recover after a total-size validation failure");
 
             var settingsPath = Path.Combine(directory, "oversized-settings.json");
             using (var file = File.Create(settingsPath)) file.SetLength(SettingsStore.MaximumBytes + 1L);
             var bounded = new SettingsStore(settingsPath);
-            check(bounded.Load().Home is null && bounded.LastError!.Contains("過大") && new FileInfo(settingsPath).Length == SettingsStore.MaximumBytes + 1L,
+            check(bounded.Load().Home is null && bounded.LastError!.Contains("过大") && new FileInfo(settingsPath).Length == SettingsStore.MaximumBytes + 1L,
                 "Oversized settings are bounded before JSON parsing and preserved");
             File.WriteAllText(settingsPath, "{\"Version\":3,\"Unknown\":" + new string('[', 40) + "0" + new string(']', 40) + "}");
             check(bounded.Load().Theme == "System" && bounded.LastError is not null, "Settings JSON nesting has a finite depth limit");
@@ -56,7 +56,7 @@ internal static class DataOptimizationChecks
                 "Largest fixture below the shared UTF8 limit round trips");
             check(!library.Save(At(left + 1)) && new ShortcutLibrary(shortcutPath).Load().Length == limitEntries.Length,
                 "Next fixture above the UTF8 limit is rejected without damage");
-            var escaped = new[] { new ShortcutEntry("unicode", "中文捷徑", Steps: [new("Open", @"C:\Game.exe", "引號\"及反斜線\\\n字元")]) };
+            var escaped = new[] { new ShortcutEntry("unicode", "中文快捷方式", Steps: [new("Open", @"C:\Game.exe", "引号\"及反斜线\\\n字元")]) };
             check(library.Save(escaped) && new ShortcutLibrary(shortcutPath).Load().Single().Steps![0].Arguments == escaped[0].Steps![0].Arguments,
                 "Multibyte and escaped shortcut content shares save and load representation");
 

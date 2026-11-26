@@ -61,7 +61,7 @@ internal static class ClaudeOnlineChecks
         now += ClaudeOnlineUsage.Interval;
         File.WriteAllText(path, Credentials(now.AddMinutes(-1).ToUnixTimeMilliseconds()));
         var expired = await source.ReadAsync(CancellationToken.None);
-        check(expired.Problem!.Contains("已過期") && requests.Count == 0, "Expired CLI credentials are not sent or refreshed");
+        check(expired.Problem!.Contains("已过期") && requests.Count == 0, "Expired CLI credentials are not sent or refreshed");
 
         now += ClaudeOnlineUsage.Interval;
         File.WriteAllText(path, Credentials(now.AddHours(2).ToUnixTimeMilliseconds()));
@@ -83,11 +83,11 @@ internal static class ClaudeOnlineChecks
             return await source.ReadAsync(CancellationToken.None);
         }
         var rejected = await Next(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("{\"error\":\"" + Token + "\"}") });
-        check(rejected.Problem!.Contains("拒絕") && !rejected.Problem.Contains(Token), "A rejected token is reported without exposing it");
-        check((await Next(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError))).Problem == "伺服器回應 HTTP 500", "Server errors report their status");
-        check((await Next(_ => Json("{\"five_hour\":{\"percent\":3}}"))).Problem!.Contains("格式無法辨識"), "An unrecognised response shape is reported as a possible endpoint change");
-        check((await Next(_ => Json("{\"x\":\"" + new string('a', ClaudeOnlineUsage.MaximumResponseBytes) + "\"}"))).Problem!.Contains("過大"), "Oversized online responses are rejected");
-        check((await Next(_ => throw new HttpRequestException("offline"))).Problem!.Contains("無法連線"), "Network failures report the endpoint as unreachable");
+        check(rejected.Problem!.Contains("拒绝") && !rejected.Problem.Contains(Token), "A rejected token is reported without exposing it");
+        check((await Next(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError))).Problem == "服务器响应 HTTP 500", "Server errors report their status");
+        check((await Next(_ => Json("{\"five_hour\":{\"percent\":3}}"))).Problem!.Contains("格式无法识别"), "An unrecognised response shape is reported as a possible endpoint change");
+        check((await Next(_ => Json("{\"x\":\"" + new string('a', ClaudeOnlineUsage.MaximumResponseBytes) + "\"}"))).Problem!.Contains("过大"), "Oversized online responses are rejected");
+        check((await Next(_ => throw new HttpRequestException("offline"))).Problem!.Contains("无法连接"), "Network failures report the endpoint as unreachable");
     }
 
     private static async Task CheckMerge(Action<bool, string> check, string root)

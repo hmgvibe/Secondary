@@ -30,13 +30,13 @@ public sealed class PairedStore
         try
         {
             var info = new FileInfo(path);
-            if (info.Length > MaxBytes) throw new InvalidDataException("配對檔案過大");
+            if (info.Length > MaxBytes) throw new InvalidDataException("配对文件过大");
             peers = (JsonSerializer.Deserialize<List<PairedPeer>>(File.ReadAllBytes(path), Options) ?? [])
                 .Where(p => p is { Fingerprint.Length: 64, Name.Length: > 0 }).DistinctBy(p => p.Fingerprint).Take(MaxPeers).ToList();
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
-            LoadError = "配對資料無法讀取，已另存並重新開始：" + error.Message;
+            LoadError = "配对数据无法读取，已另存并重新开始：" + error.Message;
             try { File.Move(path, path + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmss") + ".corrupt", true); }
             catch (Exception moveError) when (moveError is IOException or UnauthorizedAccessException) { }
         }
@@ -90,6 +90,6 @@ public sealed class PairedStore
             File.Move(temporary, path, true);
             SaveError = null;
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { SaveError = "配對資料儲存失敗：" + error.Message; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { SaveError = "配对数据保存失败：" + error.Message; }
     }
 }

@@ -39,7 +39,7 @@ internal static class AppChecks
         var home = Path.Combine(root, "home");
         var user = Path.Combine(home, ".local", "share");
         var system = Path.Combine(root, "usr", "share");
-        Desktop(Path.Combine(system, "applications"), "org.gnome.TextEditor.desktop", "Type=Application\nName=Text Editor\nName[zh_TW]=文字編輯器\nComment=Edit text files\nComment[zh_TW]=編輯文字檔案\nExec=gnome-text-editor %U\nIcon=org.gnome.TextEditor");
+        Desktop(Path.Combine(system, "applications"), "org.gnome.TextEditor.desktop", "Type=Application\nName=Text Editor\nName[zh_TW]=文字编辑器\nComment=Edit text files\nComment[zh_TW]=编辑文字文件\nExec=gnome-text-editor %U\nIcon=org.gnome.TextEditor");
         Desktop(Path.Combine(system, "applications"), "firefox.desktop", "Type=Application\nName=Firefox\nExec=firefox %u\nIcon=firefox");
         Desktop(Path.Combine(system, "applications"), "shadowed.desktop", "Type=Application\nName=Shadowed\nExec=shadowed");
         Desktop(Path.Combine(user, "applications"), "shadowed.desktop", "Type=Application\nName=Shadowed\nExec=shadowed\nNoDisplay=true");
@@ -75,11 +75,11 @@ internal static class AppChecks
     {
         var apps = catalog.Load();
         var names = apps.Select(a => a.Name).ToArray();
-        Check(names.Contains("文字編輯器") && names.Contains("Firefox") && names.Contains("Chess") && names.Contains("Notes"), "Installed apps are read from user, system and Flatpak directories: " + string.Join(", ", names));
+        Check(names.Contains("文字编辑器") && names.Contains("Firefox") && names.Contains("Chess") && names.Contains("Notes"), "Installed apps are read from user, system and Flatpak directories: " + string.Join(", ", names));
         Check(!names.Intersect(["Shadowed", "Hidden", "KDE Only", "Not GNOME", "Removed", "Link"]).Any(),
             "A user entry shadows the system one, and hidden, other-desktop, removed and non-application entries are left out");
         Check(apps.Single(a => a.Name == "Chess").Id == "games-chess.desktop", "Desktop IDs of nested launchers join folders with '-'");
-        Check(apps.Single(a => a.Name == "文字編輯器").Comment == "編輯文字檔案", "Names and descriptions prefer Traditional Chinese");
+        Check(apps.Single(a => a.Name == "文字编辑器").Comment == "编辑文字文件", "Names and descriptions prefer Traditional Chinese");
         Check(catalog.DataDirectories().All(d => d.StartsWith('/') || Path.IsPathRooted(d)), "Relative XDG data directories are ignored");
         var svg = catalog.IconPath("org.gnome.TextEditor");
         var png = catalog.IconPath("firefox");
@@ -102,18 +102,18 @@ internal static class AppChecks
         Check(window.AppPickerOpen && picker.Count == 4, "The picker lists the installed apps");
         for (var i = 0; i < 100; i++) { Thread.Sleep(10); Pump(); }
         if (output is not null) window.CaptureRenderedFrame()?.Save(Path.Combine(output, "linux-app-picker.png"), PngBitmapEncoderOptions.Default);
-        picker.Filter("編輯");
-        Check(picker.Visible.Select(a => a.Name).SequenceEqual(["文字編輯器"]), "Search matches Chinese names and descriptions");
+        picker.Filter("编辑");
+        Check(picker.Visible.Select(a => a.Name).SequenceEqual(["文字编辑器"]), "Search matches Chinese names and descriptions");
         picker.Filter("");
         Check(picker.Group == "日常", "The group defaults to the launchpad's current group");
         picker.SetGroup("  工具  ");
         picker.Toggle("org.gnome.TextEditor.desktop", true); picker.Toggle("firefox.desktop", true); Pump();
-        Check(window.FindControl<Button>("AddAppsButton")!.IsEnabled && (window.FindControl<TextBlock>("AppPickerStatus")!.Text ?? "").Contains("已選 2 個", StringComparison.Ordinal), "Selecting apps enables adding them");
+        Check(window.FindControl<Button>("AddAppsButton")!.IsEnabled && (window.FindControl<TextBlock>("AppPickerStatus")!.Text ?? "").Contains("已选 2 个", StringComparison.Ordinal), "Selecting apps enables adding them");
         window.CloseAppPicker(true); Pump();
         for (var i = 0; i < 200 && !pick.IsCompleted; i++) { Thread.Sleep(10); Pump(); }
         var addedNames = window.Launchpad.Entries.Select(e => e.Name).ToHashSet();
         Check(window.Launchpad.Entries.All(e => e.Group == "工具"), "Every app chosen together goes into the group set in the picker");
-        Check(addedNames.SetEquals(["Firefox", "文字編輯器"]) && window.Launchpad.Entries.All(e => e.Steps![0].Target.EndsWith(".desktop", StringComparison.Ordinal)),
+        Check(addedNames.SetEquals(["Firefox", "文字编辑器"]) && window.Launchpad.Entries.All(e => e.Steps![0].Target.EndsWith(".desktop", StringComparison.Ordinal)),
             "Chosen apps become launcher shortcuts without running them (" + string.Join(", ", addedNames) + "; " + window.Launchpad.ExecutionStatus + ")");
         for (var i = 0; i < 200 && !window.Launchpad.Tiles.All(t => t.GetVisualDescendantsOfType<Image>().Any()); i++) { Thread.Sleep(10); Pump(); }
         Check(window.Launchpad.Tiles.All(t => t.GetVisualDescendantsOfType<Image>().Any()), "Launcher tiles show the app's own icon");

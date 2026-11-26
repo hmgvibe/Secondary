@@ -50,7 +50,7 @@ public sealed class HelperServer(ConnectionIdentity identity, PairedStore device
     public string? ActiveAddress { get { lock (gate) return active?.Address; } }
     public string? PairingCode { get { lock (gate) return PairingOpen ? pairingCode : null; } }
     public DateTimeOffset PairingExpires { get { lock (gate) return pairingExpires; } }
-    public string PairingStatus { get; private set; } = "未開始配對";
+    public string PairingStatus { get; private set; } = "未开始配对";
     private bool PairingOpen => pairingCode is not null && clock() < pairingExpires;
     // Messages after the handshake, for later stages; the session's fingerprint identifies the device.
     public Func<string, JsonObject, FrameChannel, CancellationToken, Task>? MessageHandler { get; set; }
@@ -65,7 +65,7 @@ public sealed class HelperServer(ConnectionIdentity identity, PairedStore device
             discovery = new UdpClient(new IPEndPoint(bind ?? IPAddress.Any, discoveryPort)) { EnableBroadcast = true };
             answering = Answer(discovery, stopping.Token);
         }
-        catch (SocketException error) { DiscoveryError = "無法接收搜尋：" + error.Message + "；設備仍可手動輸入 IP。"; }
+        catch (SocketException error) { DiscoveryError = "无法接收搜索：" + error.Message + "；设备仍可手动输入 IP。"; }
         accepting = Accept(listener, stopping.Token);
     }
 
@@ -77,11 +77,11 @@ public sealed class HelperServer(ConnectionIdentity identity, PairedStore device
             pairingExpires = clock() + (duration ?? TimeSpan.FromMinutes(2));
             pairingFailures = 0;
         }
-        PairingStatus = "等待設備輸入配對碼";
+        PairingStatus = "等待设备输入配对码";
         Changed?.Invoke();
         return pairingCode;
     }
-    public void StopPairing(string status = "已關閉配對")
+    public void StopPairing(string status = "已关闭配对")
     {
         lock (gate) pairingCode = null;
         PairingStatus = status;
@@ -156,14 +156,14 @@ public sealed class HelperServer(ConnectionIdentity identity, PairedStore device
             if (TypeOf(hello) != "hello") return;
             if (Number(hello, "protocol") != ProtocolVersion)
             {
-                await Refuse(channel, "version", $"版本不相容：連接助手使用協定 {ProtocolVersion}，設備使用 {Number(hello, "protocol")}。請把兩邊更新到同一版本。", token).ConfigureAwait(false);
+                await Refuse(channel, "version", $"版本不相容：连接助手使用协定 {ProtocolVersion}，设备使用 {Number(hello, "protocol")}。请把两边更新到同一版本。", token).ConfigureAwait(false);
                 return;
             }
             var deviceName = Clean(Text(hello, "name"));
             if (Text(hello, "intent") == "pair") { await Pair(channel, device, deviceName, token).ConfigureAwait(false); return; }
             if (devices.Find(device) is not { } paired)
             {
-                await Refuse(channel, "not-paired", "這臺設備尚未與主電腦配對，或配對已被移除。", token).ConfigureAwait(false);
+                await Refuse(channel, "not-paired", "这台设备尚未与主机配对，或配对已被移除。", token).ConfigureAwait(false);
                 return;
             }
             Session? session = null, replaced = null;
@@ -173,7 +173,7 @@ public sealed class HelperServer(ConnectionIdentity identity, PairedStore device
             }
             if (session is null)
             {
-                await Refuse(channel, "busy", "主電腦正與「" + ActiveDevice + "」連線；同一時間只允許一臺設備。", token).ConfigureAwait(false);
+                await Refuse(channel, "busy", "主机正与「" + ActiveDevice + "」连接；同一时间只允许一台设备。", token).ConfigureAwait(false);
                 return;
             }
             // The same device reconnecting replaces its own stale session.
@@ -240,15 +240,15 @@ public sealed class HelperServer(ConnectionIdentity identity, PairedStore device
         }
         if (code is null)
         {
-            var (reason, text) = pairingBusy ? ("busy", "另一臺設備正在配對，請稍候再試。")
-                : pairingCode is null ? ("pairing-closed", "主電腦尚未開始配對：請在連接助手的系統匣選單按「開始配對」。")
-                : ("pairing-expired", "配對碼已過期：請在主電腦重新開始配對。");
+            var (reason, text) = pairingBusy ? ("busy", "另一台设备正在配对，请稍候再试。")
+                : pairingCode is null ? ("pairing-closed", "主机尚未开始配对：请在连接助手的系统托盘菜单按「开始配对」。")
+                : ("pairing-expired", "配对码已过期：请在主机重新开始配对。");
             await Refuse(channel, reason, text, token).ConfigureAwait(false);
             return;
         }
         try
         {
-            PairingStatus = "「" + deviceName + "」正在配對";
+            PairingStatus = "「" + deviceName + "」正在配对";
             Changed?.Invoke();
             await channel.SendAsync(Message("pair-start", ("name", name)), token).ConfigureAwait(false);
             var matched = await Pairing.RunAsync(channel, false, int.Parse(code, System.Globalization.CultureInfo.InvariantCulture), identity.Fingerprint, device, token).ConfigureAwait(false);
@@ -257,12 +257,12 @@ public sealed class HelperServer(ConnectionIdentity identity, PairedStore device
             {
                 if (!devices.Save(new PairedPeer(device, deviceName, clock())))
                 {
-                    await Refuse(channel, "full", $"已配對 {PairedStore.MaxPeers} 臺設備；請先在連接助手移除不用的設備。", token).ConfigureAwait(false);
-                    StopPairing("已達配對上限");
+                    await Refuse(channel, "full", $"已配对 {PairedStore.MaxPeers} 台设备；请先在连接助手移除不用的设备。", token).ConfigureAwait(false);
+                    StopPairing("已达配对上限");
                     return;
                 }
                 await channel.SendAsync(Message("pair-ok", ("name", name)), token).ConfigureAwait(false);
-                StopPairing("已配對「" + deviceName + "」");
+                StopPairing("已配对「" + deviceName + "」");
                 return;
             }
             Failed();
@@ -274,8 +274,8 @@ public sealed class HelperServer(ConnectionIdentity identity, PairedStore device
     {
         int failures;
         lock (gate) failures = ++pairingFailures;
-        if (failures >= MaxPairingFailures) StopPairing("配對碼錯誤 3 次，已作廢；需要時請重新開始配對");
-        else { PairingStatus = $"配對碼不符（剩 {MaxPairingFailures - failures} 次）"; Changed?.Invoke(); }
+        if (failures >= MaxPairingFailures) StopPairing("配对码错误 3 次，已作废；需要时请重新开始配对");
+        else { PairingStatus = $"配对码不符（剩 {MaxPairingFailures - failures} 次）"; Changed?.Invoke(); }
     }
 
     private static async Task Refuse(FrameChannel channel, string code, string message, CancellationToken token)
@@ -286,7 +286,7 @@ public sealed class HelperServer(ConnectionIdentity identity, PairedStore device
     internal static string Clean(string? text)
     {
         var name = new string((text ?? "").Where(c => !char.IsControl(c)).ToArray()).Trim();
-        return name.Length == 0 ? "未命名設備" : name.Length > 60 ? name[..60] : name;
+        return name.Length == 0 ? "未命名设备" : name.Length > 60 ? name[..60] : name;
     }
 
     private int disposed;

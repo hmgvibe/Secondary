@@ -43,8 +43,8 @@ public sealed partial class UtilityWidget : Border, IDisposable
     public string StatusText => status.Text ?? "";
     public string ReadoutText => readout.Text ?? "";
     public event Func<HomeWidgetSettings, bool>? SaveRequested;
-    public static string Title(string kind) => kind switch { "Calendar" => "日曆", "Note" => "便箋", "Countdown" => "倒數計時", "Stopwatch" => "碼錶", "Todo" => "待辦清單", "Counter" => "計數器", "TimeProgress" => "時間進度", "Media" => "媒體", "Weather" => "天氣", "EventCountdown" => "倒數日", "AiUsage" => "AI 用量", _ => kind };
-    public static string Description(string kind) => kind switch { "Calendar" => "查看日期與月份", "Note" => "隨手記下想法 · 本機儲存", "Countdown" => "設定專注時間 · 1–1440 分鐘", "Todo" => "新增、勾選完成 · 最多 20 項", "Counter" => "加減計數 · 自動儲存", "TimeProgress" => "今日、本週、今年的時間進度", "Media" => "目前播放內容與控制", "Weather" => "輸入城市查看即時天氣", "EventCountdown" => "自訂紀念日或目標日期", "AiUsage" => "Claude 與 Codex 的五小時、每週額度", _ => "記錄經過時間 · 隨時暫停" };
+    public static string Title(string kind) => kind switch { "Calendar" => "日历", "Note" => "便签", "Countdown" => "倒数计时", "Stopwatch" => "码表", "Todo" => "待办清单", "Counter" => "计数器", "TimeProgress" => "时间进度", "Media" => "媒体", "Weather" => "天气", "EventCountdown" => "倒数日", "AiUsage" => "AI 用量", _ => kind };
+    public static string Description(string kind) => kind switch { "Calendar" => "查看日期与月份", "Note" => "随手记下想法 · 本机保存", "Countdown" => "设置专注时间 · 1–1440 分钟", "Todo" => "添加、勾选完成 · 最多 20 项", "Counter" => "加减计数 · 自动保存", "TimeProgress" => "今日、本周、今年的时间进度", "Media" => "目前播放内容与控制", "Weather" => "输入城市查看即时天气", "EventCountdown" => "自订纪念日或目标日期", "AiUsage" => "Claude 与 Codex 的五小时、每周额度", _ => "记录经过时间 · 随时暂停" };
 
     public UtilityWidget(HomeWidgetSettings settings) : this(settings, WeatherDataService.Shared, Platform.MprisMediaSource.Shared) { }
     internal UtilityWidget(HomeWidgetSettings settings, AiUsageService usageSource) : this(settings, WeatherDataService.Shared, Platform.MprisMediaSource.Shared, usageSource) { }
@@ -98,61 +98,61 @@ public sealed partial class UtilityWidget : Border, IDisposable
     {
         note = new TextBox { Text = Settings.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 144, MaxLength = 4000 };
         contentScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
-        status.Text = "僅儲存於此電腦";
-        AutomationProperties.SetName(note, "便箋內容");
+        status.Text = "仅保存于此电脑";
+        AutomationProperties.SetName(note, "便签内容");
         body.Children.Add(note);
-        body.Children.Add(ActionButton("儲存便箋", () => SaveNote()));
+        body.Children.Add(ActionButton("保存便签", () => SaveNote()));
         body.Children.Add(status);
-        note.TextChanged += (_, _) => status.Text = "尚未儲存";
+        note.TextChanged += (_, _) => status.Text = "尚未保存";
         note.AddHandler(KeyDownEvent, (_, e) => { if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control)) { SaveNote(); e.Handled = true; } }, RoutingStrategies.Tunnel);
     }
     public bool SaveNote()
     {
         if (note is null) return true;
         var next = Settings with { Text = note.Text ?? "" };
-        if (SaveRequested?.Invoke(next) != true) { status.Text = "儲存失敗，內容仍保留，請重試。"; return false; }
-        Settings = next; status.Text = "已儲存"; return true;
+        if (SaveRequested?.Invoke(next) != true) { status.Text = "保存失败，内容仍保留，请重试。"; return false; }
+        Settings = next; status.Text = "已保存"; return true;
     }
 
     private void RenderTimer()
     {
-        var eyebrow = new TextBlock { Text = Settings.Kind == "Countdown" ? "專注當下" : "記錄每一刻", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+        var eyebrow = new TextBlock { Text = Settings.Kind == "Countdown" ? "专注当下" : "记录每一刻", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
         Muted(eyebrow); body.Children.Add(eyebrow);
         body.Children.Add(numberHost);
         if (Settings.Kind == "Countdown")
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-            row.Children.Add(new TextBlock { Text = "分鐘", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+            row.Children.Add(new TextBlock { Text = "分钟", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
             minutes = new TextBox { Text = Settings.Minutes.ToString(CultureInfo.InvariantCulture), Width = 80, MaxLength = 4, TextAlignment = TextAlignment.Center, MinHeight = 36 };
-            AutomationProperties.SetName(minutes, "倒數分鐘，1 至 1440");
+            AutomationProperties.SetName(minutes, "倒数分钟，1 至 1440");
             row.Children.Add(minutes); body.Children.Add(row);
         }
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
-        toggle = ActionButton("開始", Toggle); actions.Children.Add(toggle);
+        toggle = ActionButton("开始", Toggle); actions.Children.Add(toggle);
         toggle.Bind(TemplatedControl.BackgroundProperty, toggle.GetResourceObservable("SelectedBrush"));
-        actions.Children.Add(ActionButton("重設", () => { elapsed.Reset(); toggle.Content = "開始"; if (minutes is not null) minutes.IsEnabled = true; UpdateTime(); }));
+        actions.Children.Add(ActionButton("重设", () => { elapsed.Reset(); toggle.Content = "开始"; if (minutes is not null) minutes.IsEnabled = true; UpdateTime(); }));
         body.Children.Add(actions); body.Children.Add(status);
         UpdateTime();
     }
     public void Toggle()
     {
-        if (elapsed.IsRunning) { elapsed.Stop(); toggle!.Content = "繼續"; UpdateTime(); return; }
+        if (elapsed.IsRunning) { elapsed.Stop(); toggle!.Content = "继续"; UpdateTime(); return; }
         if (Settings.Kind == "Countdown" && elapsed.Elapsed == TimeSpan.Zero)
         {
-            if (!int.TryParse(minutes!.Text, out var duration) || duration is < 1 or > 1440) { status.Text = "請輸入 1–1440 分鐘。"; return; }
+            if (!int.TryParse(minutes!.Text, out var duration) || duration is < 1 or > 1440) { status.Text = "请输入 1–1440 分钟。"; return; }
             var next = Settings with { Minutes = duration };
-            if (SaveRequested?.Invoke(next) != true) { status.Text = "無法儲存時間，請重試。"; return; }
+            if (SaveRequested?.Invoke(next) != true) { status.Text = "无法保存时间，请重试。"; return; }
             Settings = next; minutes.IsEnabled = false;
         }
         if (Settings.Kind == "Countdown" && elapsed.Elapsed.TotalMinutes >= Settings.Minutes) elapsed.Reset();
-        elapsed.Start(); toggle!.Content = "暫停"; UpdateTime();
+        elapsed.Start(); toggle!.Content = "暂停"; UpdateTime();
     }
     private void UpdateTime()
     {
         var remaining = Settings.Kind == "Countdown" ? TimeSpan.FromMinutes(Settings.Minutes) - elapsed.Elapsed : elapsed.Elapsed;
-        if (remaining < TimeSpan.Zero) { remaining = TimeSpan.Zero; elapsed.Stop(); toggle!.Content = "重新開始"; }
+        if (remaining < TimeSpan.Zero) { remaining = TimeSpan.Zero; elapsed.Stop(); toggle!.Content = "重新开始"; }
         readout.Text = $"{(int)remaining.TotalHours:00}:{remaining.Minutes:00}:{remaining.Seconds:00}";
-        status.Text = Settings.Kind == "Countdown" && remaining == TimeSpan.Zero ? "時間到！" : "切頁繼續計時；關閉程式後重設。";
+        status.Text = Settings.Kind == "Countdown" && remaining == TimeSpan.Zero ? "时间到！" : "切页继续计时；关闭程序后重设。";
     }
 
     private void OnTick(object? sender, EventArgs e)
@@ -182,8 +182,8 @@ public sealed partial class UtilityWidget : Border, IDisposable
         var header = new DockPanel();
         var previous = ActionButton("‹", () => { if (month.Year > 1 || month.Month > 1) { month = month.AddMonths(-1); UpdateCalendar(); } });
         var next = ActionButton("›", () => { if (month.Year < 9999 || month.Month < 12) { month = month.AddMonths(1); UpdateCalendar(); } });
-        AutomationProperties.SetName(previous, "上一個月");
-        AutomationProperties.SetName(next, "下一個月");
+        AutomationProperties.SetName(previous, "上一个月");
+        AutomationProperties.SetName(next, "下一个月");
         foreach (var button in new[] { previous, next }) { button.Width = 36; button.MinWidth = 36; button.Padding = new Thickness(0); button.Margin = new Thickness(0); button.FontSize = 20; button.Background = Brushes.Transparent; button.HorizontalContentAlignment = HorizontalAlignment.Center; }
         DockPanel.SetDock(next, Dock.Right); header.Children.Add(next); DockPanel.SetDock(previous, Dock.Left); header.Children.Add(previous);
         calendarHeading = new TextBlock { FontSize = 17, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };

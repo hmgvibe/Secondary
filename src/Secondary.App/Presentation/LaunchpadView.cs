@@ -41,26 +41,26 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
     public string ExecutionStatus => status.Text;
     public Task ExecutionCompletion { get; private set; } = Task.CompletedTask;
     internal void PrepareMeasurementEntries() => Save(Enumerable.Range(1, 200).Select(i =>
-        new ShortcutEntry("measure-" + i, "量測入口 " + i, "量測分組 " + i % 8, Steps: [new("Open", "https://example.invalid/" + i)])).ToArray());
+        new ShortcutEntry("measure-" + i, "量测入口 " + i, "量测分组 " + i % 8, Steps: [new("Open", "https://example.invalid/" + i)])).ToArray());
     public LaunchpadView(string path)
     {
         library = new(path); entries = library.Load(); runner = new(executor);
         EditDialog = (entry,mainName,main,canChoose) => ShortcutDialogs.Edit(Owner,entry,mainName,main,canChoose);
         InitializeTransfer();
         Children.Add(new TextBlock { Text = "YOUR LAUNCHPAD", FontSize = 11 });
-        Children.Add(new TextBlock { Text = "快捷導航", FontSize = 34, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,6,0,8) });
-        Children.Add(new TextBlock { Text = "拖入桌面快捷方式、檔案或資料夾即可新增；拖動現有捷徑可排序。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,20) });
+        Children.Add(new TextBlock { Text = "快捷导航", FontSize = 34, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,6,0,8) });
+        Children.Add(new TextBlock { Text = "拖入桌面快捷方式、文件或文件夹即可添加；拖动现有快捷方式可排序。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,20) });
         var toolbar = new WrapPanel(); toolbar.Children.Add(groups);
-        System.Windows.Automation.AutomationProperties.SetName(groups,"快捷方式分組");
+        System.Windows.Automation.AutomationProperties.SetName(groups,"快捷方式分组");
         layoutToggle = ShortcutDialogs.Button("",ToggleGroupLayout);
         layoutToggle.Margin = new Thickness(0,0,8,8);
-        System.Windows.Automation.AutomationProperties.SetName(layoutToggle,"切換分組排列方向");
+        System.Windows.Automation.AutomationProperties.SetName(layoutToggle,"切换分组排列方向");
         toolbar.Children.Add(layoutToggle);
-        toolbar.Children.Add(ShortcutDialogs.Button("＋ 新增",Add));
-        toolbar.Children.Add(ShortcutDialogs.Button("名稱排序",() => Save(entries.OrderBy(e => e.Name,StringComparer.CurrentCultureIgnoreCase).ToArray())));
-        toolbar.Children.Add(ShortcutDialogs.Button("匯出設定",Export));
-        toolbar.Children.Add(ShortcutDialogs.Button("匯入設定",Import));
-        cancel = ShortcutDialogs.Button("取消執行",Cancel); cancel.IsEnabled = false;
+        toolbar.Children.Add(ShortcutDialogs.Button("＋ 添加",Add));
+        toolbar.Children.Add(ShortcutDialogs.Button("名称排序",() => Save(entries.OrderBy(e => e.Name,StringComparer.CurrentCultureIgnoreCase).ToArray())));
+        toolbar.Children.Add(ShortcutDialogs.Button("导出设置",Export));
+        toolbar.Children.Add(ShortcutDialogs.Button("导入设置",Import));
+        cancel = ShortcutDialogs.Button("取消执行",Cancel); cancel.IsEnabled = false;
         toolbar.Children.Add(cancel); Children.Add(toolbar);
         groupViewport.Content = groupSections; Children.Add(groupViewport); Children.Add(status);
         Loaded += (_, _) => AttachViewport();
@@ -71,19 +71,19 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         groups.SelectionChanged += (_, _) => { if (!filtering) RenderTiles(); };
         Background = Brushes.Transparent;
         AllowDrop = true; Drop += OnDrop; DragOver += (_, e) => HandleExternalDrag(e,false);
-        Refresh(); status.Text = library.Error ?? "尚未執行任何捷徑。首次使用請按「＋ 新增」，也可拖入檔案或網址。";
+        Refresh(); status.Text = library.Error ?? "尚未执行任何快捷方式。首次使用请按「＋ 添加」，也可拖入文件或网址。";
     }
     private Window Owner => Window.GetWindow(this);
     private bool Save(ShortcutEntry[] next)
     {
-        if (!library.Save(next)) { status.Text = "儲存失敗：" + library.Error; return false; }
-        entries = next; Refresh(); status.Text = "已儲存；沒有執行任何操作。"; return true;
+        if (!library.Save(next)) { status.Text = "保存失败：" + library.Error; return false; }
+        entries = next; Refresh(); status.Text = "已保存；没有执行任何操作。"; return true;
     }
     private void ToggleGroupLayout()
     {
         var next = library.GroupLayout == "Vertical" ? "Horizontal" : "Vertical";
-        if (!library.SetGroupLayout(entries,next)) { status.Text = "排列方式儲存失敗：" + library.Error; return; }
-        RenderTiles(); status.Text = "分組排列已切換並儲存。";
+        if (!library.SetGroupLayout(entries,next)) { status.Text = "排列方式保存失败：" + library.Error; return; }
+        RenderTiles(); status.Text = "分组排列已切换并保存。";
     }
     private void Refresh()
     {
@@ -104,7 +104,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         groupSections.Children.Clear();
         horizontalTilePanels.Clear();
         var horizontal = library.GroupLayout == "Horizontal";
-        layoutToggle.Content = horizontal ? "分組：橫向  ↔" : "分組：縱向  ↕";
+        layoutToggle.Content = horizontal ? "分组：横向  ↔" : "分组：纵向  ↕";
         groupSections.Orientation = horizontal ? Orientation.Horizontal : Orientation.Vertical;
         groupViewport.HorizontalScrollBarVisibility = horizontal ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
         // Main-computer and pending shortcuts share the groups, marked on their tiles.
@@ -117,7 +117,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
             var section = new StackPanel { MinWidth = horizontal ? 200 : 0,
                 Margin = horizontal ? new Thickness(0,0,20,0) : new Thickness(0,4,0,18), AllowDrop = true };
             var heading = new DockPanel { Margin = new Thickness(0,0,horizontal ? 0 : 12,12) };
-            var count = new TextBlock { Text = group.Count() + " 個", FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+            var count = new TextBlock { Text = group.Count() + " 个", FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
             count.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");
             DockPanel.SetDock(count,Dock.Right); heading.Children.Add(count);
             var name = new TextBlock { Text = group.Key, FontSize = 18, FontWeight = FontWeights.SemiBold,
@@ -139,7 +139,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
             };
             groupSections.Children.Add(section);
         }
-        if (groupSections.Children.Count == 0) groupSections.Children.Add(new TextBlock { Text = entries.Length == 0 && library.Pending.Length == 0 && RemoteGroups.Length == 0 ? "還沒有快捷方式\n新增常用程式、資料夾、網站，或建立自己的步驟式巨集。" : "沒有符合條件的快捷方式", TextWrapping = TextWrapping.Wrap, MaxWidth = 320, Margin = new Thickness(8,24,8,24) });
+        if (groupSections.Children.Count == 0) groupSections.Children.Add(new TextBlock { Text = entries.Length == 0 && library.Pending.Length == 0 && RemoteGroups.Length == 0 ? "还没有快捷方式\n添加常用程序、文件夹、网站，或建立自己的步骤式巨集。" : "没有符合条件的快捷方式", TextWrapping = TextWrapping.Wrap, MaxWidth = 320, Margin = new Thickness(8,24,8,24) });
         Dispatcher.BeginInvoke(UpdateHorizontalExtent,DispatcherPriority.Loaded);
     }
     private void AttachViewport()
@@ -207,11 +207,11 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         tile.Drop += (_, e) => { if (e.Data.GetData("Secondary.ShortcutId") is string id) { Save(ShortcutPolicy.MoveToGroup(entries,id,entry.Group,entry.Id)); e.Handled = true; } };
         var menu = new ContextMenu();
         foreach (var (label,action) in new (string,Action)[] {
-            ("編輯",() => Edit(entry)),
-            ("複製",() => Edit(entry with { Id = Guid.NewGuid().ToString("N"), Name = entry.Name + " 副本" })),
-            ("往前移",() => MoveBy(entry,-1)),("往後移",() => MoveBy(entry,1)),
-            ("下次執行重新確認",() => Save(entries.Select(e => e.Id == entry.Id ? e with { ApprovedFingerprint = null } : e).ToArray())),
-            ("刪除",() => { if (ShortcutDialogs.Confirm(Owner,"刪除快捷方式",$"刪除「{entry.Name}」？不會刪除原始檔案。","刪除")) Save(entries.Where(e => e.Id != entry.Id).ToArray()); }) })
+            ("编辑",() => Edit(entry)),
+            ("复制",() => Edit(entry with { Id = Guid.NewGuid().ToString("N"), Name = entry.Name + " 副本" })),
+            ("往前移",() => MoveBy(entry,-1)),("往后移",() => MoveBy(entry,1)),
+            ("下次执行重新确认",() => Save(entries.Select(e => e.Id == entry.Id ? e with { ApprovedFingerprint = null } : e).ToArray())),
+            ("删除",() => { if (ShortcutDialogs.Confirm(Owner,"删除快捷方式",$"删除「{entry.Name}」？不会删除原始文件。","删除")) Save(entries.Where(e => e.Id != entry.Id).ToArray()); }) })
         { var item = new MenuItem { Header = label }; item.Click += (_, _) => action(); menu.Items.Add(item); }
         tile.ContextMenu = menu; return tile;
     }
@@ -235,7 +235,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         else if (entries.Any(e => e.Id == changed.Entry.Id)) _ = MoveToMainAsync(changed.Entry,() => Save(entries.Where(e => e.Id != changed.Entry.Id).ToArray()));
         else _ = SaveRemoteAsync(changed.Entry);
     }
-    private string? MainName => remote is { State: Secondary.Shared.Connection.LinkState.Connected } link ? link.ConnectedName ?? "主電腦" : null;
+    private string? MainName => remote is { State: Secondary.Shared.Connection.LinkState.Connected } link ? link.ConnectedName ?? "主机" : null;
     private void SaveLocal(ShortcutEntry changed) =>
         Save(entries.Any(e => e.Id == changed.Id) ? entries.Select(e => e.Id == changed.Id ? changed : e).ToArray() : entries.Append(changed).ToArray());
     // While connected, a new shortcut is stored and run either here or on the main computer, chosen in the editor.
@@ -274,7 +274,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
     public int ImportFiles(string[] files)
     {
         if (library.ReadOnly) { status.Text = library.Error; return 0; }
-        if (files.Length > 20) { status.Text = "一次最多拖入 20 個項目，這次未新增。"; return 0; }
+        if (files.Length > 20) { status.Text = "一次最多拖入 20 个项目，这次未添加。"; return 0; }
         var candidates = new System.Collections.Generic.List<ShortcutEntry>(); var skipped = 0;
         foreach (var path in files)
             try { candidates.Add(ShortcutImport.FromPath(path,SelectedGroup)); }
@@ -292,7 +292,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
             next.Add(entry); added++;
         }
         if (added > 0 && !Save(next.ToArray())) return 0;
-                status.Text = $"已新增 {added} 個；略過 {skipped} 個（重複、不存在、不支援或已達上限）。沒有啟動任何目標；可右鍵編輯。";
+                status.Text = $"已添加 {added} 个；略过 {skipped} 个（重复、不存在、不支持或已达上限）。没有启动任何目标；可右键编辑。";
         return added;
     }
     private bool MatchesCurrentExecution(ShortcutEntry snapshot, out ShortcutEntry current)
@@ -300,7 +300,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
         current = entries.FirstOrDefault(e => e.Id == snapshot.Id)!;
         if (current is not null && current.ApprovedFingerprint == snapshot.ApprovedFingerprint &&
             current.Steps is not null && snapshot.Steps is not null && current.Steps.SequenceEqual(snapshot.Steps)) return true;
-        status.Text = "快捷方式已變更或移除，這次未執行；請重新點選並確認。";
+        status.Text = "快捷方式已变更或移除，这次未执行；请重新点选并确认。";
         return false;
     }
     private async Task SetExecutionStatus(CancellationTokenSource owner, string text)
@@ -317,14 +317,14 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
     }
     private async Task Launch(ShortcutEntry entry)
     {
-        if (disposed || execution is not null || !CanRun()) { status.Text = "目前不能執行；請先取消正在進行的巨集或退出遊戲模式。"; return; }
+        if (disposed || execution is not null || !CanRun()) { status.Text = "目前不能执行；请先取消正在进行的巨集或退出游戏模式。"; return; }
         // A tile may outlive an edit made elsewhere. Resolve its current entry
         // before review and copy the immutable steps for this launch attempt.
         var currentEntry = entries.FirstOrDefault(e => e.Id == entry.Id);
-        if (currentEntry is null) { status.Text = "快捷方式已移除，這次未執行。"; return; }
+        if (currentEntry is null) { status.Text = "快捷方式已移除，这次未执行。"; return; }
         entry = currentEntry with { Steps = currentEntry.Steps?.ToArray() };
         using var cancellation = new CancellationTokenSource(); execution = cancellation; cancel.IsEnabled = true; reviewing = true;
-        status.Text = "正在讀取執行內容；可按「取消執行」停止。";
+        status.Text = "正在读取执行内容；可按「取消执行」停止。";
         try
         {
             var review = await Task.Run(() =>
@@ -343,7 +343,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
                 if (disposed || !CanRun() || !MatchesCurrentExecution(entry, out var current)) return null;
                 if (!review.Approved)
                 {
-                    if (!ShortcutDialogs.Confirm(Owner,"首次執行 · " + current.Name,"請確認以下目標與步驟，只執行你信任的內容。確認後會記住選擇；執行步驟或腳本內容變更時才會再次詢問。\n\n" + review.Details,"確認並執行")) return null;
+                    if (!ShortcutDialogs.Confirm(Owner,"首次执行 · " + current.Name,"请确认以下目标与步骤，只执行你信任的内容。确认后会记住选择；执行步骤或脚本内容变更时才会再次询问。\n\n" + review.Details,"确认并执行")) return null;
                     cancellation.Token.ThrowIfCancellationRequested();
                     if (disposed || !CanRun() || !MatchesCurrentExecution(entry, out current)) return null;
                     var approved = current with { ApprovedFingerprint = review.Fingerprint };
@@ -363,17 +363,17 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
                     cancellation.Token.ThrowIfCancellationRequested();
                     if (disposed || !CanRun()) throw new OperationCanceledException(cancellation.Token);
                     if (!disposed && ReferenceEquals(execution, cancellation))
-                        status.Text = $"執行 {approvedEntry.Name} · 步驟 {i}/{approvedEntry.Steps!.Length}";
+                        status.Text = $"执行 {approvedEntry.Name} · 步骤 {i}/{approvedEntry.Steps!.Length}";
                 }, DispatcherPriority.Normal, cancellation.Token);
             }, cancellation.Token), cancellation.Token).ConfigureAwait(false);
             cancellation.Token.ThrowIfCancellationRequested();
             await SetExecutionStatus(cancellation, "已完成：" + approvedEntry.Name).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) { await SetExecutionStatus(cancellation, "已取消；不會關閉已開啟的程式，也不能撤銷已完成的操作。").ConfigureAwait(false); }
+        catch (OperationCanceledException) { await SetExecutionStatus(cancellation, "已取消；不会关闭已开启的程序，也不能撤销已完成的操作。").ConfigureAwait(false); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException)
         {
             AppDiagnostics.Write("shortcut-execution", e);
-            await SetExecutionStatus(cancellation, "執行停止：" + e.Message).ConfigureAwait(false);
+            await SetExecutionStatus(cancellation, "执行停止：" + e.Message).ConfigureAwait(false);
         }
         finally
         {

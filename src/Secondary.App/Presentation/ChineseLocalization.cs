@@ -35,7 +35,7 @@ public static class ChineseLocalization
     private static readonly string[] CjkFontMarkers =
     {
         "Microsoft JhengHei", "Microsoft YaHei", "Segoe UI Variable", "SimSun", "SimHei",
-        "DengXian", "Noto Sans CJK", "Noto Sans SC", "Noto Sans TC", "微軟正黑體", "微软雅黑"
+        "DengXian", "Noto Sans CJK", "Noto Sans SC", "Noto Sans TC", "微软正黑体", "微软雅黑"
     };
 
     public static void Apply(DependencyObject root)
@@ -100,7 +100,7 @@ public static class ChineseLocalization
             source = ChineseLocale.Original(current);
             SetSourceText(element, source);
         }
-        var target = ChineseLocale.Convert(source);
+        var target = (source);
         if (!string.Equals(current, target, StringComparison.Ordinal)) element.SetValue(property, target);
     }
 

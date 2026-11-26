@@ -40,11 +40,11 @@ internal static class ConnectionUiChecks
                 new("NVIDIA GeForce RTX 4060 / " + metric, "LibreHardwareMonitor 0.9.6", identity, now, value, unit, ReadingState.Available);
             return new(new SystemSample(37, 16UL << 30, 8UL << 30, 2048, 1024, null, "", "", "", now,
                     CpuState: TelemetrySourceState.Available, MemoryState: TelemetrySourceState.Available, NetworkState: TelemetrySourceState.Available),
-                55, "GPU 引擎 / 持續更新",
+                55, "GPU 引擎 / 持续更新",
                 new SensorSnapshot(1, [Gpu("GPU Core", "/gpu-nvidia/0/load/0", 64, "%"), Gpu("GPU Core", "/gpu-nvidia/0/temperature/0", 61, "°C"),
                     Gpu("GPU Memory Used", "/gpu-nvidia/0/smalldata/1", 4096, "MB"), Gpu("GPU Memory Total", "/gpu-nvidia/0/smalldata/2", 8192, "MB")]),
-                "硬體助手 / 持續採樣", new FrameStatistics("0x1A2B", 600, 120, 90, 8.33, false), "PresentMon / 目前活動交換鏈", false,
-                "整機採樣 / 持續更新", TelemetrySourceState.Available, TelemetrySourceState.Available, TelemetrySourceState.Available, TelemetrySourceState.Available,
+                "硬件助手 / 持续采样", new FrameStatistics("0x1A2B", 600, 120, 90, 8.33, false), "PresentMon / 目前活动交换链", false,
+                "整机采样 / 持续更新", TelemetrySourceState.Available, TelemetrySourceState.Available, TelemetrySourceState.Available, TelemetrySourceState.Available,
                 CpuState: TelemetrySourceState.Available, MemoryState: TelemetrySourceState.Available, NetworkState: TelemetrySourceState.Available);
         }
         public async Task RunAsync(CancellationToken token)
@@ -60,7 +60,7 @@ internal static class ConnectionUiChecks
         public IDisposable Subscribe(Action changed) => new Nothing();
         private sealed class Nothing : IDisposable { public void Dispose() { } }
         public Task<(RemoteMedia? Media, string Status)> ReadAsync(CancellationToken token) =>
-            Task.FromResult<(RemoteMedia?, string)>((new RemoteMedia("Spotify.exe", "Clair de Lune", "Debussy", Playing, true, true, true, 42, 300, "cover-1"), Playing ? "播放中" : "已暫停"));
+            Task.FromResult<(RemoteMedia?, string)>((new RemoteMedia("Spotify.exe", "Clair de Lune", "Debussy", Playing, true, true, true, 42, 300, "cover-1"), Playing ? "播放中" : "已暂停"));
         public Task<bool> ControlAsync(string command, CancellationToken token) { LastCommand = command; Playing = !Playing; return Task.FromResult(true); }
         public Task<byte[]?> ArtworkAsync(string key, CancellationToken token)
         {
@@ -113,8 +113,8 @@ internal static class ConnectionUiChecks
 
     private static void Exercise(MainWindow window, Action<bool, string> check, string? output, string root)
     {
-        window.AttachConnection(null, "連線模式無法啟用：測試用原因。");
-        check(window.ConnectionCard!.StatusText.Contains("測試用原因", StringComparison.Ordinal), "Without an identity the card explains why connection mode is unavailable");
+        window.AttachConnection(null, "连接模式无法启用：测试用原因。");
+        check(window.ConnectionCard!.StatusText.Contains("测试用原因", StringComparison.Ordinal), "Without an identity the card explains why connection mode is unavailable");
 
         int discoveryPort;
         using (var probe = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0))) discoveryPort = ((IPEndPoint)probe.Client.LocalEndPoint!).Port;
@@ -139,9 +139,9 @@ internal static class ConnectionUiChecks
         {
             // The tray menu before any device.
             var items = tray.Menu.Items.Cast<System.Windows.Forms.ToolStripItem>().Select(i => i.Text ?? "").ToArray();
-            check(items[0] == "等待設備連線" && items[1].StartsWith("主電腦：Main PC · ", StringComparison.Ordinal) && items.Contains("開始配對…") && items.Contains("已配對設備") && items.Contains("登入時啟動") && items.Contains("結束連接助手"),
+            check(items[0] == "等待设备连接" && items[1].StartsWith("主机：Main PC · ", StringComparison.Ordinal) && items.Contains("开始配对…") && items.Contains("已配对设备") && items.Contains("登录时启动") && items.Contains("结束连接助手"),
                 "The helper's tray menu shows status, identity, pairing, devices, sign-in start and exit: " + string.Join(" | ", items));
-            var signIn = tray.Menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Single(i => i.Text == "登入時啟動");
+            var signIn = tray.Menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Single(i => i.Text == "登录时启动");
             signIn.PerformClick();
             check(startup.Enabled && signIn.Checked, "Sign-in start can be turned on from the tray");
 
@@ -149,32 +149,32 @@ internal static class ConnectionUiChecks
             var card = window.ConnectionCard!;
             var panels = ((StackPanel)card.Parent).Children;
             check(panels.IndexOf(card) > 0 && ((FrameworkElement)panels[panels.IndexOf(card) - 1]).IsAncestorOf((DependencyObject)window.FindName("HotkeyInput")), "The connection card follows the hotkey card in settings");
-            check(card.StatusText == "未連線" && !card.DisconnectButton.IsEnabled, "A fresh device is not connected");
+            check(card.StatusText == "未连接" && !card.DisconnectButton.IsEnabled, "A fresh device is not connected");
             var search = card.SearchAsync();
-            check(Pump(() => search.IsCompleted) && RowText(card.Rows).Contains("Main PC · 127.0.0.1 · 尚未配對", StringComparison.Ordinal), "Searching lists the helper as not yet paired: " + RowText(card.Rows));
-            Click(RowButton(card.Rows, "配對…"));
+            check(Pump(() => search.IsCompleted) && RowText(card.Rows).Contains("Main PC · 127.0.0.1 · 尚未配对", StringComparison.Ordinal), "Searching lists the helper as not yet paired: " + RowText(card.Rows));
+            Click(RowButton(card.Rows, "配对…"));
             check(card.HostInput.Text == "127.0.0.1:" + server.Port && card.PairText.Contains("Main PC", StringComparison.Ordinal), "Choosing a found helper fills in its address");
 
             card.CodeInput.Text = "12345";
             var pair = card.PairAsync(); Pump(() => pair.IsCompleted);
-            check(card.PairText.Contains("6 位數", StringComparison.Ordinal), "A short code is rejected before connecting");
+            check(card.PairText.Contains("6 位数", StringComparison.Ordinal), "A short code is rejected before connecting");
             card.CodeInput.Text = "000000";
             pair = card.PairAsync(); Pump(() => pair.IsCompleted);
-            check(card.PairText.Contains("尚未開始配對", StringComparison.Ordinal), "Pairing before the main computer opens it explains what to do: " + card.PairText);
+            check(card.PairText.Contains("尚未开始配对", StringComparison.Ordinal), "Pairing before the main computer opens it explains what to do: " + card.PairText);
 
             tray.OpenPairing();
             var form = tray.PairingWindow!;
-            check(form.Visible && server.PairingCode is { } code && form.CodeText == code[..3] + " " + code[3..], "開始配對 opens a window with the code");
+            check(form.Visible && server.PairingCode is { } code && form.CodeText == code[..3] + " " + code[3..], "开始配对 opens a window with the code");
             if (output is not null) Capture(form, Path.Combine(output, "connect-pairing.png"));
             card.CodeInput.Text = server.PairingCode![..3] + " " + server.PairingCode[3..];
             pair = card.PairAsync();
-            check(Pump(() => pair.IsCompleted && controller.State == LinkState.Connected) && card.PairText.StartsWith("配對成功", StringComparison.Ordinal) && card.CodeInput.Text == "",
+            check(Pump(() => pair.IsCompleted && controller.State == LinkState.Connected) && card.PairText.StartsWith("配对成功", StringComparison.Ordinal) && card.CodeInput.Text == "",
                 "The code from the window pairs and connects the device");
-            check(Pump(() => form.StatusText.Contains("已配對「Desk」", StringComparison.Ordinal)) && form.CodeText == "— — —", "The pairing window reports the paired device and closes the code");
+            check(Pump(() => form.StatusText.Contains("已配对「Desk」", StringComparison.Ordinal)) && form.CodeText == "— — —", "The pairing window reports the paired device and closes the code");
             form.Close();
-            check(Pump(() => card.StatusText.StartsWith("已連線到「Main PC」", StringComparison.Ordinal)) && card.DisconnectButton.IsEnabled && RowText(card.Rows).Contains("已連線", StringComparison.Ordinal),
+            check(Pump(() => card.StatusText.StartsWith("已连接到「Main PC」", StringComparison.Ordinal)) && card.DisconnectButton.IsEnabled && RowText(card.Rows).Contains("已连接", StringComparison.Ordinal),
                 "The card shows the connection: " + card.StatusText.Replace('\n', ' '));
-            check(Pump(() => tray.StatusText == "已連線：Desk（127.0.0.1）") && tray.TrayText.Contains("已連線：Desk", StringComparison.Ordinal), "The tray shows the connected device");
+            check(Pump(() => tray.StatusText == "已连接：Desk（127.0.0.1）") && tray.TrayText.Contains("已连接：Desk", StringComparison.Ordinal), "The tray shows the connected device");
             if (output is not null)
             {
                 window.OpenSettings(); Pump(() => true, 200);
@@ -183,8 +183,8 @@ internal static class ConnectionUiChecks
             }
 
             Click(card.DisconnectButton);
-            check(Pump(() => controller.State == LinkState.Idle && server.ActiveDevice is null) && card.StatusText == "未連線", "Disconnecting ends the session on both sides");
-            Click(RowButton(card.Rows, "連線"));
+            check(Pump(() => controller.State == LinkState.Idle && server.ActiveDevice is null) && card.StatusText == "未连接", "Disconnecting ends the session on both sides");
+            Click(RowButton(card.Rows, "连接"));
             check(Pump(() => server.ActiveDevice == "Desk"), "Connecting again uses the stored pairing");
             ExerciseGame(window, check, output, tray, controller, card);
             ExerciseMedia(check, output, media);
@@ -200,8 +200,8 @@ internal static class ConnectionUiChecks
             card.HostInput.Text = "127.0.0.1:" + server.Port; card.CodeInput.Text = server.PairingCode!;
             pair = card.PairAsync();
             check(Pump(() => pair.IsCompleted && controller.State == LinkState.Connected), "The device can pair again");
-            Click(RowButton(card.Rows, "移除配對"));
-            check(Pump(() => devices.Peers.Count == 0 && helpers.Peers.Count == 0 && controller.State == LinkState.Idle), "移除配對 on the device removes the pairing on both sides");
+            Click(RowButton(card.Rows, "移除配对"));
+            check(Pump(() => devices.Peers.Count == 0 && helpers.Peers.Count == 0 && controller.State == LinkState.Idle), "移除配对 on the device removes the pairing on both sides");
         }
         finally
         {
@@ -222,7 +222,7 @@ internal static class ConnectionUiChecks
         {
             // An unusual gesture, so the check does not collide with a hotkey already in use on this computer.
             controller.Hotkey = "Ctrl+Alt+Shift+F11";
-            check(Pump(() => tray.Hotkey.Gesture == "Ctrl+Alt+Shift+F11" && card.StatusText.Contains("在主電腦按 Ctrl+Alt+Shift+F11", StringComparison.Ordinal)),
+            check(Pump(() => tray.Hotkey.Gesture == "Ctrl+Alt+Shift+F11" && card.StatusText.Contains("在主机按 Ctrl+Alt+Shift+F11", StringComparison.Ordinal)),
                 "The device's hotkey is registered on the main computer and the card says so: " + card.StatusText.Replace('\n', ' '));
             tray.Build();
             check(tray.Menu.Items.Cast<System.Windows.Forms.ToolStripItem>().Any(i => i.Text == tray.Hotkey.Status) && tray.Hotkey.Status.Contains("Ctrl+Alt+Shift+F11", StringComparison.Ordinal),
@@ -233,9 +233,9 @@ internal static class ConnectionUiChecks
             check(Pump(() => window.GameRemote && tray.Games.Current is { } request && request.High == high), "While connected, the game page asks the main computer to sample at the page's rate instead of this device");
             check(Pump(() => Text("FpsValue") == "120" && Text("CpuValue") == "37%" && Text("GpuValue") == "64%" && Text("VramValue") == "50%"),
                 $"The main computer's readings appear: FPS {Text("FpsValue")} CPU {Text("CpuValue")} GPU {Text("GpuValue")} VRAM {Text("VramValue")}");
-            check(Text("GameSourceState").StartsWith("REMOTE · LIVE", StringComparison.Ordinal) && Text("GameNotice").Contains("主電腦「Main PC」", StringComparison.Ordinal),
+            check(Text("GameSourceState").StartsWith("REMOTE · LIVE", StringComparison.Ordinal) && Text("GameNotice").Contains("主机「Main PC」", StringComparison.Ordinal),
                 "The page says the data comes from the main computer: " + Text("GameSourceState"));
-            check(tray.Games.Status.Contains("傳送中", StringComparison.Ordinal) && tray.Games.SnapshotsSent > 0, "The tray shows that the helper is streaming");
+            check(tray.Games.Status.Contains("传送中", StringComparison.Ordinal) && tray.Games.SnapshotsSent > 0, "The tray shows that the helper is streaming");
 
             var picker = (Button)window.FindName("GameProcessPicker");
             Click(picker);
@@ -255,7 +255,7 @@ internal static class ConnectionUiChecks
             window.Navigate("enter-game");
             check(Pump(() => window.GameRemote && tray.Games.Current is not null), "Entering game mode on the device also uses the main computer");
             controller.Disconnect();
-            check(Pump(() => !window.GameRemote && window.GameMonitoringActive && Text("GameNotice").Contains("已與主電腦中斷連線", StringComparison.Ordinal)),
+            check(Pump(() => !window.GameRemote && window.GameMonitoringActive && Text("GameNotice").Contains("已与主机断开连接", StringComparison.Ordinal)),
                 "Losing the connection falls back to this device's data and says why");
             check(Pump(() => tray.Hotkey.Gesture is null && tray.Games.Current is null), "The main computer releases the hotkey and stops sampling when the device leaves");
         }
@@ -264,7 +264,7 @@ internal static class ConnectionUiChecks
             window.ExitGame();
             if (!visible) window.Hide();
         }
-        Click(RowButton(card.Rows, "連線"));
+        Click(RowButton(card.Rows, "连接"));
         check(Pump(() => controller.State == LinkState.Connected && tray.Hotkey.Gesture is not null), "Reconnecting registers the hotkey again");
     }
 
@@ -279,16 +279,16 @@ internal static class ConnectionUiChecks
         try
         {
             widget.SetActive(true);
-            check((string)widget.MediaSourceButton!.Content == "來源：本機" && widget.Settings.MediaSource == "Local", "A media widget starts with this computer's player");
+            check((string)widget.MediaSourceButton!.Content == "来源：本机" && widget.Settings.MediaSource == "Local", "A media widget starts with this computer's player");
             Click(widget.MediaSourceButton);
-            check(saved.LastOrDefault()?.MediaSource == "Main" && (string)widget.MediaSourceButton.Content == "來源：主電腦", "The source switch is saved with the widget");
-            check(Pump(() => widget.MediaTitleText == "Clair de Lune" && widget.MediaStateText == "主電腦 · 播放中"), "The widget shows what the main computer is playing: " + widget.MediaTitleText);
+            check(saved.LastOrDefault()?.MediaSource == "Main" && (string)widget.MediaSourceButton.Content == "来源：主机", "The source switch is saved with the widget");
+            check(Pump(() => widget.MediaTitleText == "Clair de Lune" && widget.MediaStateText == "主机 · 播放中"), "The widget shows what the main computer is playing: " + widget.MediaTitleText);
             var control = widget.ControlMediaAsync("toggle");
             check(Pump(() => control.IsCompleted) && media.LastCommand == "toggle", "Play/pause on the widget controls the main computer's player");
-            check(Pump(() => widget.MediaStateText == "主電腦 · 已暫停", 8000), "The widget follows the main computer's new state: " + widget.MediaStateText);
+            check(Pump(() => widget.MediaStateText == "主机 · 已暂停", 8000), "The widget follows the main computer's new state: " + widget.MediaStateText);
             if (output is not null) Capture(widget, Path.Combine(output, "connection-media.png"));
             Click(widget.MediaSourceButton);
-            check(saved.Last().MediaSource == "Local" && (string)widget.MediaSourceButton.Content == "來源：本機", "The widget can switch back to this computer");
+            check(saved.Last().MediaSource == "Local" && (string)widget.MediaSourceButton.Content == "来源：本机", "The widget can switch back to this computer");
         }
         finally { widget.SetActive(false); host.Close(); }
     }
@@ -313,7 +313,7 @@ internal static class ConnectionUiChecks
     private static void ExerciseUsage(MainWindow window, Action<bool, string> check, string? output, ConnectTray tray, FakeUsage usage)
     {
         string[] Menu() { tray.Build(); return tray.Menu.Items.Cast<System.Windows.Forms.ToolStripItem>().Select(i => i.Text ?? "").ToArray(); }
-        check(Menu().Contains("AI 用量：未使用") && tray.Menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Single(i => i.Text == "允許設備使用 Claude 線上用量") is { Checked: false },
+        check(Menu().Contains("AI 用量：未使用") && tray.Menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Single(i => i.Text == "允许设备使用 Claude 线上用量") is { Checked: false },
             "The helper's tray shows AI usage as unused and the online permission off");
         check(usage.Count == 0, "The helper reads no usage until a widget watches");
 
@@ -325,32 +325,32 @@ internal static class ConnectionUiChecks
         try
         {
             widget.SetActive(true);
-            check((string)widget.UsageSourceButton!.Content == "本機" && usage.Count == 0, "An AI usage widget made directly starts with this computer");
+            check((string)widget.UsageSourceButton!.Content == "本机" && usage.Count == 0, "An AI usage widget made directly starts with this computer");
             Click(widget.UsageSourceButton);
-            check(saved.LastOrDefault()?.UsageSource == "Main" && (string)widget.UsageSourceButton.Content == "主電腦", "The usage source switch is saved with the widget");
+            check(saved.LastOrDefault()?.UsageSource == "Main" && (string)widget.UsageSourceButton.Content == "主机", "The usage source switch is saved with the widget");
             check(Pump(() => widget.UsageSnapshot is { Claude.HasData: true }) && usage.Last == (true, true, false) && tray.Usage.Watching,
                 "The widget shows the main computer's usage, read by the helper for both services");
-            check(Pump(() => Menu().Contains("AI 用量：設備正在顯示主電腦的用量")), "The tray shows that a device is watching the main computer's usage");
+            check(Pump(() => Menu().Contains("AI 用量：设备正在显示主机的用量")), "The tray shows that a device is watching the main computer's usage");
             host.UpdateLayout();
             var texts = Descendants(widget).OfType<TextBlock>().Select(t => t.Text).ToArray();
-            check(texts.Contains("30%") && texts.Contains("6%") && texts.Contains("3 小時 12 分後重置") && texts.Contains("主電腦 · 4 分鐘前更新"),
+            check(texts.Contains("30%") && texts.Contains("6%") && texts.Contains("3 小时 12 分后重置") && texts.Contains("主机 · 4 分钟前更新"),
                 "Main-computer usage shows percentages, countdowns and the main computer's age: " + string.Join(" | ", texts.Where(t => t.Length > 0)));
             if (output is not null) Capture(widget, Path.Combine(output, "connection-usage.png"));
 
             Dispatch(() => widget.SetClaudeOnline(true));
-            check(Pump(() => widget.UsageNoteText.Contains("主電腦未允許線上用量", StringComparison.Ordinal)) && usage.Last.Online == false,
+            check(Pump(() => widget.UsageNoteText.Contains("主机未允许线上用量", StringComparison.Ordinal)) && usage.Last.Online == false,
                 "Online usage the main computer has not allowed is explained and never requested there");
-            var allow = tray.Menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Single(i => i.Text == "允許設備使用 Claude 線上用量");
+            var allow = tray.Menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Single(i => i.Text == "允许设备使用 Claude 线上用量");
             var confirm = tray.Confirm;
             var asked = "";
             tray.Confirm = text => { asked = text; return false; };
             allow.PerformClick();
-            check(!tray.Usage.AllowOnline && !allow.Checked && asked.Contains("token 不會傳給設備", StringComparison.Ordinal), "Declining on the main computer keeps online usage blocked");
+            check(!tray.Usage.AllowOnline && !allow.Checked && asked.Contains("token 不会传给设备", StringComparison.Ordinal), "Declining on the main computer keeps online usage blocked");
             tray.Confirm = _ => true;
             allow.PerformClick();
             tray.Confirm = confirm;
             check(tray.Usage.AllowOnline && allow.Checked && new UsageService(tray.Usage.SettingsPath).AllowOnline, "Allowing on the main computer is saved for the next start");
-            check(Pump(() => usage.Last.Online && widget.UsageSnapshot?.Claude.FiveHour?.UsedPercent == 49 && !widget.UsageNoteText.Contains("未允許", StringComparison.Ordinal)),
+            check(Pump(() => usage.Last.Online && widget.UsageSnapshot?.Claude.FiveHour?.UsedPercent == 49 && !widget.UsageNoteText.Contains("未允许", StringComparison.Ordinal)),
                 "Once allowed, the helper reads online usage at once and the device shows it");
 
             var reads = usage.Count;
@@ -368,7 +368,7 @@ internal static class ConnectionUiChecks
         // With connection mode set up, a newly added AI usage widget starts on the main computer.
         check(window.AddHomeWidget("AiUsage"), "An AI usage widget can be added in connection mode");
         var added = ((Canvas)window.FindName("WidgetCanvas")).Children.OfType<HomeWidget>().SelectMany(f => f.Children.OfType<HomeUtilityWidget>()).Single(w => w.Settings.Kind == "AiUsage");
-        check(added.Settings.UsageSource == "Main" && (string)added.UsageSourceButton!.Content == "主電腦", "A new AI usage widget defaults to the main computer once connection mode is set up");
+        check(added.Settings.UsageSource == "Main" && (string)added.UsageSourceButton!.Content == "主机", "A new AI usage widget defaults to the main computer once connection mode is set up");
         check(window.RemoveHomeWidget(added.Settings.Id), "The added AI usage widget can be removed");
         tray.Usage.AllowOnline = false;
     }
@@ -398,8 +398,8 @@ internal static class ConnectionUiChecks
             window.Navigate("shortcuts");
             var refresh = launchpad.RefreshRemoteAsync();
             check(Pump(() => refresh.IsCompleted && launchpad.RemoteShortcutList is { Entries.Length: 0 }) && !launchpad.RemoteTiles.Any(), "The main computer starts with no shortcuts");
-            // "＋ 新增" offers the main computer as a location; the stand-in editor picks it.
-            var game = new ShortcutEntry("game", "Game", "遊戲", "🎮", [new("Open", @"C:\Games\game.exe"), new("Wait", Seconds: 1)]);
+            // "＋ 添加" offers the main computer as a location; the stand-in editor picks it.
+            var game = new ShortcutEntry("game", "Game", "游戏", "🎮", [new("Open", @"C:\Games\game.exe"), new("Wait", Seconds: 1)]);
             (string? Name, bool Main, bool CanChoose)? offered = null;
             var editor = launchpad.EditDialog;
             launchpad.EditDialog = (entry, mainName, main, canChoose) => { offered = (mainName, main, canChoose); return (game with { Id = entry.Id }, true); };
@@ -410,15 +410,15 @@ internal static class ConnectionUiChecks
             check(Pump(() => launchpad.RemoteTiles.Count() == 1), "The main computer's shortcut appears among the launchpad tiles");
             var tile = launchpad.RemoteTiles.Single();
             var section = (StackPanel)((WrapPanel)tile.Parent).Parent;
-            check(((DockPanel)((Border)section.Children[0]).Child).Children.OfType<TextBlock>().Any(t => t.Text == "遊戲") &&
-                ((TextBlock)((StackPanel)tile.Content).Children[2]).Text.Contains("主電腦", StringComparison.Ordinal),
-                "It sits in its own group, not a separate section, and its tile says 主電腦");
+            check(((DockPanel)((Border)section.Children[0]).Child).Children.OfType<TextBlock>().Any(t => t.Text == "游戏") &&
+                ((TextBlock)((StackPanel)tile.Content).Children[2]).Text.Contains("主机", StringComparison.Ordinal),
+                "It sits in its own group, not a separate section, and its tile says 主机");
             var bad = launchpad.SaveRemoteAsync(game with { Id = "bad", Steps = [new("Open", "game.exe")] });
-            check(Pump(() => bad.IsCompleted) && !bad.Result && launchpad.ExecutionStatus.StartsWith("主電腦拒絕", StringComparison.Ordinal), "The main computer refuses a shortcut that breaks its rules: " + launchpad.ExecutionStatus);
+            check(Pump(() => bad.IsCompleted) && !bad.Result && launchpad.ExecutionStatus.StartsWith("主机拒绝", StringComparison.Ordinal), "The main computer refuses a shortcut that breaks its rules: " + launchpad.ExecutionStatus);
             tile = launchpad.RemoteTiles.Single();
 
             Click(tile);
-            check(Pump(() => tray.ConfirmWindow is not null) && launchpad.ExecutionStatus.StartsWith("等待主電腦確認", StringComparison.Ordinal),
+            check(Pump(() => tray.ConfirmWindow is not null) && launchpad.ExecutionStatus.StartsWith("等待主机确认", StringComparison.Ordinal),
                 $"The first run waits for confirmation on the main computer: {launchpad.ExecutionStatus} (window {tray.ConfirmWindow is not null}, helper {tray.Shortcuts.Status}, executing {launchpad.IsExecuting})");
             var form = tray.ConfirmWindow!;
             check(form.Heading.Contains("「Desk」", StringComparison.Ordinal) && form.Heading.Contains("「Game」", StringComparison.Ordinal) && form.DetailsText.Contains(@"C:\Games\game.exe", StringComparison.Ordinal),
@@ -426,12 +426,12 @@ internal static class ConnectionUiChecks
             check(executor.Ran.IsEmpty, "Nothing runs before the main computer confirms");
             if (output is not null) Capture(form, Path.Combine(output, "connect-confirm.png"));
             form.Decide(true);
-            check(Pump(() => launchpad.ExecutionStatus == "已在主電腦完成：Game" && !launchpad.IsExecuting, 8000) && executor.Ran.Count == 1, "Confirming on the main computer runs the steps: " + launchpad.ExecutionStatus);
+            check(Pump(() => launchpad.ExecutionStatus == "已在主机完成：Game" && !launchpad.IsExecuting, 8000) && executor.Ran.Count == 1, "Confirming on the main computer runs the steps: " + launchpad.ExecutionStatus);
             check(new ShortcutLibrary(store).Load().Single().ApprovedFingerprint is not null && Pump(() => launchpad.RemoteShortcutList?.Approved.Contains(game.Id) == true), "The main computer remembers the confirmation");
 
             tile = launchpad.RemoteTiles.Single();
             Click(tile);
-            check(Pump(() => launchpad.ExecutionStatus == "已在主電腦完成：Game" && !launchpad.IsExecuting, 8000) && tray.ConfirmWindow is null && executor.Ran.Count == 2, "A confirmed shortcut runs without asking again");
+            check(Pump(() => launchpad.ExecutionStatus == "已在主机完成：Game" && !launchpad.IsExecuting, 8000) && tray.ConfirmWindow is null && executor.Ran.Count == 2, "A confirmed shortcut runs without asking again");
 
             var changed = launchpad.SaveRemoteAsync(game with { Steps = [new("Open", @"C:\Games\other.exe")] });
             check(Pump(() => changed.IsCompleted) && changed.Result && Pump(() => launchpad.RemoteShortcutList?.Approved.Contains(game.Id) == true), "Editing keeps the approval record on the main computer");
@@ -439,11 +439,11 @@ internal static class ConnectionUiChecks
             Click(tile);
             check(Pump(() => tray.ConfirmWindow is not null), "Changed steps need confirmation again");
             tray.ConfirmWindow!.Decide(false);
-            check(Pump(() => launchpad.ExecutionStatus.StartsWith("主電腦上已取消", StringComparison.Ordinal) && !launchpad.IsExecuting) && executor.Ran.Count == 2, "Declining on the main computer runs nothing");
+            check(Pump(() => launchpad.ExecutionStatus.StartsWith("主机上已取消", StringComparison.Ordinal) && !launchpad.IsExecuting) && executor.Ran.Count == 2, "Declining on the main computer runs nothing");
 
             window.Navigate("enter-game");
             var refused = launchpad.LaunchRemote(game);
-            check(Pump(() => refused.IsCompleted) && launchpad.ExecutionStatus.StartsWith("目前不能執行", StringComparison.Ordinal), "Main-computer shortcuts do not run in game mode");
+            check(Pump(() => refused.IsCompleted) && launchpad.ExecutionStatus.StartsWith("目前不能执行", StringComparison.Ordinal), "Main-computer shortcuts do not run in game mode");
             window.ExitGame();
             window.Navigate("shortcuts");
 
@@ -460,11 +460,11 @@ internal static class ConnectionUiChecks
             try { local.ContextMenu!.Items.OfType<MenuItem>().First().RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); } finally { launchpad.EditDialog = editor; }
             check(offered is ("Main PC", false, true), "Editing a local shortcut while connected offers the main computer");
             check(Pump(() => tray.Shortcuts.Entries.SingleOrDefault()?.Name == "Docs") && Pump(() => !launchpad.LocalTiles.Any(t => System.Windows.Automation.AutomationProperties.GetName(t) == "Docs")),
-                "Choosing 主電腦 moves it there and removes it here");
+                "Choosing 主机 moves it there and removes it here");
             launchpad.EditDialog = (entry, mainName, main, canChoose) => { offered = (mainName, main, canChoose); return (entry, false); };
             try { launchpad.EditRemote(tray.Shortcuts.Entries.Single()); } finally { launchpad.EditDialog = editor; }
             check(offered is ("Main PC", true, true) && Pump(() => tray.Shortcuts.Entries.Length == 0) && launchpad.LocalTiles.Any(t => System.Windows.Automation.AutomationProperties.GetName(t) == "Docs"),
-                "Choosing 本機 moves a main-computer shortcut back here");
+                "Choosing 本机 moves a main-computer shortcut back here");
 
             // A pending shortcut (here, one only Linux can run) cannot go to a Windows main computer; it can be edited into one.
             var file = Path.Combine(Path.GetTempPath(), "Secondary.Pending-" + Guid.NewGuid().ToString("N") + ".json");
@@ -476,10 +476,10 @@ internal static class ConnectionUiChecks
                 finally { launchpad.ConfirmImport = confirm; }
                 var pendingTile = launchpad.PendingTiles.Single();
                 var items = pendingTile.ContextMenu!.Items.OfType<MenuItem>().ToArray();
-                check(items.Select(i => ((string)i.Header, i.IsEnabled)).SequenceEqual([("移到主電腦執行", false), ("編輯", true), ("刪除", true)]),
+                check(items.Select(i => ((string)i.Header, i.IsEnabled)).SequenceEqual([("移到主机执行", false), ("编辑", true), ("删除", true)]),
                     "A shortcut the Windows main computer cannot run is not offered for moving there");
                 Click(pendingTile);
-                check(launchpad.ExecutionStatus.Contains("無法在這臺設備執行", StringComparison.Ordinal) && launchpad.PendingEntries.Length == 1, "Pressing it runs nothing and explains the choices");
+                check(launchpad.ExecutionStatus.Contains("无法在这台设备执行", StringComparison.Ordinal) && launchpad.PendingEntries.Length == 1, "Pressing it runs nothing and explains the choices");
                 launchpad.EditDialog = (entry, mainName, main, canChoose) => { offered = (mainName, main, canChoose); return (entry with { Steps = [new("Open", @"C:\Windows\explorer.exe")] }, true); };
                 try { items[1].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); } finally { launchpad.EditDialog = editor; }
                 check(offered is ("Main PC", false, true) && Pump(() => tray.Shortcuts.Entries.SingleOrDefault()?.Name == "Files") && Pump(() => launchpad.PendingEntries.Length == 0),

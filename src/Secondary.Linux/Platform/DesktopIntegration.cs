@@ -16,7 +16,7 @@ public static class DisplayCatalog
     {
         var named = !string.IsNullOrWhiteSpace(s.Name) && screens.Count(o => o.Name == s.Name) == 1;
         var id = named ? "name:" + s.Name : $"rect:{s.Bounds.X},{s.Bounds.Y},{s.Bounds.Width}x{s.Bounds.Height}";
-        return new DisplayInfo(id, named ? s.Name! : $"螢幕 {i + 1}", s.Primary, s.Bounds.X, s.Bounds.Y, s.Bounds.Width, s.Bounds.Height);
+        return new DisplayInfo(id, named ? s.Name! : $"屏幕 {i + 1}", s.Primary, s.Bounds.X, s.Bounds.Y, s.Bounds.Width, s.Bounds.Height);
     }).ToArray();
 }
 
@@ -103,9 +103,9 @@ public sealed class DesktopLauncher(string dataHome, string program, IReadOnlyLi
     }
 
     public static string Content(string program) => string.Join('\n',
-        "[Desktop Entry]", "Type=Application", "Name=Secondary", "Comment=副屏首頁、快捷導航與遊戲模式",
+        "[Desktop Entry]", "Type=Application", "Name=Secondary", "Comment=副屏首页、快捷导航与游戏模式",
         "Exec=" + Exec(program), "Icon=" + DesktopPortal.ApplicationId, "Categories=Utility;", "StartupWMClass=secondary", "Actions=ToggleGame;", "",
-        "[Desktop Action ToggleGame]", "Name=進入／退出遊戲模式", "Exec=" + Exec(program) + " --toggle-game", "");
+        "[Desktop Action ToggleGame]", "Name=进入／退出游戏模式", "Exec=" + Exec(program) + " --toggle-game", "");
 
     // Desktop Entry Specification: quote arguments with reserved characters and double % codes. The
     // quoting backslash is itself escaped by the string rule, so it is written twice (a literal

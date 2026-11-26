@@ -36,7 +36,7 @@ internal static class ShortcutChecks
         var window = new Window { Width = 1200, Height = 820, Content = new ScrollViewer { Content = launchpad } };
         Palette.Apply(window.Resources, false, false, false);
         window.Show(); Pump();
-        Check(launchpad.EntryCount == 0 && launchpad.ExecutionStatus.Contains("＋ 新增", StringComparison.Ordinal), "An empty launchpad explains how to add shortcuts and runs nothing");
+        Check(launchpad.EntryCount == 0 && launchpad.ExecutionStatus.Contains("＋ 添加", StringComparison.Ordinal), "An empty launchpad explains how to add shortcuts and runs nothing");
 
         // Import: folders, documents, .desktop launchers, .sh scripts; duplicates and missing paths are skipped.
         var folder = Directory.CreateDirectory(Path.Combine(directory, "Projects")).FullName;
@@ -45,7 +45,7 @@ internal static class ShortcutChecks
         File.WriteAllText(desktop, "[Desktop Entry]\nType=Application\nName=Player\nName[zh_TW]=播放器\nExec=player %U\n");
         var script = Path.Combine(directory, "backup.sh"); File.WriteAllText(script, "exit 0\n");
         var added = launchpad.ImportFiles([folder, document, desktop, script, document, Path.Combine(directory, "missing.txt")]);
-        Check(added == 4 && launchpad.EntryCount == 4 && launchpad.ExecutionStatus.Contains("略過 2 個", StringComparison.Ordinal), "Dropped files import once each and report what was skipped");
+        Check(added == 4 && launchpad.EntryCount == 4 && launchpad.ExecutionStatus.Contains("略过 2 个", StringComparison.Ordinal), "Dropped files import once each and report what was skipped");
         Check(launchpad.Entries.Any(e => e.Name == "播放器") && launchpad.Entries.Single(e => e.Name == "backup").Steps![0].Kind == "Script", "Launchers keep their own names; scripts become script steps");
         Check(launchpad.ImportFiles(Enumerable.Repeat(document, 21).ToArray()) == 0 && launchpad.ExecutionStatus.Contains("最多拖入 20", StringComparison.Ordinal), "More than 20 dropped items are refused together");
         Check(new ShortcutLibrary(path, ShortcutRules.Linux).Load().Length == 4, "Imported shortcuts are saved");
@@ -63,8 +63,8 @@ internal static class ShortcutChecks
         Check(launchpad.Entries[^2].Id == dragged.Id, "Dropping a tile on another moves it before that tile");
         var layoutBefore = launchpad.GroupLayout;
         var menu = launchpad.Tiles.First().ContextMenu!.Items.OfType<MenuItem>().Select(i => i.Header as string).ToArray();
-        Check(menu.SequenceEqual(["編輯", "複製", "往前移", "往後移", "下次執行重新確認", "刪除"]), "Each tile offers edit, copy, move, re-confirm and delete");
-        var toggle = launchpad.GetVisualDescendantsOfType<Button>().First(b => (b.Content as string)?.StartsWith("分組：", StringComparison.Ordinal) == true);
+        Check(menu.SequenceEqual(["编辑", "复制", "往前移", "往后移", "下次执行重新确认", "删除"]), "Each tile offers edit, copy, move, re-confirm and delete");
+        var toggle = launchpad.GetVisualDescendantsOfType<Button>().First(b => (b.Content as string)?.StartsWith("分组：", StringComparison.Ordinal) == true);
         toggle.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Pump();
         Check(launchpad.GroupLayout != layoutBefore && new ShortcutLibrary(path, ShortcutRules.Linux) is var reloaded && reloaded.Load().Length == 4 && reloaded.GroupLayout == launchpad.GroupLayout, "The group layout toggles and is saved");
         if (output is not null) window.CaptureRenderedFrame()?.Save(Path.Combine(output, "linux-launchpad.png"), PngBitmapEncoderOptions.Default);
@@ -97,17 +97,17 @@ internal static class ShortcutChecks
         executor.Block = false;
         launchpad.CanRun = () => false;
         Wait(launchpad.Launch(target));
-        Check(launchpad.ExecutionStatus.StartsWith("目前不能執行", StringComparison.Ordinal), "Macros do not start while the app cannot run them");
+        Check(launchpad.ExecutionStatus.StartsWith("目前不能执行", StringComparison.Ordinal), "Macros do not start while the app cannot run them");
         launchpad.CanRun = () => true;
         executor.Fail = true;
         Wait(launchpad.Launch(target)); PumpUntil(() => !launchpad.IsExecuting);
-        Check(launchpad.ExecutionStatus.StartsWith("執行停止", StringComparison.Ordinal), "A failing step stops the macro with its reason");
+        Check(launchpad.ExecutionStatus.StartsWith("执行停止", StringComparison.Ordinal), "A failing step stops the macro with its reason");
         executor.Fail = false;
 
         // Edit and delete go through the host; delete asks first.
-        host.Edits.Enqueue(target with { Name = "筆記" });
+        host.Edits.Enqueue(target with { Name = "笔记" });
         Wait(launchpad.Edit(target));
-        Check(launchpad.Entries.Any(e => e.Name == "筆記"), "Edits are saved");
+        Check(launchpad.Entries.Any(e => e.Name == "笔记"), "Edits are saved");
         window.Close(); Pump();
         launchpad.Dispose();
     }
@@ -128,7 +128,7 @@ internal static class ShortcutChecks
         if (output is not null) window.CaptureRenderedFrame()?.Save(Path.Combine(output, "linux-shortcut-editor.png"), PngBitmapEncoderOptions.Default);
         Check(window.ShortcutEditorOpen && editor.Steps.Count == 1, "The editor opens in the window's dialog layer");
         var addButtons = editor.GetVisualDescendantsOfType<Button>().Select(b => b.Content as string).Where(t => t?.StartsWith("＋", StringComparison.Ordinal) == true).ToArray();
-        Check(addButtons.SequenceEqual(["＋ 開啟", "＋ 等待", "＋ 腳本"]), "Linux offers open, wait and script steps but no key step");
+        Check(addButtons.SequenceEqual(["＋ 开启", "＋ 等待", "＋ 脚本"]), "Linux offers open, wait and script steps but no key step");
         // A Unix path, so the path check passes on any host and the .sh rule is what refuses it.
         editor.Steps[0].Target!.Text = "/opt/tools/run.sh";
         Check(!window.SaveShortcutEditor() && window.ShortcutEditorOpen && editor.Error.IsVisible && (editor.Error.Text ?? "").Contains(".sh", StringComparison.Ordinal), "An .sh file must use the script step, with the Linux rule shown");
@@ -177,9 +177,9 @@ internal static class ShortcutChecks
         Wait(real.Execute(entry.Steps![0], CancellationToken.None));
         Check(File.Exists(marker) && !Directory.EnumerateFiles(Path.Combine(directory, "secondary", "scripts")).Any(), "A confirmed script runs and its private copy is removed");
         File.AppendAllText(script, "echo changed\n");
-        Check(Throws(() => real.Execute(entry.Steps[0], CancellationToken.None))?.Message.Contains("重新確認", StringComparison.Ordinal) == true, "A script changed after confirmation does not run");
+        Check(Throws(() => real.Execute(entry.Steps[0], CancellationToken.None))?.Message.Contains("重新确认", StringComparison.Ordinal) == true, "A script changed after confirmation does not run");
         File.WriteAllText(script, "exit 3\n"); real.Review(entry);
-        Check(Throws(() => real.Execute(entry.Steps[0], CancellationToken.None))?.Message.Contains("結束碼 3", StringComparison.Ordinal) == true, "A failing script stops the macro with its exit code");
+        Check(Throws(() => real.Execute(entry.Steps[0], CancellationToken.None))?.Message.Contains("结束码 3", StringComparison.Ordinal) == true, "A failing script stops the macro with its exit code");
         File.WriteAllText(script, "sleep 30\n"); real.Review(entry);
         using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
         var watch = Stopwatch.StartNew();
@@ -200,11 +200,11 @@ internal static class ShortcutChecks
     private static void TestTransfer(string directory)
     {
         var path = Path.Combine(directory, "transfer.json");
-        var web = new ShortcutEntry("web", "網站", "日常", Steps: [new("Open", "https://example.com")]);
-        var keys = new ShortcutEntry("keys", "存檔", "工作", Steps: [new("Keys", "Ctrl+S", ProcessName: "notepad", WindowTitle: "Document")]);
+        var web = new ShortcutEntry("web", "网站", "日常", Steps: [new("Open", "https://example.com")]);
+        var keys = new ShortcutEntry("keys", "存档", "工作", Steps: [new("Keys", "Ctrl+S", ProcessName: "notepad", WindowTitle: "Document")]);
         var windowsFile = Path.Combine(directory, "from-windows.json");
         File.WriteAllBytes(windowsFile, ShortcutTransfer.Export([web, keys], "Horizontal"));
-        Check(new ShortcutLibrary(path, ShortcutRules.Linux).Save([web with { Id = "old", Name = "舊的" }]), "Transfer fixture saves");
+        Check(new ShortcutLibrary(path, ShortcutRules.Linux).Save([web with { Id = "old", Name = "旧的" }]), "Transfer fixture saves");
         var host = new FakeHost { ImportPath = windowsFile, ExportPath = Path.Combine(directory, "exported.json") };
         var executor = new FakeExecutor();
         var launchpad = new LaunchpadView(path, host, executor);
@@ -213,21 +213,21 @@ internal static class ShortcutChecks
         window.Show(); Pump();
         Button Tool(string label) => launchpad.GetVisualDescendantsOfType<Button>().Single(b => b.Content as string == label);
         host.Answers.Enqueue(false);
-        Tool("匯入設定").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); PumpUntil(() => launchpad.ExecutionStatus.StartsWith("已取消匯入", StringComparison.Ordinal));
-        Check(launchpad.Entries.Single().Id == "old" && host.Confirmations[^1].Contains("1 個無法在這臺設備執行，會列為「待處理」", StringComparison.Ordinal), "Declining keeps the launchpad and the prompt names the pending shortcuts");
+        Tool("导入设置").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); PumpUntil(() => launchpad.ExecutionStatus.StartsWith("已取消导入", StringComparison.Ordinal));
+        Check(launchpad.Entries.Single().Id == "old" && host.Confirmations[^1].Contains("1 个无法在这台设备执行，会列为「待处理」", StringComparison.Ordinal), "Declining keeps the launchpad and the prompt names the pending shortcuts");
         host.Answers.Enqueue(true);
-        Tool("匯入設定").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); PumpUntil(() => launchpad.ExecutionStatus.StartsWith("已匯入", StringComparison.Ordinal));
+        Tool("导入设置").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); PumpUntil(() => launchpad.ExecutionStatus.StartsWith("已导入", StringComparison.Ordinal));
         Check(launchpad.Entries.Single().Id == "web" && launchpad.GroupLayout == "Horizontal" && launchpad.Tiles.Count() == 1, "Accepting replaces shortcuts and layout with what Linux can run");
         Check(launchpad.PendingEntries.Single().Id == "keys" && launchpad.PendingTiles.Count() == 1, "What Linux cannot run is kept as a pending tile");
         var pendingTile = launchpad.PendingTiles.Single();
-        Check(((TextBlock)((StackPanel)pendingTile.Content!).Children[2]).Text!.Contains("待處理", StringComparison.Ordinal)
-            && pendingTile.ContextMenu!.Items.OfType<MenuItem>().Select(i => (i.Header as string, i.IsEnabled)).SequenceEqual([("移到主電腦執行", false), ("編輯", false), ("刪除", true)]),
+        Check(((TextBlock)((StackPanel)pendingTile.Content!).Children[2]).Text!.Contains("待处理", StringComparison.Ordinal)
+            && pendingTile.ContextMenu!.Items.OfType<MenuItem>().Select(i => (i.Header as string, i.IsEnabled)).SequenceEqual([("移到主机执行", false), ("编辑", false), ("删除", true)]),
             "A pending tile is marked, and without a main computer or a Linux editor for window keys it can only be deleted");
         var calls = executor.Calls.Count;
         pendingTile.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Pump();
-        Check(launchpad.ExecutionStatus.Contains("無法在這臺設備執行", StringComparison.Ordinal) && executor.Calls.Count == calls, "Pressing a pending tile runs nothing and explains the choices");
-        Tool("匯出設定").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); PumpUntil(() => File.Exists(host.ExportPath));
-        Check(ShortcutTransfer.Read(host.ExportPath!, ShortcutRules.Linux) is { Entries: [{ Name: "網站" }], Pending: [{ Name: "存檔" }] }, "Export writes the current launchpad with its pending shortcuts");
+        Check(launchpad.ExecutionStatus.Contains("无法在这台设备执行", StringComparison.Ordinal) && executor.Calls.Count == calls, "Pressing a pending tile runs nothing and explains the choices");
+        Tool("导出设置").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); PumpUntil(() => File.Exists(host.ExportPath));
+        Check(ShortcutTransfer.Read(host.ExportPath!, ShortcutRules.Linux) is { Entries: [{ Name: "网站" }], Pending: [{ Name: "存档" }] }, "Export writes the current launchpad with its pending shortcuts");
         host.Answers.Enqueue(true);
         launchpad.PendingTiles.Single().ContextMenu!.Items.OfType<MenuItem>().Last().RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
         PumpUntil(() => launchpad.PendingEntries.Length == 0);
@@ -257,7 +257,7 @@ internal static class ShortcutChecks
         public async Task Execute(ShortcutStep step, CancellationToken cancellation)
         {
             Started = true;
-            if (Fail) throw new IOException("測試失敗");
+            if (Fail) throw new IOException("测试失败");
             if (Block) await Task.Delay(Timeout.Infinite, cancellation);
             Calls.Add(step);
         }

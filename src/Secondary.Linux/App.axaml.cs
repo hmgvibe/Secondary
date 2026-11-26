@@ -90,9 +90,9 @@ public partial class App : Application
 
     private void CreateTray(IClassicDesktopStyleApplicationLifetime desktop, MainWindow window)
     {
-        var show = new NativeMenuItem("顯示 Secondary");
+        var show = new NativeMenuItem("显示 Secondary");
         show.Click += (_, _) => window.ShowInterface();
-        var game = new NativeMenuItem("進入／退出遊戲模式");
+        var game = new NativeMenuItem("进入／退出游戏模式");
         game.Click += (_, _) => { window.ShowInterface(); window.ToggleGame(); };
         var quit = new NativeMenuItem("退出 Secondary");
         quit.Click += (_, _) => { window.AllowClose = true; desktop.Shutdown(); };
@@ -140,7 +140,7 @@ public partial class App : Application
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
         {
             Secondary.Shared.AppDiagnostics.Write("connection-identity", error);
-            problem = "連線模式無法啟用：無法建立本機連線身分（" + error.Message + "）。";
+            problem = "连接模式无法启用：无法建立本机连接身分（" + error.Message + "）。";
         }
         window.AttachConnection(connection, problem);
         connection?.Start();

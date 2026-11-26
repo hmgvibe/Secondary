@@ -17,7 +17,7 @@ namespace Secondary.Connect;
 internal sealed class UsageService
 {
     internal static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
-    internal const string NotAllowed = "主電腦未允許線上用量（在連接助手選單開啟）";
+    internal const string NotAllowed = "主机未允许线上用量（在连接助手菜单开启）";
     private readonly Func<bool, bool, bool, CancellationToken, Task<AiUsageSnapshot>> read;
     private readonly string settingsPath;
     private readonly TimeSpan interval;
@@ -28,7 +28,7 @@ internal sealed class UsageService
     private bool allowOnline;
     public event Action? Changed;
     public bool Watching { get { lock (gate) return watching is not null; } }
-    public string Status => Watching ? "AI 用量：設備正在顯示主電腦的用量" : "AI 用量：未使用";
+    public string Status => Watching ? "AI 用量：设备正在显示主机的用量" : "AI 用量：未使用";
     public string? SaveError { get; private set; }
     internal string SettingsPath => settingsPath;
 
@@ -92,7 +92,7 @@ internal sealed class UsageService
             {
                 var online = request.Claude && request.ClaudeOnline && AllowOnline;
                 AiUsageSnapshot snapshot;
-                var status = "主電腦用量";
+                var status = "主机用量";
                 try
                 {
                     snapshot = await read(request.Claude, request.Codex, online, token).ConfigureAwait(false);
@@ -102,7 +102,7 @@ internal sealed class UsageService
                 {
                     AppDiagnostics.Write("connect-usage", error);
                     snapshot = new AiUsageSnapshot(new(null, null, null), new(null, null, null));
-                    status = "無法讀取主電腦的用量紀錄";
+                    status = "无法读取主机的用量纪录";
                 }
                 // The comparison leaves out the timestamp, so an unchanged reading is not sent again.
                 var message = RemoteUsageMessages.State(snapshot, clock(), status);
@@ -146,7 +146,7 @@ internal sealed class UsageService
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            SaveError = "無法儲存線上用量設定：" + error.Message;
+            SaveError = "无法保存线上用量设置：" + error.Message;
             AppDiagnostics.Write("connect-usage", error);
         }
     }

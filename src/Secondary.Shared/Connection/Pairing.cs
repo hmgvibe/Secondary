@@ -64,17 +64,17 @@ public static class Pairing
     private static bool Matches(byte[] expected, byte[] actual) => CryptographicOperations.FixedTimeEquals(expected, actual);
     private static async Task<bool> Fail(FrameChannel channel, CancellationToken token)
     {
-        await channel.SendAsync(Message("error", ("code", "pair-failed"), ("message", "配對碼不符")), token).ConfigureAwait(false);
+        await channel.SendAsync(Message("error", ("code", "pair-failed"), ("message", "配对码不符")), token).ConfigureAwait(false);
         return false;
     }
     private static async Task<byte[]> Expect(FrameChannel channel, string type, int round, CancellationToken token)
     {
         var message = await channel.ReceiveAsync(HandshakeTimeout, token).ConfigureAwait(false);
-        if (TypeOf(message) == "error") throw new ConnectionRefusedException(Text(message, "code") ?? "error", Text(message, "message") ?? "對方拒絕配對");
+        if (TypeOf(message) == "error") throw new ConnectionRefusedException(Text(message, "code") ?? "error", Text(message, "message") ?? "对方拒绝配对");
         if (TypeOf(message) != type || Number(message, "round") != round || Text(message, "value") is not { } value)
-            throw new System.IO.InvalidDataException("配對訊息順序錯誤");
+            throw new System.IO.InvalidDataException("配对消息顺序错误");
         var bytes = Convert.FromBase64String(value);
-        if (bytes.Length != (type == "pair-commit" ? 32 : NonceBytes)) throw new System.IO.InvalidDataException("配對訊息長度錯誤");
+        if (bytes.Length != (type == "pair-commit" ? 32 : NonceBytes)) throw new System.IO.InvalidDataException("配对消息长度错误");
         return bytes;
     }
 }

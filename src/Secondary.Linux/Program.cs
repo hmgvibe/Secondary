@@ -24,7 +24,7 @@ public static class Program
             // A running instance owns the settings; forward the request and leave.
             var command = options.ToggleGame ? InstanceCommand.ToggleGame : InstanceCommand.Show;
             if (SingleInstanceCoordinator.SendAsync(paths.SettingsPath, command).GetAwaiter().GetResult()) return 0;
-            Console.Error.WriteLine("secondary: 已有執行中的 Secondary，但暫時無法回應。請從系統匣顯示介面。");
+            Console.Error.WriteLine("secondary: 已有执行中的 Secondary，但暂时无法响应。请从系统托盘显示界面。");
             return 1;
         }
         try
@@ -61,9 +61,9 @@ public sealed record LaunchOptions(bool ToggleGame, string? Profile, string? Sta
             // How long a startup check keeps running, for acceptance measurements (1–120 s).
             else if (arg.StartsWith("--check-seconds=", StringComparison.Ordinal) && seconds == 0 && int.TryParse(arg[16..], out var value) && value is >= 1 and <= 120)
                 seconds = value;
-            else throw new ArgumentException("不支援的參數：" + arg + "（可用 --toggle-game、--show、--profile=目錄）");
+            else throw new ArgumentException("不支持的参数：" + arg + "（可用 --toggle-game、--show、--profile=目录）");
         }
-        if (seconds > 0 && check is null) throw new ArgumentException("--check-seconds 只能與 --startup-check 一起使用");
+        if (seconds > 0 && check is null) throw new ArgumentException("--check-seconds 只能与 --startup-check 一起使用");
         return new(toggle, profile, check, seconds);
     }
 }

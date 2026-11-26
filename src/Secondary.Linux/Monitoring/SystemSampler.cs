@@ -30,7 +30,7 @@ public sealed class SystemSampler(string root = "/")
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException) { previousCpu = null; problems.Add("CPU：" + error.Message); }
         ulong total = 0, available = 0;
         try { (total, available) = ReadMemory(File.ReadAllText(Proc("meminfo"))); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException) { problems.Add("記憶體：" + error.Message); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException) { problems.Add("内存：" + error.Message); }
         double? down = null, up = null;
         try
         {
@@ -44,7 +44,7 @@ public sealed class SystemSampler(string root = "/")
             }
             previousNetwork = (received, sent, ticks);
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException) { previousNetwork = null; problems.Add("網路：" + error.Message); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException) { previousNetwork = null; problems.Add("网络：" + error.Message); }
         return new(now, cpu, total, available, down, up, problems.Count > 0 ? string.Join("；", problems) : null);
     }
 
@@ -60,7 +60,7 @@ public sealed class SystemSampler(string root = "/")
             var idle = Field(3) + Field(4);
             return new(idle, Field(2) + Field(5) + Field(6) + Field(7) + idle, Field(0) + Field(1));
         }
-        throw new FormatException("/proc/stat 沒有整機 cpu 行");
+        throw new FormatException("/proc/stat 没有整机 cpu 行");
     }
     public static (ulong Total, ulong Available) ReadMemory(string meminfo)
     {
@@ -95,7 +95,7 @@ public sealed class SystemSampler(string root = "/")
             sent += long.Parse(fields[8], CultureInfo.InvariantCulture);
             found = true;
         }
-        if (!found) throw new FormatException("/proc/net/dev 沒有網路介面");
+        if (!found) throw new FormatException("/proc/net/dev 没有网络界面");
         return (received, sent);
     }
 }

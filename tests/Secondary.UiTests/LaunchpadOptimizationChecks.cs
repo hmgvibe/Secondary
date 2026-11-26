@@ -58,16 +58,16 @@ internal static class LaunchpadOptimizationChecks
             Layout(scriptView);
             var scriptTile = Tile(scriptView, "Script fixture");
             scriptTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            var revoke = scriptTile.ContextMenu!.Items.OfType<MenuItem>().Single(i => (string)i.Header == "下次執行重新確認");
+            var revoke = scriptTile.ContextMenu!.Items.OfType<MenuItem>().Single(i => (string)i.Header == "下次执行重新确认");
             revoke.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             Wait(scriptView.ExecutionCompletion);
-            check(!scriptView.IsExecuting && scriptView.ExecutionStatus.Contains("已變更") && scriptLibrary.Load().Single().ApprovedFingerprint is null,
+            check(!scriptView.IsExecuting && scriptView.ExecutionStatus.Contains("已变更") && scriptLibrary.Load().Single().ApprovedFingerprint is null,
                 "Revoking approval during asynchronous review blocks stale approval without overwriting the newer entry");
 
             using (var locked = new FileStream(scriptPath, FileMode.Open, FileAccess.Read, FileShare.None))
             {
                 Tile(scriptView, "Script fixture").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Wait(scriptView.ExecutionCompletion);
-                check(!scriptView.IsExecuting && scriptView.ExecutionStatus.StartsWith("執行停止"),
+                check(!scriptView.IsExecuting && scriptView.ExecutionStatus.StartsWith("执行停止"),
                     "Worker review failures return a usable stopped state without reaching script execution");
             }
             Tile(scriptView, "Script fixture").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -87,7 +87,7 @@ internal static class LaunchpadOptimizationChecks
             using var guardView = new LaunchpadView(guardPath) { Resources = window.Resources, CanRun = () => allowRun };
             Layout(guardView);
             Tile(guardView, "Guarded wait").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            WaitUntil(() => guardView.ExecutionStatus.StartsWith("執行 Guarded wait"));
+            WaitUntil(() => guardView.ExecutionStatus.StartsWith("执行 Guarded wait"));
             allowRun = false; Wait(guardView.ExecutionCompletion);
             check(!guardView.IsExecuting && guardView.ExecutionStatus.StartsWith("已取消"),
                 "Permission changes during a macro stop its remaining steps on the dispatcher");
@@ -103,22 +103,22 @@ internal static class LaunchpadOptimizationChecks
             var exported = Path.Combine(directory, "export.json"); string? confirmText = null; var accept = false;
             using var source = new LaunchpadView(path) { Resources = window.Resources, PickExportPath = () => exported };
             Layout(source);
-            Click(source, "匯出設定");
-            check(File.Exists(exported) && source.ExecutionStatus.StartsWith("已匯出 3 個") && !File.ReadAllText(exported).Contains(wait.ApprovedFingerprint!),
+            Click(source, "导出设置");
+            check(File.Exists(exported) && source.ExecutionStatus.StartsWith("已导出 3 个") && !File.ReadAllText(exported).Contains(wait.ApprovedFingerprint!),
                 "Export writes every shortcut without approvals and reports the count");
             var targetPath = Path.Combine(directory, "target.json");
             check(new ShortcutLibrary(targetPath).Save([new("other", "Other", "Misc", Steps: [new("Open", "https://example.invalid/other")])]), "Import target fixture saves");
             using var target = new LaunchpadView(targetPath) { Resources = window.Resources, PickImportPath = () => exported, ConfirmImport = text => { confirmText = text; return accept; } };
             Layout(target);
-            Click(target, "匯入設定");
-            check(target.EntryCount == 1 && confirmText!.Contains("3 個捷徑取代目前的 1 個") && target.ExecutionStatus.StartsWith("已取消匯入"),
+            Click(target, "导入设置");
+            check(target.EntryCount == 1 && confirmText!.Contains("3 个快捷方式取代目前的 1 个") && target.ExecutionStatus.StartsWith("已取消导入"),
                 "Declining the import confirmation changes nothing");
-            accept = true; Click(target, "匯入設定"); Layout(target);
+            accept = true; Click(target, "导入设置"); Layout(target);
             check(target.EntryCount == 3 && Tiles(target).Length == 3 && new ShortcutLibrary(targetPath).Load().All(e => e.ApprovedFingerprint is null),
                 "Accepting replaces the launchpad and every imported shortcut needs confirmation again");
             check(File.Exists(Path.Combine(directory, "target.before-import.json")), "Import keeps a backup of the replaced configuration");
             File.WriteAllText(exported, "not a settings file");
-            check(!target.ImportFrom(exported) && target.ExecutionStatus.StartsWith("匯入失敗") && target.EntryCount == 3, "A broken file is refused without changes");
+            check(!target.ImportFrom(exported) && target.ExecutionStatus.StartsWith("导入失败") && target.EntryCount == 3, "A broken file is refused without changes");
         }
         finally { Directory.Delete(directory, true); }
     }

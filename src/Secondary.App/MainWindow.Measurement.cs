@@ -9,23 +9,23 @@ public partial class MainWindow
     public string MeasurementSourceStatus => GameNotice.Text + " / " + TelemetryStatus.Text;
     internal string? MeasurementProblem(string scene)
     {
-        if (SettingsOpen || HomeCustomizeOpen) return "量測時有設定頁或自訂彈窗開啟。";
+        if (SettingsOpen || HomeCustomizeOpen) return "量测时有设置页或自订弹窗开启。";
         var game = scene is "GameLow" or "GameHigh" or "GameSensors" or "Hidden" or "Minimized";
-        if (CurrentPage != (game ? "game" : scene == "Shortcuts" ? "shortcuts" : "home")) return "量測頁面與指定情境不一致。";
+        if (CurrentPage != (game ? "game" : scene == "Shortcuts" ? "shortcuts" : "home")) return "量测页面与指定情境不一致。";
         if (game)
         {
             var high = scene is "GameHigh" or "GameSensors";
-            if (SamplingPicker.SelectedIndex != (high ? 1 : 0) || GameSensorsToggle.IsChecked != (scene == "GameSensors")) return "採樣或硬體助手選項與指定情境不一致。";
+            if (SamplingPicker.SelectedIndex != (high ? 1 : 0) || GameSensorsToggle.IsChecked != (scene == "GameSensors")) return "采样或硬件助手选项与指定情境不一致。";
             if (scene is "Hidden" or "Minimized")
             {
-                if (GameMonitoringActive || !GameMonitoringCompletion.IsCompletedSuccessfully) return "隱藏或最小化後，監測工作尚未完成停止。";
+                if (GameMonitoringActive || !GameMonitoringCompletion.IsCompletedSuccessfully) return "隐藏或最小化后，监测工作尚未完成停止。";
             }
-            else if (!GameMonitoringActive) return "遊戲監測工作未啟動。";
+            else if (!GameMonitoringActive) return "游戏监测工作未启动。";
         }
-        if (scene == "HomeWidgets" && UtilityWidgetCount != 12) return "首頁沒有指定的十二個組件。";
-        if (scene == "Shortcuts" && Launchpad.EntryCount != 200) return "快捷導航沒有指定的二百筆入口。";
-        if (scene == "Image" && (!HomeBackground.HasImage || HomeBackground.IsImageLoading || HomeBackground.Status.Length != 0)) return "圖片背景尚未載入或已回退。";
-        if (scene == "Video" && (!HomeBackground.HasMedia || !HomeBackground.MediaReady || HomeBackground.Status.Length != 0)) return "影片背景尚未播放或已回退。";
+        if (scene == "HomeWidgets" && UtilityWidgetCount != 12) return "首页没有指定的十二个组件。";
+        if (scene == "Shortcuts" && Launchpad.EntryCount != 200) return "快捷导航没有指定的二百笔入口。";
+        if (scene == "Image" && (!HomeBackground.HasImage || HomeBackground.IsImageLoading || HomeBackground.Status.Length != 0)) return "图片背景尚未载入或已回退。";
+        if (scene == "Video" && (!HomeBackground.HasMedia || !HomeBackground.MediaReady || HomeBackground.Status.Length != 0)) return "视频背景尚未播放或已回退。";
         return null;
     }
     internal void PrepareMeasurement(string scene, string? media)

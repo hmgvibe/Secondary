@@ -14,10 +14,10 @@ public sealed record ShortcutRules(string[] ScriptExtensions, string[] OpenBlock
     string ScriptMessage, string OpenBlockedMessage, string ArgumentsMessage, string? KeysUnsupported)
 {
     public static readonly ShortcutRules Windows = new([".ps1", ".bat", ".cmd"], [".ps1", ".bat", ".cmd", ".vbs", ".js", ".wsf", ".hta"], [".exe"],
-        "外部腳本只支援本機 .ps1／.bat／.cmd。", "請將受支援的腳本改用「腳本」步驟；不支援其他脚本類型。", "啟動參數只適用於 .exe 程式。", null);
+        "外部脚本只支持本机 .ps1／.bat／.cmd。", "请将受支持的脚本改用「脚本」步骤；不支持其他脚本类型。", "启动参数只适用于 .exe 程序。", null);
     public static readonly ShortcutRules Linux = new([".sh"], [".sh", ".bash", ".zsh", ".py", ".pl", ".rb"], ["", ".appimage"],
-        "外部腳本只支援本機 .sh（以 /bin/sh 執行）。", "請將 .sh 改用「腳本」步驟；不支援其他腳本類型。", "啟動參數只適用於可執行程式或 AppImage。",
-        "Wayland 不允許程式向其他視窗送出按鍵；Linux 版沒有「視窗快捷鍵」步驟。") { UnixPaths = true };
+        "外部脚本只支持本机 .sh（以 /bin/sh 执行）。", "请将 .sh 改用「脚本」步骤；不支持其他脚本类型。", "启动参数只适用于可执行程序或 AppImage。",
+        "Wayland 不允许程序向其他窗口送出按键；Linux 版没有「窗口快捷键」步骤。") { UnixPaths = true };
     public static ShortcutRules[] All => [Windows, Linux];
     public bool UnixPaths { get; private init; }
     // Windows runs drive paths; Linux runs absolute non-network paths. Each system's paths are invalid on the
@@ -37,30 +37,30 @@ public static class ShortcutPolicy
     public static bool ValidAnywhere(ShortcutEntry entry) => ShortcutRules.All.Any(r => Validate(entry, r) is null);
     public static string? Validate(ShortcutEntry entry, ShortcutRules rules)
     {
-        if (string.IsNullOrWhiteSpace(entry.Id) || string.IsNullOrWhiteSpace(entry.Name) || entry.Name.Length > 80 || entry.Group.Length > 40 || entry.Icon.Length > 8) return "請填寫名稱（最多 80 字）、分組（最多 40 字）、圖示（最多 8 字）。";
-        if (entry.Steps is not { Length: > 0 and <= 20 }) return "每個捷徑需要 1–20 個步驟。";
+        if (string.IsNullOrWhiteSpace(entry.Id) || string.IsNullOrWhiteSpace(entry.Name) || entry.Name.Length > 80 || entry.Group.Length > 40 || entry.Icon.Length > 8) return "请填写名称（最多 80 字）、分组（最多 40 字）、图标（最多 8 字）。";
+        if (entry.Steps is not { Length: > 0 and <= 20 }) return "每个快捷方式需要 1–20 个步骤。";
         foreach (var step in entry.Steps)
         {
-            if (step is null) return "無效步驟。";
-            if (step.Target.Length > 4096 || step.Arguments.Length > 4096 || step.WorkingDirectory.Length > 4096) return "路徑或參數過長。";
-            if (step.Kind == "Wait") { if (step.Seconds is < 1 or > 3600) return "等待時間需為 1–3600 秒。"; continue; }
+            if (step is null) return "无效步骤。";
+            if (step.Target.Length > 4096 || step.Arguments.Length > 4096 || step.WorkingDirectory.Length > 4096) return "路径或参数过长。";
+            if (step.Kind == "Wait") { if (step.Seconds is < 1 or > 3600) return "等待时间需为 1–3600 秒。"; continue; }
             if (step.Kind == "Keys")
             {
                 if (rules.KeysUnsupported is { } unsupported) return unsupported;
-                if (!HotkeyGesture.TryParse(step.Target,out _) || string.IsNullOrWhiteSpace(step.ProcessName) || string.IsNullOrWhiteSpace(step.WindowTitle)) return "按鍵步驟需填 Ctrl／Alt 組合鍵、程序名稱及完整視窗標題。";
+                if (!HotkeyGesture.TryParse(step.Target,out _) || string.IsNullOrWhiteSpace(step.ProcessName) || string.IsNullOrWhiteSpace(step.WindowTitle)) return "按键步骤需填 Ctrl／Alt 组合键、程序名称及完整窗口标题。";
                 continue;
             }
-            if (step.Kind is not ("Open" or "Script")) return "不支援的步驟。";
+            if (step.Kind is not ("Open" or "Script")) return "不支持的步骤。";
             var web = Uri.TryCreate(step.Target,UriKind.Absolute,out var uri) && uri.Scheme is "http" or "https";
-            if (!web && !rules.IsLocalPath(step.Target)) return rules.UnixPaths ? "目標需為以 / 開頭的本機路徑或 HTTP／HTTPS 網址。" : "目標需為本機磁碟路徑（例如 C:\\）或 HTTP／HTTPS 網址。";
+            if (!web && !rules.IsLocalPath(step.Target)) return rules.UnixPaths ? "目标需为以 / 开头的本机路径或 HTTP／HTTPS 网址。" : "目标需为本机磁碟路径（例如 C:\\）或 HTTP／HTTPS 网址。";
             var extension = Path.GetExtension(step.Target).ToLowerInvariant();
             if (step.Kind == "Script" && (web || !rules.ScriptExtensions.Contains(extension))) return rules.ScriptMessage;
             if (step.Kind == "Open" && rules.OpenBlocked.Contains(extension)) return rules.OpenBlockedMessage;
-            if (step.WorkingDirectory.Length > 0 && !rules.IsLocalPath(step.WorkingDirectory)) return "工作目錄需為本機絕對路徑。";
-            if (web && (step.Arguments.Length > 0 || step.WorkingDirectory.Length > 0)) return "網站不接受參數或工作目錄。";
+            if (step.WorkingDirectory.Length > 0 && !rules.IsLocalPath(step.WorkingDirectory)) return "工作目录需为本机绝对路径。";
+            if (web && (step.Arguments.Length > 0 || step.WorkingDirectory.Length > 0)) return "网站不接受参数或工作目录。";
             if (step.Kind == "Open" && step.Arguments.Length > 0 && (web || !rules.ArgumentExtensions.Contains(extension))) return rules.ArgumentsMessage;
-            if (step.Target.Contains('"') || step.Target.Contains('\r') || step.Target.Contains('\n')) return "目標包含無效字元。";
-            if (step.Kind == "Script" && step.Arguments.Length > 0) return "本階段腳本不接受額外參數；請在腳本內設定。";
+            if (step.Target.Contains('"') || step.Target.Contains('\r') || step.Target.Contains('\n')) return "目标包含无效字元。";
+            if (step.Kind == "Script" && step.Arguments.Length > 0) return "本阶段脚本不接受额外参数；请在脚本内设置。";
         }
         return null;
     }
@@ -98,15 +98,15 @@ public sealed class ShortcutLibrary(string path, ShortcutRules? rules = null)
         {
             Error = null; ReadOnly = false; GroupLayout = "Vertical"; Pending = [];
             if (!File.Exists(path)) return [];
-            var doc = BoundedJson.Read<ShortcutDocument>(path, MaximumBytes, "捷徑資料過大。");
+            var doc = BoundedJson.Read<ShortcutDocument>(path, MaximumBytes, "快捷方式数据过大。");
             if (doc?.Version != 1 || doc.Entries is null || doc.Entries.Length > 200 || doc.Entries.Any(e => e is null || !ShortcutPolicy.ValidAnywhere(e)) || doc.Entries.Select(e => e.Id).Distinct().Count() != doc.Entries.Length)
-                throw new InvalidDataException("捷徑資料格式不正確；保留原檔，未覆寫。");
+                throw new InvalidDataException("快捷方式数据格式不正确；保留原档，未覆写。");
             // Shortcuts saved by an earlier version that only another system can run become pending
             // instead of making the whole file unreadable; the next save stores them that way.
             var runnable = doc.Entries.Where(e => ShortcutPolicy.Validate(e, rules) is null).ToArray();
             var pending = (doc.Pending ?? []).Concat(doc.Entries.Where(e => ShortcutPolicy.Validate(e, rules) is not null)).ToArray();
             if (pending.Length > 200 || pending.Any(e => e is null || !ShortcutPolicy.ValidAnywhere(e)) || pending.Select(e => e.Id).Concat(runnable.Select(e => e.Id)).Distinct().Count() != pending.Length + runnable.Length)
-                throw new InvalidDataException("捷徑資料格式不正確；保留原檔，未覆寫。");
+                throw new InvalidDataException("快捷方式数据格式不正确；保留原档，未覆写。");
             Pending = pending;
             GroupLayout = doc.GroupLayout == "Horizontal" ? "Horizontal" : "Vertical";
             return runnable;
@@ -118,13 +118,13 @@ public sealed class ShortcutLibrary(string path, ShortcutRules? rules = null)
     public bool Save(ShortcutEntry[] entries, ShortcutEntry[] pending)
     {
         if (ReadOnly) return false;
-        if (entries.Length > 200 || entries.Any(e => ShortcutPolicy.Validate(e, rules) is not null) || entries.Select(e => e.Id).Distinct().Count() != entries.Length) { Error = "捷徑內容無效或超過 200 筆。"; return false; }
-        if (pending.Length > 200 || pending.Any(e => !ShortcutPolicy.ValidAnywhere(e)) || pending.Select(e => e.Id).Concat(entries.Select(e => e.Id)).Distinct().Count() != pending.Length + entries.Length) { Error = "待處理的捷徑內容無效。"; return false; }
+        if (entries.Length > 200 || entries.Any(e => ShortcutPolicy.Validate(e, rules) is not null) || entries.Select(e => e.Id).Distinct().Count() != entries.Length) { Error = "快捷方式内容无效或超过 200 笔。"; return false; }
+        if (pending.Length > 200 || pending.Any(e => !ShortcutPolicy.ValidAnywhere(e)) || pending.Select(e => e.Id).Concat(entries.Select(e => e.Id)).Distinct().Count() != pending.Length + entries.Length) { Error = "待处理的快捷方式内容无效。"; return false; }
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             var bytes = BoundedJson.Serialize(new ShortcutDocument(Entries:entries,GroupLayout:GroupLayout,Pending:pending.Length > 0 ? pending : null), MaximumBytes,
-                "捷徑資料超過 4 MB，請縮減步驟或啟動參數；原檔未覆寫。");
+                "快捷方式数据超过 4 MB，请缩减步骤或启动参数；原档未覆写。");
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             File.WriteAllBytes(temp, bytes);
             File.Move(temp,path,true); Error = null; Pending = pending; return true;
@@ -136,9 +136,9 @@ public sealed class ShortcutLibrary(string path, ShortcutRules? rules = null)
     // Replaces everything with an import. The current file is copied aside first so the import can be undone by hand.
     public bool Replace(ShortcutImportResult imported)
     {
-        if (ReadOnly) { Error ??= "目前的捷徑資料無法讀取，未匯入。"; return false; }
+        if (ReadOnly) { Error ??= "目前的快捷方式数据无法读取，未导入。"; return false; }
         try { if (File.Exists(path)) File.Copy(path, BackupPath, true); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Error = "無法備份目前設定，未匯入：" + e.Message; return false; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Error = "无法备份目前设置，未导入：" + e.Message; return false; }
         var previous = GroupLayout; GroupLayout = imported.GroupLayout;
         if (Save(imported.Entries, imported.Pending)) return true;
         GroupLayout = previous; return false;
@@ -161,7 +161,7 @@ public static class ShortcutTransfer
     {
         var waiting = (pending ?? []).Select(e => e with { ApprovedFingerprint = null }).ToArray();
         return BoundedJson.Serialize(new ShortcutDocument(Entries: entries.Select(e => e with { ApprovedFingerprint = null }).ToArray(),
-            GroupLayout: groupLayout == "Horizontal" ? "Horizontal" : "Vertical", Pending: waiting.Length > 0 ? waiting : null), ShortcutLibrary.MaximumBytes, "捷徑資料超過 4 MB，無法匯出。");
+            GroupLayout: groupLayout == "Horizontal" ? "Horizontal" : "Vertical", Pending: waiting.Length > 0 ? waiting : null), ShortcutLibrary.MaximumBytes, "快捷方式数据超过 4 MB，无法导出。");
     }
 
     // Entries this platform cannot run but another system can (its paths or step kinds) become pending;
@@ -169,9 +169,9 @@ public static class ShortcutTransfer
     public static ShortcutImportResult Read(string path, ShortcutRules rules)
     {
         ShortcutDocument? doc;
-        try { doc = BoundedJson.Read<ShortcutDocument>(path, ShortcutLibrary.MaximumBytes, "檔案超過 4 MB，不是 Secondary 的捷徑設定。"); }
-        catch (JsonException) { throw new InvalidDataException("檔案不是 Secondary 的捷徑設定。"); }
-        if (doc is not { Version: 1, Entries: not null }) throw new InvalidDataException("檔案不是 Secondary 的捷徑設定，或版本不支援。");
+        try { doc = BoundedJson.Read<ShortcutDocument>(path, ShortcutLibrary.MaximumBytes, "文件超过 4 MB，不是 Secondary 的快捷方式设置。"); }
+        catch (JsonException) { throw new InvalidDataException("文件不是 Secondary 的快捷方式设置。"); }
+        if (doc is not { Version: 1, Entries: not null }) throw new InvalidDataException("文件不是 Secondary 的快捷方式设置，或版本不支持。");
         var kept = new List<ShortcutEntry>(); var pending = new List<ShortcutEntry>(); var ids = new HashSet<string>(); var skipped = 0;
         var all = doc.Entries.Concat(doc.Pending ?? []).ToArray();
         foreach (var raw in all)
@@ -183,7 +183,7 @@ public static class ShortcutTransfer
             if (!ids.Add(entry.Id)) { entry = entry with { Id = Guid.NewGuid().ToString("N") }; ids.Add(entry.Id); }
             target.Add(entry);
         }
-        if (kept.Count == 0 && pending.Count == 0 && all.Length > 0) throw new InvalidDataException("檔案中沒有可以使用的捷徑；未變更目前設定。");
+        if (kept.Count == 0 && pending.Count == 0 && all.Length > 0) throw new InvalidDataException("文件中没有可以使用的快捷方式；未变更目前设置。");
         return new(kept.ToArray(), doc.GroupLayout == "Horizontal" ? "Horizontal" : "Vertical", skipped, pending.ToArray());
     }
 }
@@ -197,7 +197,7 @@ public sealed class ShortcutRunner(IShortcutExecutor executor)
     public async Task Run(ShortcutEntry entry, Action<int> progress, CancellationToken cancellation)
     {
         if (ShortcutPolicy.Validate(entry, Rules) is { } error) throw new InvalidOperationException(error);
-        if (Interlocked.CompareExchange(ref running,1,0) != 0) throw new InvalidOperationException("已有巨集正在執行。");
+        if (Interlocked.CompareExchange(ref running,1,0) != 0) throw new InvalidOperationException("已有巨集正在执行。");
         try
         {
             for (var i = 0; i < entry.Steps!.Length; i++)

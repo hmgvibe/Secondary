@@ -87,22 +87,22 @@ public sealed class HomeBackdrop : Grid, IDisposable
                     ImageLoadCompletion = LoadImageAsync(options.MediaPath, imageGeneration, cancellation.Token);
                     return;
                 }
-                if (!HomeSettings.IsLocalPath(options.MediaPath) || !File.Exists(options.MediaPath)) throw new IOException("背景檔案不存在，請重新選擇。");
+                if (!HomeSettings.IsLocalPath(options.MediaPath) || !File.Exists(options.MediaPath)) throw new IOException("背景文件不存在，请重新选择。");
                 if (motionAllowed)
                 {
-                    if (!string.Equals(System.IO.Path.GetExtension(options.MediaPath), ".mp4", StringComparison.OrdinalIgnoreCase)) throw new IOException("影片請使用 MP4（H.264）。");
+                    if (!string.Equals(System.IO.Path.GetExtension(options.MediaPath), ".mp4", StringComparison.OrdinalIgnoreCase)) throw new IOException("视频请使用 MP4（H.264）。");
                     media = new MediaElement { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Manual, IsMuted = true, Volume = 0, Stretch = Stretch.UniformToFill, ScrubbingEnabled = false };
                     CompletedLoops = 0;
                     media.MediaEnded += OnEnded; media.MediaFailed += OnFailed; media.MediaOpened += OnOpened;
                     Children.Add(media); media.Source = new Uri(options.MediaPath!, UriKind.Absolute); media.Play();
                 }
-                else { Report("系統已減少動畫，影片背景暫停，使用靜態背景。"); return; }
+                else { Report("系统已减少动画，视频背景暂停，使用静态背景。"); return; }
                 Children.Add(new Rectangle { Fill = Brushes.Black, Opacity = .25 });
             }
             Report("");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or System.Runtime.InteropServices.COMException or FileFormatException)
-        { AppDiagnostics.Write("background-load", e); Release(); Report("背景無法載入，已回退靜態背景。" + e.Message); }
+        { AppDiagnostics.Write("background-load", e); Release(); Report("背景无法载入，已回退静态背景。" + e.Message); }
     }
     private bool IsCurrentImage(int generation, CancellationToken cancellation) =>
         !disposed && active && !SystemParameters.HighContrast && !cancellation.IsCancellationRequested && generation == imageGeneration && options.Background == "Image";
@@ -135,8 +135,8 @@ public sealed class HomeBackdrop : Grid, IDisposable
                     if (!IsCurrentImage(generation, cancellation)) return;
                     Release();
                     var detail = e is ImageLimitException ? e.Message : e is FileNotFoundException or DirectoryNotFoundException
-                        ? "背景檔案不存在，請重新選擇。" : "請確認圖片格式與檔案存取權限。";
-                    Report("背景無法載入，已回退靜態背景。" + detail);
+                        ? "背景文件不存在，请重新选择。" : "请确认图片格式与文件存取权限。";
+                    Report("背景无法载入，已回退静态背景。" + detail);
                 }, DispatcherPriority.Normal, cancellation).Task.ConfigureAwait(false);
             }
             catch (OperationCanceledException) { }
@@ -149,15 +149,15 @@ public sealed class HomeBackdrop : Grid, IDisposable
     private static BitmapImage DecodeImage(string? path, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
-        if (!HomeSettings.IsLocalPath(path)) throw new ImageLimitException("背景檔案不存在，請重新選擇。");
+        if (!HomeSettings.IsLocalPath(path)) throw new ImageLimitException("背景文件不存在，请重新选择。");
         using var file = new FileStream(path!, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        if (file.Length > MaxImageBytes) throw new ImageLimitException("圖片超過 80 MB，請改用較小的圖片。");
+        if (file.Length > MaxImageBytes) throw new ImageLimitException("图片超过 80 MB，请改用较小的图片。");
         using var stream = new CancellableReadStream(file, cancellation);
         var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-        if (decoder.Frames.Count == 0) throw new ImageLimitException("圖片沒有可顯示的畫面。");
+        if (decoder.Frames.Count == 0) throw new ImageLimitException("图片没有可显示的界面。");
         var frame = decoder.Frames[0]; var width = frame.PixelWidth; var height = frame.PixelHeight;
         if (width <= 0 || height <= 0 || width > MaxSourceDimension || height > MaxSourceDimension || (long)width * height > MaxSourcePixels)
-            throw new ImageLimitException("圖片像素過大，請先縮小到 1 億像素以下，單邊不超過 32,768 像素。");
+            throw new ImageLimitException("图片像素过大，请先缩小到 1 亿像素以下，单边不超过 32,768 像素。");
         cancellation.ThrowIfCancellationRequested(); stream.Position = 0;
         var bitmap = new BitmapImage(); bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad;
         if (width / (double)height >= 2560d / 1440) bitmap.DecodePixelWidth = Math.Min(width, 2560);
@@ -202,6 +202,6 @@ public sealed class HomeBackdrop : Grid, IDisposable
     private void OnEnded(object sender, RoutedEventArgs e)
     { if (ReferenceEquals(sender, media) && active) { CompletedLoops++; media!.Position = TimeSpan.Zero; media.Play(); } }
     private void OnFailed(object? sender, ExceptionRoutedEventArgs e)
-    { if (!ReferenceEquals(sender, media)) return; AppDiagnostics.Write("background-video-playback", e.ErrorException); Release(); Report("影片無法播放，已回退靜態背景。請選擇本機 MP4 H.264 影片；不會安裝編解碼器。"); }
+    { if (!ReferenceEquals(sender, media)) return; AppDiagnostics.Write("background-video-playback", e.ErrorException); Release(); Report("视频无法播放，已回退静态背景。请选择本机 MP4 H.264 视频；不会安装编解码器。"); }
     public void Dispose() { disposed = true; active = false; Release(); }
 }

@@ -16,7 +16,7 @@ public static class SensorStreamClient
         var info = new ProcessStartInfo(path) { UseShellExecute = false, CreateNoWindow = true,
             RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true, WorkingDirectory = Path.GetDirectoryName(path)! };
         info.ArgumentList.Add(high ? "--stream-high" : "--stream-low");
-        using var process = Process.Start(info) ?? throw new IOException("無法啟動感測助手");
+        using var process = Process.Start(info) ?? throw new IOException("无法启动感测助手");
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(token);
         async Task Heartbeat()
         {
@@ -35,7 +35,7 @@ public static class SensorStreamClient
             var completed = await Task.WhenAny(output, errors, heartbeat, process.WaitForExitAsync(cancel.Token));
             await completed;
             token.ThrowIfCancellationRequested();
-            throw new IOException("感測助手意外停止；離開再返回遊戲模式可重試。");
+            throw new IOException("感测助手意外停止；离开再返回游戏模式可重试。");
         }
         finally
         {

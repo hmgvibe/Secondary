@@ -80,7 +80,7 @@ internal static class GameChecks
         File.Delete(Path.Combine(proc, "meminfo"));
         Write(Path.Combine(proc, "stat"), Stat(300, 200, 1100, 100));
         var broken = sampler.Sample();
-        Check(broken.TotalMemory == 0 && broken.Cpu is not null && broken.SourceStatus?.Contains("記憶體", StringComparison.Ordinal) == true, "A missing source is reported without hiding the others");
+        Check(broken.TotalMemory == 0 && broken.Cpu is not null && broken.SourceStatus?.Contains("内存", StringComparison.Ordinal) == true, "A missing source is reported without hiding the others");
     }
 
     private static void TestHardware(string root)
@@ -209,7 +209,7 @@ internal static class GameChecks
         seconds = 202;
         Clients(3_000_000_000, 3_200_000_000, 41000, 200000);
         var load = sampler.Sample().Single(r => r.Identity == "/gpu-intel/1/load");
-        Check(load.Value is { } busy && Math.Abs(busy - 50) < .001 && load.Reason == "DRM 用戶端最忙引擎", "Intel load uses DRM engine time instead of the RC6 estimate when clients report it");
+        Check(load.Value is { } busy && Math.Abs(busy - 50) < .001 && load.Reason == "DRM 用户端最忙引擎", "Intel load uses DRM engine time instead of the RC6 estimate when clients report it");
     }
 
     private const string Header = "os,cpu,gpu,ram,kernel,driver,cpuscheduler\nUbuntu 26.04,Intel Core i5-1035G4,Iris Plus,8 GB,6.17,Mesa 25,\n" +

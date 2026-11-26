@@ -37,10 +37,10 @@ public sealed class GameTelemetrySession(bool high, SystemSampler system, Hardwa
         {
             await Task.WhenAll(
                 Loop(SystemIntervalMs, () => { var value = system.Sample(); lock (gate) { systemSample = value; lastSystem = Stopwatch.GetTimestamp(); systemFailure = null; } },
-                    message => { systemSample = null; systemFailure = "系統採樣失敗：" + message; }, token),
+                    message => { systemSample = null; systemFailure = "系统采样失败：" + message; }, token),
                 Loop(HardwareIntervalMs, () => { var value = hardware.Sample(); lock (gate) { readings = value; lastHardware = Stopwatch.GetTimestamp(); hardwareFailure = null; } },
-                    message => { readings = []; hardwareFailure = "硬體採樣失敗：" + message; }, token),
-                Loop(FrameIntervalMs, PollFrames, message => { frameStatistics = NoFrames; frameFailure = "MangoHud 記錄讀取失敗：" + message; }, token)).ConfigureAwait(false);
+                    message => { readings = []; hardwareFailure = "硬件采样失败：" + message; }, token),
+                Loop(FrameIntervalMs, PollFrames, message => { frameStatistics = NoFrames; frameFailure = "MangoHud 记录读取失败：" + message; }, token)).ConfigureAwait(false);
         }
         finally
         {
@@ -92,21 +92,21 @@ public sealed class GameTelemetrySession(bool high, SystemSampler system, Hardwa
             // The first sample has no CPU or network baseline yet: that is warming up, not a failure.
             var cpu = basic != TelemetrySourceState.Available ? basic : current?.Cpu is not null ? TelemetrySourceState.Available : current?.SourceStatus?.Contains("CPU", StringComparison.Ordinal) == true ? TelemetrySourceState.Failed : TelemetrySourceState.Waiting;
             var memory = basic != TelemetrySourceState.Available ? basic : current is { TotalMemory: > 0 } ? TelemetrySourceState.Available : TelemetrySourceState.Failed;
-            var network = basic != TelemetrySourceState.Available ? basic : current?.Download is not null ? TelemetrySourceState.Available : current?.SourceStatus?.Contains("網路", StringComparison.Ordinal) == true ? TelemetrySourceState.Failed : TelemetrySourceState.Waiting;
-            var systemStatus = stopped ? "系統採樣已停止" : systemFailure ?? (basic == TelemetrySourceState.Stale ? "系統資料已過期，等待重新採樣" : current?.SourceStatus ?? (current is null ? "等待系統採樣" : "整機採樣 / /proc 持續更新"));
+            var network = basic != TelemetrySourceState.Available ? basic : current?.Download is not null ? TelemetrySourceState.Available : current?.SourceStatus?.Contains("网络", StringComparison.Ordinal) == true ? TelemetrySourceState.Failed : TelemetrySourceState.Waiting;
+            var systemStatus = stopped ? "系统采样已停止" : systemFailure ?? (basic == TelemetrySourceState.Stale ? "系统数据已过期，等待重新采样" : current?.SourceStatus ?? (current is null ? "等待系统采样" : "整机采样 / /proc 持续更新"));
             var hardwareFresh = Fresh(lastHardware, HardwareIntervalMs);
             var hardwareState = State(hardwareFresh, lastHardware, hardwareFailure);
-            var hardwareStatus = stopped ? "硬體採樣已停止" : hardwareFailure ?? (hardwareState == TelemetrySourceState.Stale ? "硬體資料已過期，等待重新採樣" : lastHardware == 0 ? "等待硬體採樣" : "sysfs 感測器 / 持續採樣");
+            var hardwareStatus = stopped ? "硬件采样已停止" : hardwareFailure ?? (hardwareState == TelemetrySourceState.Stale ? "硬件数据已过期，等待重新采样" : lastHardware == 0 ? "等待硬件采样" : "sysfs 传感器 / 持续采样");
             var frameFresh = lastFrame != 0 && (now - lastFrame) * 1000.0 / Stopwatch.Frequency <= Math.Max(2000, FrameIntervalMs * 2.5);
             var frameState = stopped ? TelemetrySourceState.Stopped : frameFailure is not null ? TelemetrySourceState.Failed :
                 frameFresh ? TelemetrySourceState.Available : lastFrame != 0 ? TelemetrySourceState.Stale : TelemetrySourceState.Waiting;
-            var frameStatus = stopped ? "幀率讀取已停止" : frameFailure ?? frameState switch
+            var frameStatus = stopped ? "帧率读取已停止" : frameFailure ?? frameState switch
             {
-                TelemetrySourceState.Available => "MangoHud · " + frameSource + (perFrame == false ? " · 記錄不是逐幀，1% Low 不可用；請設定 log_interval=0" : ""),
-                TelemetrySourceState.Stale => "MangoHud 記錄已停止更新：" + frameSource + "（遊戲可能已結束或暫停）",
-                _ when frameSource is not null && !hasHeader => "已找到 " + frameSource + " 的記錄，等待 MangoHud 寫入欄位",
-                _ when frameSource is not null => "等待 " + frameSource + " 的新幀",
-                _ => "等待 MangoHud 記錄；請用下方啟動選項開啟遊戲"
+                TelemetrySourceState.Available => "MangoHud · " + frameSource + (perFrame == false ? " · 记录不是逐帧，1% Low 不可用；请设置 log_interval=0" : ""),
+                TelemetrySourceState.Stale => "MangoHud 记录已停止更新：" + frameSource + "（游戏可能已结束或暂停）",
+                _ when frameSource is not null && !hasHeader => "已找到 " + frameSource + " 的记录，等待 MangoHud 写入栏位",
+                _ when frameSource is not null => "等待 " + frameSource + " 的新帧",
+                _ => "等待 MangoHud 记录；请用下方启动选项开启游戏"
             };
             // Stale or stopped frames must not keep showing an old frame rate.
             var shown = frameState == TelemetrySourceState.Available ? frameStatistics with { LowOnePercent = perFrame == false ? null : frameStatistics.LowOnePercent } : NoFrames;

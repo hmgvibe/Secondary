@@ -47,9 +47,9 @@ public sealed class RemoteMediaClient : IDisposable
     private byte[]? artwork;
     public event Action? Changed;
     public RemoteMedia? Media { get; private set; }
-    public string Status { get; private set; } = "主電腦未連線";
+    public string Status { get; private set; } = "主机未连接";
     public bool Connected => controller.State == LinkState.Connected;
-    public string HelperName => controller.ConnectedName ?? "主電腦";
+    public string HelperName => controller.ConnectedName ?? "主机";
     // The app's client, set when connection mode starts; widgets created before or after use it.
     private static RemoteMediaClient? current;
     public static event Action? CurrentChanged;
@@ -89,7 +89,7 @@ public sealed class RemoteMediaClient : IDisposable
 
     public async Task<bool> ControlAsync(string command, CancellationToken token = default)
     {
-        if (Array.IndexOf(RemoteMediaMessages.Commands, command) < 0) throw new ArgumentException("未知的媒體指令", nameof(command));
+        if (Array.IndexOf(RemoteMediaMessages.Commands, command) < 0) throw new ArgumentException("未知的媒体指令", nameof(command));
         var reply = await controller.RequestAsync(Message("media-control", ("command", command)), TimeSpan.FromSeconds(8), token).ConfigureAwait(false);
         return reply["ok"]?.GetValueKind() == JsonValueKind.True;
     }
@@ -120,7 +120,7 @@ public sealed class RemoteMediaClient : IDisposable
         lock (gate) { resubscribe = now && !connected && watchers > 0; lost = !now && connected; connected = now; }
         if (resubscribe) _ = Send(Message("media-watch", ("on", true)));
         if (lost || (!now && Media is not null)) { Media = null; }
-        var status = now ? Media is null && Status == "主電腦未連線" ? "等待主電腦回報媒體" : Status : "主電腦未連線";
+        var status = now ? Media is null && Status == "主机未连接" ? "等待主机回报媒体" : Status : "主机未连接";
         if (status != Status || lost) { Status = status; Changed?.Invoke(); }
     }
     private async Task Send(JsonObject message)

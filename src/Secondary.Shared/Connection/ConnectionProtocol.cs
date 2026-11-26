@@ -47,7 +47,7 @@ public sealed class FrameChannel(Stream stream) : IAsyncDisposable
     public async Task SendAsync(JsonObject message, CancellationToken token)
     {
         var body = JsonSerializer.SerializeToUtf8Bytes(message);
-        if (body.Length > ConnectionProtocol.MaxFrameBytes) throw new InvalidDataException("訊息超過大小上限");
+        if (body.Length > ConnectionProtocol.MaxFrameBytes) throw new InvalidDataException("消息超过大小上限");
         var header = new byte[4];
         BinaryPrimitives.WriteInt32BigEndian(header, body.Length);
         await writeGate.WaitAsync(token).ConfigureAwait(false);
@@ -66,11 +66,11 @@ public sealed class FrameChannel(Stream stream) : IAsyncDisposable
         var header = new byte[4];
         await stream.ReadExactlyAsync(header, token).ConfigureAwait(false);
         var length = BinaryPrimitives.ReadInt32BigEndian(header);
-        if (length <= 0 || length > ConnectionProtocol.MaxFrameBytes) throw new InvalidDataException("訊息長度無效");
+        if (length <= 0 || length > ConnectionProtocol.MaxFrameBytes) throw new InvalidDataException("消息长度无效");
         var body = new byte[length];
         await stream.ReadExactlyAsync(body, token).ConfigureAwait(false);
-        try { return JsonNode.Parse(body) as JsonObject ?? throw new InvalidDataException("訊息不是 JSON 物件"); }
-        catch (JsonException error) { throw new InvalidDataException("訊息格式錯誤：" + error.Message, error); }
+        try { return JsonNode.Parse(body) as JsonObject ?? throw new InvalidDataException("消息不是 JSON 对象"); }
+        catch (JsonException error) { throw new InvalidDataException("消息格式错误：" + error.Message, error); }
     }
 
     // A receive that fails if nothing arrives in time, for handshakes and heartbeats.
@@ -79,7 +79,7 @@ public sealed class FrameChannel(Stream stream) : IAsyncDisposable
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(token);
         limit.CancelAfter(timeout);
         try { return await ReceiveAsync(limit.Token).ConfigureAwait(false); }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException("對方沒有回應"); }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException("对方没有响应"); }
     }
 
     public async ValueTask DisposeAsync()

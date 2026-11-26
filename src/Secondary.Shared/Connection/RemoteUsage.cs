@@ -106,7 +106,7 @@ internal sealed class RemoteUsageClient : IDisposable
     private TimeSpan offset;
     public event Action? Changed;
     public AiUsageSnapshot? Snapshot { get; private set; }
-    public string Status { get; private set; } = "主電腦未連線";
+    public string Status { get; private set; } = "主机未连接";
     public bool Connected => controller.State == LinkState.Connected;
     // Connection mode counts as set up once this device has paired with a main computer.
     public bool Configured => controller.Helpers.Any(h => h.Paired);
@@ -174,7 +174,7 @@ internal sealed class RemoteUsageClient : IDisposable
         bool stale;
         lock (gate) stale = generation == expected && Snapshot is null && Connected && sentRequest is not null;
         if (!stale) return;
-        Status = "主電腦的連接助手版本較舊，請更新後再試";
+        Status = "主机的连接助手版本较旧，请更新后再试";
         Changed?.Invoke();
     }
 
@@ -189,11 +189,11 @@ internal sealed class RemoteUsageClient : IDisposable
         var now = Connected;
         bool came, lost;
         lock (gate) { came = now && !connected; lost = !now && connected; connected = now; }
-        if (came) { Status = "等待主電腦回報用量"; Update(force: true); Changed?.Invoke(); }
+        if (came) { Status = "等待主机回报用量"; Update(force: true); Changed?.Invoke(); }
         if (lost || (!now && Snapshot is not null))
         {
             lock (gate) { Snapshot = null; sentRequest = null; }
-            Status = "主電腦未連線";
+            Status = "主机未连接";
             Changed?.Invoke();
         }
     }

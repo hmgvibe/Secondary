@@ -127,7 +127,7 @@ internal static class ConnectionChecks
             await Refusal(() => DeviceLink.PairAsync(deviceIdentity, helpersStore, "Surface", host, server.Port, wrong, CancellationToken.None));
             await Until(() => server.PairingStatus.Contains("剩 1 次", StringComparison.Ordinal));
             await Refusal(() => DeviceLink.PairAsync(deviceIdentity, helpersStore, "Surface", host, server.Port, wrong, CancellationToken.None));
-            check(await Until(() => server.PairingCode is null) && server.PairingStatus.Contains("作廢", StringComparison.Ordinal), "Three wrong codes void the pairing code");
+            check(await Until(() => server.PairingCode is null) && server.PairingStatus.Contains("作废", StringComparison.Ordinal), "Three wrong codes void the pairing code");
             check(await Refusal(() => DeviceLink.PairAsync(deviceIdentity, helpersStore, "Surface", host, server.Port, code, CancellationToken.None)) == "pairing-closed", "The voided code no longer works");
             check(helpersStore.Peers.Count == 0 && devicesStore.Peers.Count == 0, "Failed pairing stores nothing on either side");
 
@@ -191,7 +191,7 @@ internal static class ConnectionChecks
                 retrying.Start();
                 check(await Until(() => retrying.State == LinkState.Connected), "Start reconnects to the remembered helper");
                 await server.DisposeAsync();
-                check(await Until(() => retrying.State == LinkState.Waiting, 25000) && retrying.Status.Contains("秒後重試", StringComparison.Ordinal), "Losing the helper leads to automatic retries");
+                check(await Until(() => retrying.State == LinkState.Waiting, 25000) && retrying.Status.Contains("秒后重试", StringComparison.Ordinal), "Losing the helper leads to automatic retries");
             }
         }
         finally { await server.DisposeAsync(); }

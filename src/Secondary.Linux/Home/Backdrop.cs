@@ -88,10 +88,10 @@ public sealed class Backdrop : Panel, IDisposable
     }
     private void StartVideo()
     {
-        if (!HomeSettings.IsLocalPath(options.MediaPath) || !File.Exists(options.MediaPath)) { Report("背景無法載入，已回退靜態背景。背景檔案不存在，請重新選擇。"); return; }
-        if (!motionAllowed) { Report("系統已減少動畫，影片背景暫停，使用靜態背景。"); return; }
-        if (!string.Equals(System.IO.Path.GetExtension(options.MediaPath), ".mp4", StringComparison.OrdinalIgnoreCase)) { Report("背景無法載入，已回退靜態背景。影片請使用 MP4（H.264）。"); return; }
-        if (VideoFactory is null) { Report("此環境無法播放影片背景，已回退靜態背景。"); return; }
+        if (!HomeSettings.IsLocalPath(options.MediaPath) || !File.Exists(options.MediaPath)) { Report("背景无法载入，已回退静态背景。背景文件不存在，请重新选择。"); return; }
+        if (!motionAllowed) { Report("系统已减少动画，视频背景暂停，使用静态背景。"); return; }
+        if (!string.Equals(System.IO.Path.GetExtension(options.MediaPath), ".mp4", StringComparison.OrdinalIgnoreCase)) { Report("背景无法载入，已回退静态背景。视频请使用 MP4（H.264）。"); return; }
+        if (VideoFactory is null) { Report("此环境无法播放视频背景，已回退静态背景。"); return; }
         try
         {
             video = VideoFactory(options.MediaPath!);
@@ -104,14 +104,14 @@ public sealed class Backdrop : Panel, IDisposable
         {
             AppDiagnostics.Write("background-video", error.InnerException ?? error);
             Release();
-            Report("影片無法播放，已回退靜態背景。請安裝系統的 VLC 播放元件（libvlc），並選擇本機 MP4 H.264 影片；Secondary 不會自行安裝解碼器。");
+            Report("视频无法播放，已回退静态背景。请安装系统的 VLC 播放元件（libvlc），并选择本机 MP4 H.264 视频；Secondary 不会自行安装解码器。");
         }
     }
     private void OnVideoFailed(string reason) => Dispatcher.UIThread.Post(() =>
     {
         if (video is null) return;
         Release();
-        Report("影片無法播放，已回退靜態背景。" + reason);
+        Report("视频无法播放，已回退静态背景。" + reason);
     });
     private bool IsCurrentImage(int generation, CancellationToken cancellation) =>
         !disposed && active && !highContrast && !cancellation.IsCancellationRequested && generation == imageGeneration && options.Background == "Image";
@@ -140,24 +140,24 @@ public sealed class Backdrop : Panel, IDisposable
                 if (!IsCurrentImage(generation, cancellation)) return;
                 Release();
                 var detail = e is ImageLimitException ? e.Message : e is FileNotFoundException or DirectoryNotFoundException
-                    ? "背景檔案不存在，請重新選擇。" : "請確認圖片格式與檔案存取權限。";
-                Report("背景無法載入，已回退靜態背景。" + detail);
+                    ? "背景文件不存在，请重新选择。" : "请确认图片格式与文件存取权限。";
+                Report("背景无法载入，已回退静态背景。" + detail);
             });
         }
     }
     private static Bitmap DecodeImage(string? path, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
-        if (!HomeSettings.IsLocalPath(path)) throw new ImageLimitException("背景檔案不存在，請重新選擇。");
+        if (!HomeSettings.IsLocalPath(path)) throw new ImageLimitException("背景文件不存在，请重新选择。");
         using var file = new FileStream(path!, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        if (file.Length > MaxImageBytes) throw new ImageLimitException("圖片超過 80 MB，請改用較小的圖片。");
+        if (file.Length > MaxImageBytes) throw new ImageLimitException("图片超过 80 MB，请改用较小的图片。");
         int width, height;
         // Read only the header first, so oversized images are rejected before decoding.
         using (var header = new SkiaSharp.SKManagedStream(file, disposeManagedStream: false))
-        using (var codec = SkiaSharp.SKCodec.Create(header) ?? throw new ImageLimitException("請確認圖片格式與檔案存取權限。"))
+        using (var codec = SkiaSharp.SKCodec.Create(header) ?? throw new ImageLimitException("请确认图片格式与文件存取权限。"))
         { width = codec.Info.Width; height = codec.Info.Height; }
         if (width <= 0 || height <= 0 || width > MaxSourceDimension || height > MaxSourceDimension || (long)width * height > MaxSourcePixels)
-            throw new ImageLimitException("圖片像素過大，請先縮小到 1 億像素以下，單邊不超過 32,768 像素。");
+            throw new ImageLimitException("图片像素过大，请先缩小到 1 亿像素以下，单边不超过 32,768 像素。");
         cancellation.ThrowIfCancellationRequested();
         file.Position = 0;
         var bitmap = width / (double)height >= 2560d / 1440

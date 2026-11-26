@@ -19,12 +19,12 @@ public interface IGameSource
 // identities the Linux game page reads (/gpu-…/load, /cpu/0/temperature and so on).
 public sealed class RemoteGameSource(ConnectionController controller, bool high, bool sensors, RemoteProcess? target) : IGameSource
 {
-    public const string FrameSourceName = "主電腦 PresentMon";
+    public const string FrameSourceName = "主机 PresentMon";
     private static readonly FrameStatistics NoFrames = new(null, 0, null, null, null, false);
     private readonly RemoteGameClient client = new(controller, high, sensors, target);
     private string? swapChain;
     private int generation;
-    public RemoteGameView LastView { get; private set; } = new(null, false, "等待主電腦", "主電腦");
+    public RemoteGameView LastView { get; private set; } = new(null, false, "等待主机", "主机");
     public bool TargetExited => LastView is { Stale: false, Snapshot.TargetExited: true };
     public Task RunAsync(CancellationToken token) => client.RunAsync(token);
 
@@ -63,11 +63,11 @@ public sealed class RemoteGameSource(ConnectionController controller, bool high,
         // Without sensor readings the helper still measures the busiest engine across all GPUs.
         if (result.Count == 0)
         {
-            const string name = "主電腦 GPU（所有 GPU 最忙引擎）";
-            result.Add(new MonitoringReading(name + " / load", "主電腦", "/gpu-main/0/load", s.Time, s.Gpu, "%",
+            const string name = "主机 GPU（所有 GPU 最忙引擎）";
+            result.Add(new MonitoringReading(name + " / load", "主机", "/gpu-main/0/load", s.Time, s.Gpu, "%",
                 s.Gpu.HasValue ? ReadingState.Available : ReadingState.Unavailable, s.Gpu.HasValue ? null : s.GpuStatus));
-            result.Add(new MonitoringReading(name + " / memory-used", "主電腦", "/gpu-main/0/memory-used", s.Time, null, "MB", ReadingState.Unavailable,
-                "溫度、時脈、功耗與顯存需要開啟「主電腦硬體感測」"));
+            result.Add(new MonitoringReading(name + " / memory-used", "主机", "/gpu-main/0/memory-used", s.Time, null, "MB", ReadingState.Unavailable,
+                "温度、时脉、功耗与显存需要开启「主机硬件感测」"));
         }
         foreach (var reading in s.Sensors.Where(r => r.Identity.StartsWith("/intelcpu/", StringComparison.Ordinal) || r.Identity.StartsWith("/amdcpu/", StringComparison.Ordinal)))
         {
@@ -75,7 +75,7 @@ public sealed class RemoteGameSource(ConnectionController controller, bool high,
             if (key is not null && result.All(r => r.Identity != "/cpu/0/" + key)) result.Add(Renamed(reading, "/cpu/0", "CPU", key));
         }
         if (s.Sensors.FirstOrDefault(r => r.Identity == "cpu/pawnio") is { Reason: { } note } && result.All(r => r.Identity != "/cpu/0/power"))
-            result.Add(new MonitoringReading("CPU / power", "主電腦", "/cpu/0/power", s.Time, null, "W", ReadingState.Unavailable, note));
+            result.Add(new MonitoringReading("CPU / power", "主机", "/cpu/0/power", s.Time, null, "W", ReadingState.Unavailable, note));
         return result.ToArray();
     }
 }

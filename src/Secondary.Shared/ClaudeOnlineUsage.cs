@@ -63,42 +63,42 @@ internal sealed class ClaudeOnlineUsage
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
-                return new(null, (int)response.StatusCode is 401 or 403 ? "伺服器拒絕 CLI 登入憑證，請重新登入 Claude Code CLI" : $"伺服器回應 HTTP {(int)response.StatusCode}");
-            if (response.Content.Headers.ContentLength > MaximumResponseBytes) return new(null, "伺服器回應過大");
+                return new(null, (int)response.StatusCode is 401 or 403 ? "服务器拒绝 CLI 登录凭证，请重新登录 Claude Code CLI" : $"服务器响应 HTTP {(int)response.StatusCode}");
+            if (response.Content.Headers.ContentLength > MaximumResponseBytes) return new(null, "服务器响应过大");
             await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
             using var buffer = new MemoryStream();
             var chunk = new byte[16 * 1024];
             int read;
             while ((read = await stream.ReadAsync(chunk, token).ConfigureAwait(false)) > 0)
             {
-                if (buffer.Length + read > MaximumResponseBytes) return new(null, "伺服器回應過大");
+                if (buffer.Length + read > MaximumResponseBytes) return new(null, "服务器响应过大");
                 buffer.Write(chunk, 0, read);
             }
             var usage = Parse(buffer.ToArray(), now);
-            return usage is null ? new(null, "回應格式無法辨識，端點可能已變更") : new(usage, null);
+            return usage is null ? new(null, "响应格式无法识别，端点可能已变更") : new(usage, null);
         }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested) { return new(null, "連線逾時"); }
-        catch (HttpRequestException) { return new(null, "無法連線到 api.anthropic.com"); }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested) { return new(null, "连接超时"); }
+        catch (HttpRequestException) { return new(null, "无法连接到 api.anthropic.com"); }
     }
 
     private (string? Token, string? Problem) ReadCredentials(DateTimeOffset now)
     {
-        const string missing = "找不到 Claude Code CLI 登入憑證（桌面版登入不適用）";
+        const string missing = "找不到 Claude Code CLI 登录凭证（桌面版登录不适用）";
         try
         {
             var info = new FileInfo(credentialsPath);
             if (!info.Exists) return (null, missing);
-            if (info.Length is 0 or > MaximumCredentialBytes) return (null, "CLI 登入憑證檔案無法讀取");
+            if (info.Length is 0 or > MaximumCredentialBytes) return (null, "CLI 登录凭证文件无法读取");
             using var document = JsonDocument.Parse(File.ReadAllBytes(info.FullName), new JsonDocumentOptions { MaxDepth = 16 });
             if (!document.RootElement.TryGetProperty("claudeAiOauth", out var oauth) || oauth.ValueKind != JsonValueKind.Object ||
                 !oauth.TryGetProperty("accessToken", out var access) || access.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(access.GetString()))
                 return (null, missing);
             if (oauth.TryGetProperty("expiresAt", out var expires) && expires.ValueKind == JsonValueKind.Number && expires.TryGetInt64(out var milliseconds) &&
                 milliseconds > 0 && DateTimeOffset.FromUnixTimeMilliseconds(Math.Min(milliseconds, 253402300799000)) <= now)
-                return (null, "CLI 登入憑證已過期；使用一次 Claude Code CLI 後會自動更新");
+                return (null, "CLI 登录凭证已过期；使用一次 Claude Code CLI 后会自动更新");
             return (access.GetString(), null);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException) { return (null, "CLI 登入憑證檔案無法讀取"); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException) { return (null, "CLI 登录凭证文件无法读取"); }
     }
 
     // Expected shape: {"five_hour":{"utilization":12.0,"resets_at":"2026-10-20T15:00:00+00:00"},"seven_day":{...}}.

@@ -23,7 +23,7 @@ public partial class MainWindow
         if (CurrentPage != "home" || HomeCustomizeOpen) return;
         LoadHomeEditor(model.Settings.Home ?? new HomeSettings());
         UpdateBackgroundEditor();
-        HomeSettingsStatus.Text = ChineseLocale.Convert("套用後儲存；關閉不會保留本次變更。");
+        HomeSettingsStatus.Text = ("套用后保存；关闭不会保留本次变更。");
         homePreviousFocus = System.Windows.Input.Keyboard.FocusedElement;
         HomeCustomizeOverlay.Visibility = Visibility.Visible;
         Frame.IsEnabled = NavigationBar.IsEnabled = false;
@@ -80,11 +80,11 @@ public partial class MainWindow
         ClockColorInput.Text = options.Color; BackgroundPathInput.Text = options.MediaPath ?? "";
     }
     private void OnResetHome(object sender, RoutedEventArgs e)
-    { LoadHomeEditor(new()); HomeSettingsStatus.Text = ChineseLocale.Convert("已恢復編輯欄位，按套用後儲存。原背景檔案不會刪除。"); }
+    { LoadHomeEditor(new()); HomeSettingsStatus.Text = ("已恢复编辑栏位，按套用后保存。原背景文件不会删除。"); }
     private void OnCenterClock(object sender, RoutedEventArgs e)
     {
         ClockXSlider.Value = ClockYSlider.Value = .5;
-        HomeSettingsStatus.Text = ChineseLocale.Convert("位置已歸中；按套用後儲存。");
+        HomeSettingsStatus.Text = ("位置已归中；按套用后保存。");
     }
     private void UpdateBackgroundEditor()
     {
@@ -92,28 +92,28 @@ public partial class MainWindow
         BackgroundFileFields.Visibility = kind is "Image" or "Video" ? Visibility.Visible : Visibility.Collapsed;
         BackgroundHelp.Text = kind switch
         {
-            "Image" => ChineseLocale.Convert("選擇本機圖片；只參照檔案，不複製或上傳。最大 80 MB，超大圖片會縮小解碼。"),
-            "Video" => ChineseLocale.Convert("本機 MP4 H.264，循環靜音；離開首頁停止播放。無法解碼時回退靜態背景。"),
-            _ => ChineseLocale.Convert("靜態背景跟隨明暗主題，無需選擇檔案。")
+            "Image" => ("选择本机图片；只参照文件，不复制或上传。最大 80 MB，超大图片会缩小解码。"),
+            "Video" => ("本机 MP4 H.264，循环静音；离开首页停止播放。无法解码时回退静态背景。"),
+            _ => ("静态背景跟随明暗主题，无需选择文件。")
         };
     }
     private void OnBrowseBackground(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFileDialog { Title = ChineseLocale.Convert("選擇首頁背景"), Filter = ChineseLocale.Convert("圖片或 MP4 影片|*.jpg;*.jpeg;*.png;*.bmp;*.mp4|圖片|*.jpg;*.jpeg;*.png;*.bmp|MP4 影片|*.mp4"), CheckFileExists = true, Multiselect = false };
+        var picker = new OpenFileDialog { Title = ("选择首页背景"), Filter = ("图片或 MP4 视频|*.jpg;*.jpeg;*.png;*.bmp;*.mp4|图片|*.jpg;*.jpeg;*.png;*.bmp|MP4 视频|*.mp4"), CheckFileExists = true, Multiselect = false };
         if (picker.ShowDialog(this) != true) return;
-        if (!HomeSettings.IsLocalPath(picker.FileName)) { HomeSettingsStatus.Text = ChineseLocale.Convert("請選擇本機磁碟上的檔案，不支援網路位置。"); return; }
+        if (!HomeSettings.IsLocalPath(picker.FileName)) { HomeSettingsStatus.Text = ("请选择本机磁碟上的文件，不支持网络位置。"); return; }
         BackgroundPathInput.Text = picker.FileName;
         BackgroundPicker.SelectedIndex = Path.GetExtension(picker.FileName).Equals(".mp4", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
-        HomeSettingsStatus.Text = ChineseLocale.Convert("已選擇檔案；按套用後才會載入。");
+        HomeSettingsStatus.Text = ("已选择文件；按套用后才会载入。");
     }
     private void OnApplyHome(object sender, RoutedEventArgs e)
     {
         var color = ClockColorInput.Text.Trim();
-        if (!HomeSettings.ValidColor(color)) { HomeSettingsStatus.Text = ChineseLocale.Convert("顏色請填 Auto 或 #RRGGBB，例如 #65DCEC。"); ClockColorInput.Focus(); return; }
+        if (!HomeSettings.ValidColor(color)) { HomeSettingsStatus.Text = ("颜色请填 Auto 或 #RRGGBB，例如 #65DCEC。"); ClockColorInput.Focus(); return; }
         var background = (string)((ComboBoxItem)BackgroundPicker.SelectedItem).Tag;
         var path = BackgroundPathInput.Text;
         if (background is "Image" or "Video" && (!HomeSettings.IsLocalPath(path) || !File.Exists(path)))
-        { HomeSettingsStatus.Text = ChineseLocale.Convert("請先選擇存在的本機背景檔案。"); return; }
+        { HomeSettingsStatus.Text = ("请先选择存在的本机背景文件。"); return; }
         var options = new HomeSettings((string)((ComboBoxItem)ClockStylePicker.SelectedItem).Tag,
             ClockSizeSlider.Value, color, ClockXSlider.Value, ClockYSlider.Value,
             Clock24Toggle.IsChecked == true, ClockSecondsToggle.IsChecked == true, ClockDateToggle.IsChecked == true,
@@ -122,7 +122,7 @@ public partial class MainWindow
             ClockSizeSlider.Value == model.Settings.Home?.Size ? model.Settings.Home?.ClockHeightScale : null);
         if (!model.SaveHome(options)) { HomeSettingsStatus.Text = model.Status; return; }
         ClockView.Configure(options); HomeBackground.Configure(options);
-        HomeSettingsStatus.Text = ChineseLocale.Convert("首頁設定已儲存。");
+        HomeSettingsStatus.Text = ("首页设置已保存。");
         CloseHomeCustomize();
     }
     private void UpdateHomeActivity()

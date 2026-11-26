@@ -96,7 +96,7 @@ public static class DeviceLink
             {
                 limit.CancelAfter(TimeSpan.FromSeconds(5));
                 try { await client.ConnectAsync(host, port, limit.Token).ConfigureAwait(false); }
-                catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException("連不到 " + host + "：逾時"); }
+                catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException("连不到 " + host + "：超时"); }
             }
             var ssl = new SslStream(client.GetStream(), false);
             using (var limit = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -109,7 +109,7 @@ public static class DeviceLink
                     RemoteCertificateValidationCallback = (_, _, _, _) => true
                 }, limit.Token).ConfigureAwait(false);
             }
-            if (ssl.RemoteCertificate is not { } certificate) throw new AuthenticationException("主電腦沒有提供憑證");
+            if (ssl.RemoteCertificate is not { } certificate) throw new AuthenticationException("主机没有提供凭证");
             return (new FrameChannel(ssl), ConnectionIdentity.FingerprintOf(certificate));
         }
         catch
@@ -128,15 +128,15 @@ public static class DeviceLink
             await channel.SendAsync(Message("hello", ("protocol", ProtocolVersion), ("name", deviceName), ("intent", "pair")), token).ConfigureAwait(false);
             var start = await channel.ReceiveAsync(HandshakeTimeout, token).ConfigureAwait(false);
             ThrowIfError(start);
-            if (TypeOf(start) != "pair-start") throw new InvalidDataException("主電腦沒有開始配對");
+            if (TypeOf(start) != "pair-start") throw new InvalidDataException("主机没有开始配对");
             if (!await Pairing.RunAsync(channel, true, code, identity.Fingerprint, fingerprint, token).ConfigureAwait(false))
-                throw new ConnectionRefusedException("pair-failed", "配對碼不符");
+                throw new ConnectionRefusedException("pair-failed", "配对码不符");
             await channel.SendAsync(Message("pair-confirm"), token).ConfigureAwait(false);
             var done = await channel.ReceiveAsync(HandshakeTimeout, token).ConfigureAwait(false);
             ThrowIfError(done);
-            if (TypeOf(done) != "pair-ok") throw new InvalidDataException("主電腦沒有確認配對");
+            if (TypeOf(done) != "pair-ok") throw new InvalidDataException("主机没有确认配对");
             var peer = new PairedPeer(fingerprint, HelperServer.Clean(Text(done, "name") ?? Text(start, "name")), DateTimeOffset.UtcNow, host, port);
-            if (!helpers.Save(peer)) throw new ConnectionRefusedException("full", $"這臺設備已配對 {PairedStore.MaxPeers} 臺主電腦；請先移除不用的。");
+            if (!helpers.Save(peer)) throw new ConnectionRefusedException("full", $"这台设备已配对 {PairedStore.MaxPeers} 台主机；请先移除不用的。");
             return peer;
         }
     }
@@ -148,11 +148,11 @@ public static class DeviceLink
         try
         {
             if (fingerprint != helper.Fingerprint)
-                throw new ConnectionRefusedException("identity-changed", "這個位址的主電腦身分與配對時不同；為安全起見不連線。若主電腦重新安裝過，請移除後重新配對。");
+                throw new ConnectionRefusedException("identity-changed", "这个位址的主机身分与配对时不同；为安全起见不连接。若主机重新安装过，请移除后重新配对。");
             await channel.SendAsync(Message("hello", ("protocol", ProtocolVersion), ("name", deviceName), ("intent", "connect")), token).ConfigureAwait(false);
             var welcome = await channel.ReceiveAsync(HandshakeTimeout, token).ConfigureAwait(false);
             ThrowIfError(welcome);
-            if (TypeOf(welcome) != "welcome") throw new InvalidDataException("主電腦回應不正確");
+            if (TypeOf(welcome) != "welcome") throw new InvalidDataException("主机响应不正确");
             return channel;
         }
         catch
@@ -164,6 +164,6 @@ public static class DeviceLink
 
     internal static void ThrowIfError(JsonObject message)
     {
-        if (TypeOf(message) == "error") throw new ConnectionRefusedException(Text(message, "code") ?? "error", Text(message, "message") ?? "主電腦拒絕連線");
+        if (TypeOf(message) == "error") throw new ConnectionRefusedException(Text(message, "code") ?? "error", Text(message, "message") ?? "主机拒绝连接");
     }
 }

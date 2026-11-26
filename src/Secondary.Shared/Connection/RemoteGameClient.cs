@@ -63,15 +63,15 @@ public sealed class RemoteGameClient(ConnectionController controller, bool high,
 
     public RemoteGameView Read()
     {
-        var name = controller.ConnectedName ?? "主電腦";
-        if (controller.State != LinkState.Connected) return new(null, false, "與主電腦的連線中斷：" + controller.Status, name);
+        var name = controller.ConnectedName ?? "主机";
+        if (controller.State != LinkState.Connected) return new(null, false, "与主机的连接中断：" + controller.Status, name);
         RemoteGameSnapshot? snapshot;
         long at;
         lock (gate) { snapshot = latest; at = received; }
-        if (snapshot is null) return new(null, false, $"等待主電腦「{name}」開始採樣", name);
+        if (snapshot is null) return new(null, false, $"等待主机「{name}」开始采样", name);
         var age = Stopwatch.GetElapsedTime(at);
         return age > RemoteGame.StaleAfter
-            ? new(snapshot, true, $"主電腦資料已過期：{age.TotalSeconds:0} 秒沒有更新", name)
-            : new(snapshot, false, $"主電腦「{name}」· 連線模式", name);
+            ? new(snapshot, true, $"主机数据已过期：{age.TotalSeconds:0} 秒没有更新", name)
+            : new(snapshot, false, $"主机「{name}」· 连接模式", name);
     }
 }

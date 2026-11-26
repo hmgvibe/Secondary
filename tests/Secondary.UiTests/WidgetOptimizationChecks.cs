@@ -27,8 +27,8 @@ internal static class WidgetOptimizationChecks
     {
         foreach (var kind in HomeWidgetSettings.Kinds)
         {
-            var settings = new HomeWidgetSettings("resize-" + kind, kind, Text: "已儲存便箋", Tasks: [new TodoItem("完成檢查")],
-                City: "台北", EventTitle: "旅行", EventDate: "2026-12-31", Location: new WeatherLocation("台北", "台灣", "台北市", 25.03, 121.56));
+            var settings = new HomeWidgetSettings("resize-" + kind, kind, Text: "已保存便签", Tasks: [new TodoItem("完成检查")],
+                City: "台北", EventTitle: "旅行", EventDate: "2026-12-31", Location: new WeatherLocation("台北", "台湾", "台北市", 25.03, 121.56));
             using var widget = new HomeUtilityWidget(settings) { Resources = window.Resources };
             widget.SaveRequested += _ => true;
             Layout(widget, 320, 280);
@@ -88,7 +88,7 @@ internal static class WidgetOptimizationChecks
         Task.Run(() => CheckWeatherAsync(check)).GetAwaiter().GetResult();
         CheckWeatherUi(window, check);
         CheckUsageUi(window, model, check, outputDirectory);
-        var location = new WeatherLocation("台北", "台灣", "台北市", 25.03, 121.56);
+        var location = new WeatherLocation("台北", "台湾", "台北市", 25.03, 121.56);
         var oldData = new HomeWidgetSettings("old", "Weather", City: "台北").Normalize();
         check(oldData.City == "台北" && oldData.Location is null, "Legacy weather city is retained for explicit location selection");
         check(new HomeWidgetSettings("new", "Weather", Location: location).Normalize().Location == location, "Chosen weather coordinates survive settings normalization");
@@ -111,7 +111,7 @@ internal static class WidgetOptimizationChecks
         check(placements.Distinct().Count() == 12, "Widgets 10 through 12 never repeat the first three placements");
         var canvas = new Canvas(); canvas.Measure(new Size(800, 600)); canvas.Arrange(new Rect(0, 0, 800, 600));
         using var content = new HomeUtilityWidget(new HomeWidgetSettings("minimum", "Note"));
-        var frame = new HomeWidget(); frame.Attach(canvas, content, "便箋"); frame.Configure(new WidgetPlacement(), new Size(320, 300));
+        var frame = new HomeWidget(); frame.Attach(canvas, content, "便签"); frame.Configure(new WidgetPlacement(), new Size(320, 300));
         frame.ResizeTo(1, 1, new Point(0, 0)); canvas.UpdateLayout();
         check(frame.Width >= 240 && frame.Height >= 230, "Utility resize maintains a readable minimum in available canvas space");
         frame.Detach();
@@ -214,8 +214,8 @@ internal static class WidgetOptimizationChecks
         Layout(widget, 320, 280);
         var input = Descendants(widget).OfType<TextBox>().Single();
         var candidates = Descendants(widget).OfType<ComboBox>().Single();
-        var search = Descendants(widget).OfType<Button>().Single(b => b.Content as string == "查詢");
-        var select = Descendants(widget).OfType<Button>().Single(b => b.Content as string == "使用此地點");
+        var search = Descendants(widget).OfType<Button>().Single(b => b.Content as string == "查询");
+        var select = Descendants(widget).OfType<Button>().Single(b => b.Content as string == "使用此地点");
         Dispatch(() => { widget.SetActive(true); input.Text = "Taipei"; Click(search); });
         PumpUntil(() => candidates.Items.Count == 2);
         check(saved == 0 && widget.Settings.Location is null && candidates.Visibility == Visibility.Visible,
@@ -237,14 +237,14 @@ internal static class WidgetOptimizationChecks
         Dispatch(() =>
         {
             Descendants(timedOut).OfType<TextBox>().Single().Text = "Taipei";
-            Click(Descendants(timedOut).OfType<Button>().Single(b => b.Content as string == "查詢"));
+            Click(Descendants(timedOut).OfType<Button>().Single(b => b.Content as string == "查询"));
         });
-        PumpUntil(() => TextContains(timedOut, "城市查詢失敗"));
-        check(!TextContains(timedOut, "正在搜尋城市"), "Provider search timeout leaves a retryable error instead of a permanent searching state");
+        PumpUntil(() => TextContains(timedOut, "城市查询失败"));
+        check(!TextContains(timedOut, "正在搜索城市"), "Provider search timeout leaves a retryable error instead of a permanent searching state");
         using var forecastTimeout = new HomeUtilityWidget(new HomeWidgetSettings("timeout-forecast", "Weather", City: "Taipei", Location: Taipei), new WeatherDataService(timeoutClient)) { Resources = window.Resources };
         Layout(forecastTimeout, 320, 280); Dispatch(() => forecastTimeout.SetActive(true));
-        PumpUntil(() => TextContains(forecastTimeout, "天氣查詢失敗"));
-        check(TextContains(forecastTimeout, "更新失敗"), "Provider forecast timeout displays an explicit failed-update state");
+        PumpUntil(() => TextContains(forecastTimeout, "天气查询失败"));
+        check(TextContains(forecastTimeout, "更新失败"), "Provider forecast timeout displays an explicit failed-update state");
         forecastTimeout.SetActive(false);
 
         var firstResponse = new TaskCompletionSource<HttpResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -266,7 +266,7 @@ internal static class WidgetOptimizationChecks
         Layout(ordered, 320, 280);
         var orderInput = Descendants(ordered).OfType<TextBox>().Single();
         var orderCandidates = Descendants(ordered).OfType<ComboBox>().Single();
-        var orderSearch = Descendants(ordered).OfType<Button>().Single(b => b.Content as string == "查詢");
+        var orderSearch = Descendants(ordered).OfType<Button>().Single(b => b.Content as string == "查询");
         Dispatch(() => { orderInput.Text = "Old"; Click(orderSearch); orderInput.Text = "New"; Click(orderSearch); });
         PumpUntil(() => orderCandidates.Items.Count == 2);
         olderSearch.TrySetResult(JsonResponse(CityJson)); PumpDispatcher();
@@ -280,8 +280,8 @@ internal static class WidgetOptimizationChecks
         using var stale = new HomeUtilityWidget(new HomeWidgetSettings("stale", "Weather", City: "Taipei", Location: Taipei), staleSource) { Resources = window.Resources };
         Layout(stale, 320, 280); Dispatch(() => stale.SetActive(true)); PumpUntil(() => TextContains(stale, "25.5°C"));
         sourceTime += TimeSpan.FromMinutes(16); Dispatch(() => stale.SetActive(true));
-        PumpUntil(() => TextContains(stale, "更新失敗"));
-        check(TextContains(stale, "25.5°C") && TextContains(stale, "資料已過期"), "Failed refresh retains the last successful temperature with stale and failure labels");
+        PumpUntil(() => TextContains(stale, "更新失败"));
+        check(TextContains(stale, "25.5°C") && TextContains(stale, "数据已过期"), "Failed refresh retains the last successful temperature with stale and failure labels");
         stale.SetActive(false);
     }
     private static void CheckUsageUi(MainWindow window, ShellViewModel model, Action<bool, string> check, string? outputDirectory)
@@ -297,8 +297,8 @@ internal static class WidgetOptimizationChecks
             Dispatch(() => widget.SetActive(true));
             PumpUntil(() => widget.UsageSnapshot is not null);
             Layout(widget, 320, 300);
-            check(widget.IsRefreshing && TextContains(widget, "尚無紀錄，使用 Codex 後自動顯示") && TextContains(widget, "桌面版不提供百分比") &&
-                Descendants(widget).OfType<TextBlock>().Count(t => t.Text == "沒有資料") == 4, "AI usage explains missing Claude and Codex data");
+            check(widget.IsRefreshing && TextContains(widget, "尚无纪录，使用 Codex 后自动显示") && TextContains(widget, "桌面版不提供百分比") &&
+                Descendants(widget).OfType<TextBlock>().Count(t => t.Text == "没有数据") == 4, "AI usage explains missing Claude and Codex data");
             widget.SetActive(false);
             check(!widget.IsRefreshing, "AI usage stops refreshing when inactive");
 
@@ -316,9 +316,9 @@ internal static class WidgetOptimizationChecks
             PumpUntil(() => !ReferenceEquals(widget.UsageSnapshot, before));
             Layout(widget, 320, 300);
             var fills = Descendants(widget).OfType<Grid>().Where(g => g.Parent is StackPanel && g.ColumnDefinitions.Count == 2 && g.Children.Count == 1 && g.Children[0] is Border).ToArray();
-            check(TextContains(widget, "24%") && TextContains(widget, "6%") && TextContains(widget, "3 小時 12 分後重置") && TextContains(widget, "6 天 4 小時後重置") &&
-                TextContains(widget, "3 分鐘前更新"), "AI usage shows Codex five-hour and weekly percentages, reset countdowns and data age");
-            check(TextContains(widget, "已用完") && TextContains(widget, "50 分鐘後重置") && !TextContains(widget, "桌面版不提供百分比") && !TextContains(widget, "尚無紀錄"),
+            check(TextContains(widget, "24%") && TextContains(widget, "6%") && TextContains(widget, "3 小时 12 分后重置") && TextContains(widget, "6 天 4 小时后重置") &&
+                TextContains(widget, "3 分钟前更新"), "AI usage shows Codex five-hour and weekly percentages, reset countdowns and data age");
+            check(TextContains(widget, "已用完") && TextContains(widget, "50 分钟后重置") && !TextContains(widget, "桌面版不提供百分比") && !TextContains(widget, "尚无纪录"),
                 "AI usage shows a reached Claude limit with its reset time and hides the missing-data hints");
             check(fills.Length == 4 && fills.Any(g => Math.Abs(g.ColumnDefinitions[0].Width.Value - .24) < 1e-9) && fills.Any(g => g.ColumnDefinitions[0].Width.Value == 1),
                 "AI usage bars reflect used fractions");
@@ -344,7 +344,7 @@ internal static class WidgetOptimizationChecks
             HomeWidgetSettings? pausedSave = null;
             widget.SaveRequested += next => { pausedSave = next; return true; };
             Dispatch(() => widget.SetActive(true));
-            check(widget.IsRefreshing && widget.UsageAutoUpdate is { IsChecked: true, Content: "每分鐘自動更新" }, "AI usage auto-update switch starts checked");
+            check(widget.IsRefreshing && widget.UsageAutoUpdate is { IsChecked: true, Content: "每分钟自动更新" }, "AI usage auto-update switch starts checked");
             widget.UsageAutoUpdate!.IsChecked = false;
             Dispatch(() => widget.UsageAutoUpdate.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)));
             check(!widget.IsRefreshing && pausedSave is { UsagePaused: true } && widget.Settings.UsagePaused, "Unchecking auto-update saves the pause and stops the timer");
@@ -366,7 +366,7 @@ internal static class WidgetOptimizationChecks
             for (var i = 0; i < 20; i++) { PumpDispatcher(); Thread.Sleep(5); }
             canvas.UpdateLayout();
             check(!startPaused.IsRefreshing && startPaused.UsageSnapshot is null && startPaused.UsageAutoUpdate!.IsChecked == false &&
-                Descendants(startPaused).OfType<TextBlock>().Count(t => t.Text.StartsWith("已暫停自動更新", StringComparison.Ordinal)) == 1,
+                Descendants(startPaused).OfType<TextBlock>().Count(t => t.Text.StartsWith("已暂停自动更新", StringComparison.Ordinal)) == 1,
                 "An AI usage widget saved as paused starts without reading and says so once");
             check(Descendants(startPaused).OfType<ScrollViewer>().Single().ScrollableHeight < 1, "A paused AI usage widget fits the default widget frame without scrolling");
             startPaused.SetActive(false);
@@ -410,16 +410,16 @@ internal static class WidgetOptimizationChecks
             Dispatch(() => check(online.SetClaudeOnline(true) && saved is { ClaudeOnline: true }, "Enabling Claude online usage saves the widget option"));
             PumpUntil(() => !ReferenceEquals(online.UsageSnapshot, offline));
             Layout(online, 320, 300);
-            check(TextContains(online, "線上用量無法取得：找不到 Claude Code CLI 登入憑證"), "Enabled online usage without CLI credentials shows it is unavailable");
+            check(TextContains(online, "线上用量无法取得：找不到 Claude Code CLI 登录凭证"), "Enabled online usage without CLI credentials shows it is unavailable");
             online.SetActive(false);
 
             check(window.AddHomeWidget("AiUsage"), "AI usage widget can be added to the home page");
             var usageFrame = ((Canvas)window.FindName("WidgetCanvas")).Children.OfType<HomeWidget>().Single(f => f.Children.OfType<HomeUtilityWidget>().Any(w => w.Settings.Kind == "AiUsage"));
-            var item = usageFrame.ContextMenu!.Items.OfType<MenuItem>().SingleOrDefault(i => i.Header as string == "Claude 線上用量（非官方）");
+            var item = usageFrame.ContextMenu!.Items.OfType<MenuItem>().SingleOrDefault(i => i.Header as string == "Claude 线上用量（非官方）");
             check(item is { IsCheckable: true, IsChecked: false, IsEnabled: true }, "AI usage title menu offers the unofficial Claude online source unchecked");
             var id = model.Settings.Home!.Widgets!.Single(w => w.Kind == "AiUsage").Id;
-            var menuChoices = usageFrame.ContextMenu.Items.OfType<MenuItem>().Where(i => i.Header is string h && h.Contains("顯示")).ToArray();
-            check(menuChoices.Select(i => i.Header as string).SequenceEqual(new[] { "顯示 Claude 和 Codex", "只顯示 Claude", "只顯示 Codex" }) && menuChoices[0].IsChecked && !menuChoices[2].IsChecked,
+            var menuChoices = usageFrame.ContextMenu.Items.OfType<MenuItem>().Where(i => i.Header is string h && h.Contains("显示")).ToArray();
+            check(menuChoices.Select(i => i.Header as string).SequenceEqual(new[] { "显示 Claude 和 Codex", "只显示 Claude", "只显示 Codex" }) && menuChoices[0].IsChecked && !menuChoices[2].IsChecked,
                 "AI usage title menu offers the three service choices with both selected");
             Dispatch(() => menuChoices[2].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)));
             check(model.Settings.Home!.Widgets!.Single(w => w.Id == id).UsageProviders == "Codex" && menuChoices[2].IsChecked && !menuChoices[0].IsChecked && !item!.IsEnabled,

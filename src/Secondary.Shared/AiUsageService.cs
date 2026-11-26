@@ -79,7 +79,7 @@ internal sealed class AiUsageService
     {
         var local = await Task.Run(() => Read(claude, codex, token), token).ConfigureAwait(false);
         if (!claude || !claudeOnline) return local;
-        if (online is null) return local with { ClaudeOnlineProblem = "此版本未提供線上來源" };
+        if (online is null) return local with { ClaudeOnlineProblem = "此版本未提供线上来源" };
         var result = await online.ReadAsync(token).ConfigureAwait(false);
         if (result.Usage is not { } usage) return local with { ClaudeOnlineProblem = result.Problem };
         // Online percentages replace older local ones, but a rejection logged after the fetch still wins.
@@ -306,9 +306,9 @@ internal static class AiUsageText
 
     internal static Row Describe(UsageWindow? window, DateTimeOffset now)
     {
-        if (window is null) return new("—", "沒有資料", 0);
-        if (window.ResetsAt is { } resets && resets <= now) return new("—", "已重置，等待下次使用後更新", 0);
-        var reset = window.ResetsAt is { } at ? Remaining(at - now) + "後重置" : "重置時間未知";
+        if (window is null) return new("—", "没有数据", 0);
+        if (window.ResetsAt is { } resets && resets <= now) return new("—", "已重置，等待下次使用后更新", 0);
+        var reset = window.ResetsAt is { } at ? Remaining(at - now) + "后重置" : "重置时间未知";
         if (window.LimitReached) return new("已用完", reset, 1);
         var used = window.UsedPercent ?? 0;
         return new(Math.Round(used).ToString("0", System.Globalization.CultureInfo.InvariantCulture) + "%", reset, Math.Clamp(used / 100, 0, 1));
@@ -316,19 +316,19 @@ internal static class AiUsageText
 
     internal static string Remaining(TimeSpan span)
     {
-        if (span < TimeSpan.FromMinutes(1)) return "1 分鐘內";
-        if (span.TotalDays >= 1) return $"{(int)span.TotalDays} 天 {span.Hours} 小時";
-        if (span.TotalHours >= 1) return $"{(int)span.TotalHours} 小時 {span.Minutes} 分";
-        return $"{(int)span.TotalMinutes} 分鐘";
+        if (span < TimeSpan.FromMinutes(1)) return "1 分钟内";
+        if (span.TotalDays >= 1) return $"{(int)span.TotalDays} 天 {span.Hours} 小时";
+        if (span.TotalHours >= 1) return $"{(int)span.TotalHours} 小时 {span.Minutes} 分";
+        return $"{(int)span.TotalMinutes} 分钟";
     }
 
     internal static string Age(DateTimeOffset? observed, DateTimeOffset now)
     {
         if (observed is null) return "";
         var age = now - observed.Value;
-        if (age < TimeSpan.FromMinutes(1)) return "剛剛更新";
-        if (age.TotalHours < 1) return $"{(int)age.TotalMinutes} 分鐘前更新";
-        if (age.TotalDays < 1) return $"{(int)age.TotalHours} 小時前更新";
+        if (age < TimeSpan.FromMinutes(1)) return "刚刚更新";
+        if (age.TotalHours < 1) return $"{(int)age.TotalMinutes} 分钟前更新";
+        if (age.TotalDays < 1) return $"{(int)age.TotalHours} 小时前更新";
         return $"{(int)age.TotalDays} 天前更新";
     }
 }

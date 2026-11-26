@@ -43,7 +43,7 @@ public static class RemoteGameMapping
 public sealed class RemoteGameTelemetry(ConnectionController controller, bool high, bool sensors, GameTarget? target) : IGameTelemetry
 {
     private readonly RemoteGameClient client = new(controller, high, sensors, target is null ? null : new RemoteProcess(target.Id, target.StartedUtcTicks, target.Name));
-    public RemoteGameView LastView { get; private set; } = new(null, false, "等待主電腦", "主電腦");
+    public RemoteGameView LastView { get; private set; } = new(null, false, "等待主机", "主机");
     public GameTelemetrySnapshot Read() => RemoteGameMapping.FromRemote(LastView = client.Read());
     public Task RunAsync(CancellationToken token) => client.RunAsync(token);
 }

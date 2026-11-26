@@ -36,11 +36,9 @@ public partial class MainWindow : Window
         this.model = model;
         InitializeComponent();
         DataContext = model;
-        ChineseLocale.Preference = LanguagePolicy.Parse(model.Settings.Language);
         theme = new ThemeService(this);
         themeChoice = Enum.Parse<ThemeChoice>(model.Settings.Theme);
         ThemePicker.SelectedIndex = (int)themeChoice;
-        LanguagePicker.SelectedItem = LanguagePicker.Items.OfType<ComboBoxItem>().First(i => (string)i.Tag == model.Settings.Language);
         HotkeyInput.Text = model.Settings.Hotkey;
         GameAnimationToggle.IsChecked = model.Settings.GameAnimation;
         NavigationSizePicker.SelectedIndex = model.Settings.NavigationSize == "Small" ? 1 : 0;
@@ -80,7 +78,7 @@ public partial class MainWindow : Window
             ChineseLocale.Changed += OnChineseLocaleChanged;
             var saved = DisplayPolicy.FindSaved(model.Displays, model.Settings.DisplayId);
             if (saved is not null) EnterFullscreen(saved);
-            else if (model.Settings.DisplayId is not null) model.Status = "上次的顯示器未連接，請選擇目前可用的顯示器。";
+            else if (model.Settings.DisplayId is not null) model.Status = "上次的显示器未连接，请选择目前可用的显示器。";
             if (IsGame) StartGameTransition();
             ConfigureGameTelemetry();
         };
@@ -136,16 +134,16 @@ public partial class MainWindow : Window
         NavigationItems.Children.Clear();
         if (IsGame)
         {
-            AddNavigation("game", "遊戲監測", "\uE9D9");
-            AddNavigation("exit-game", "退出遊戲模式", "\uE8BB");
-            AddNavigation("settings", "設定", "\uE713");
+            AddNavigation("game", "游戏监测", "\uE9D9");
+            AddNavigation("exit-game", "退出游戏模式", "\uE8BB");
+            AddNavigation("settings", "设置", "\uE713");
         }
         else
         {
-            AddNavigation("home", "首頁", "\uE80F");
-            AddNavigation("shortcuts", "快捷導航", "\uE71D");
-            AddNavigation("enter-game", "遊戲模式", "\uE7FC");
-            AddNavigation("settings", "設定", "\uE713");
+            AddNavigation("home", "首页", "\uE80F");
+            AddNavigation("shortcuts", "快捷导航", "\uE71D");
+            AddNavigation("enter-game", "游戏模式", "\uE7FC");
+            AddNavigation("settings", "设置", "\uE713");
         }
         updatingNavigation = false;
         ShowCurrentPage();
@@ -158,7 +156,7 @@ public partial class MainWindow : Window
         icon.IsHitTestVisible = false;
         var tooltip = new ToolTip
         {
-            Content = ChineseLocale.Convert(name),
+            Content = (name),
             Tag = name,
             Style = (Style)FindResource("NavigationToolTip"),
             Placement = System.Windows.Controls.Primitives.PlacementMode.Custom,
@@ -179,7 +177,7 @@ public partial class MainWindow : Window
         ToolTipService.SetInitialShowDelay(button, 250);
         ToolTipService.SetBetweenShowDelay(button, 50);
         ToolTipService.SetShowDuration(button, 60000);
-        AutomationProperties.SetName(button, ChineseLocale.Convert(name));
+        AutomationProperties.SetName(button, (name));
         AutomationProperties.SetAutomationId(button, "Navigation." + key);
         button.Checked += (_, _) => { if (!updatingNavigation) Navigate(key); };
         NavigationItems.Children.Add(button);
@@ -311,17 +309,17 @@ public partial class MainWindow : Window
     private void ApplyHotkey(string text)
     {
         if (!HotkeyGesture.TryParse(text, out var gesture))
-        { HotkeyStatus.Text = "請使用 Ctrl 或 Alt，加上字母、數字或 F1–F11，例如 Ctrl+Alt+G。"; return; }
+        { HotkeyStatus.Text = "请使用 Ctrl 或 Alt，加上字母、数字或 F1–F11，例如 Ctrl+Alt+G。"; return; }
         var canonical = gesture!.ToString();
         if (canonical != registeredHotkey && (hotkey is null || !hotkey.Set(gesture)))
         {
-            HotkeyStatus.Text = "快捷鍵被佔用或無法註冊。" + (registeredHotkey is null ? "目前沒有生效的全域快捷鍵；仍可用按鈕及系統匣退出。" : "原快捷鍵 " + registeredHotkey + " 仍有效。");
+            HotkeyStatus.Text = "快捷键被占用或无法注册。" + (registeredHotkey is null ? "目前没有生效的全局快捷键；仍可用按钮及系统托盘退出。" : "原快捷键 " + registeredHotkey + " 仍有效。");
             model.Status = HotkeyStatus.Text;
             return;
         }
         registeredHotkey = canonical;
         HotkeyInput.Text = canonical;
-        HotkeyStatus.Text = "已啟用 " + canonical + "：手動進入／退出遊戲模式（背景也有效）。";
+        HotkeyStatus.Text = "已启用 " + canonical + "：手动进入／退出游戏模式（背景也有效）。";
         model.SaveRuntime(hotkey: canonical);
         if (connection is not null) connection.Hotkey = canonical;
     }
@@ -350,19 +348,10 @@ public partial class MainWindow : Window
             foreach (var button in NavigationItems.Children.OfType<RadioButton>())
             {
                 if (button.ToolTip is ToolTip tip && tip.Tag is string source)
-                    tip.Content = ChineseLocale.Convert(source);
+                    tip.Content = (source);
             }
         });
         UpdateHomeActivity();
-    }
-
-    private void OnLanguageChoice(object sender, SelectionChangedEventArgs e)
-    {
-        if (initializing || LanguagePicker.SelectedItem is not ComboBoxItem item) return;
-        var language = (string)item.Tag;
-        var chinese = LanguagePolicy.Parse(language);
-        ChineseLocale.Preference = chinese; // raises Changed -> refreshes all open UI
-        model.SaveRuntime(language: language);
     }
 
     private void OnNavigationSizeChanged(object sender, SizeChangedEventArgs e)
@@ -424,7 +413,7 @@ public partial class MainWindow : Window
         fullscreen = true;
         activeDisplay = display.Id;
         Place(display.X, display.Y, display.Width, display.Height);
-        model.Status = "已在 " + display.Label + " 全螢幕顯示。按 Esc 返回一般視窗。";
+        model.Status = "已在 " + display.Label + " 全屏幕显示。按 Esc 返回一般窗口。";
         model.SaveSelection(display);
         Activate();
     }
@@ -443,7 +432,7 @@ public partial class MainWindow : Window
             var height = Math.Min(820, primary.Height);
             Place(primary.X + (primary.Width - width) / 2, primary.Y + (primary.Height - height) / 2, width, height);
         }
-        model.Status = "一般視窗模式。選擇顯示器可再次進入全螢幕。";
+        model.Status = "一般窗口模式。选择显示器可再次进入全屏幕。";
     }
     private void OnTopologyChanged()
     {
@@ -454,7 +443,7 @@ public partial class MainWindow : Window
             ReturnToWindow();
             Show();
             Activate();
-            model.Status = "副螢幕已斷開，已返回主螢幕。重新連接後可手動選擇。";
+            model.Status = "副屏已断开，已返回主屏。重新连接后可手动选择。";
         }
         else Place(display.X, display.Y, display.Width, display.Height);
     }
@@ -463,8 +452,8 @@ public partial class MainWindow : Window
     private void OnKeyDown(object sender, KeyEventArgs e) { if (e.Key != Key.Escape) return; if (CancelWidgetInteraction()) { } else if (HomeCustomizeOpen) CloseHomeCustomize(); else if (SettingsOpen) CloseSettings(); else if (TransitionRunning) CancelTransition(); else ReturnToWindow(); e.Handled = true; }
     protected override void OnClosing(CancelEventArgs e)
     {
-        // 點 X 只取消關閉：介面留在畫面上、托盤常駐；dock/工作列不顯示圖示（ShowInTaskbar=False）。
-        // 真正退出由托盤「退出 Secondary」設定 AllowClose 後觸發。
+        // 点 X 只取消关闭：界面留在界面上、托盘常驻；dock/工作列不显示图标（ShowInTaskbar=False）。
+        // 真正退出由托盘「退出 Secondary」设置 AllowClose 后触发。
         if (!AllowClose) e.Cancel = true;
         base.OnClosing(e);
     }

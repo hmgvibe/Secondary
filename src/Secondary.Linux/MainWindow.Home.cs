@@ -117,7 +117,7 @@ public partial class MainWindow
         if (CurrentPage != "home" || HomeCustomizeOpen) return;
         LoadHomeEditor(model.Settings.Home ?? new HomeSettings());
         UpdateBackgroundEditor();
-        HomeSettingsStatus.Text = "套用後儲存；關閉不會保留本次變更。";
+        HomeSettingsStatus.Text = "套用后保存；关闭不会保留本次变更。";
         homePreviousFocus = FocusManager?.GetFocusedElement();
         HomeCustomizeOverlay.IsVisible = true;
         HomeLayer.IsEnabled = NavigationScale.IsEnabled = false;
@@ -143,8 +143,8 @@ public partial class MainWindow
         Clock24Toggle.IsChecked = options.Use24Hours; ClockSecondsToggle.IsChecked = options.ShowSeconds; ClockDateToggle.IsChecked = options.ShowDate;
         ClockColorInput.Text = options.Color; BackgroundPathInput.Text = options.MediaPath ?? "";
     }
-    private void OnResetHome(object? sender, RoutedEventArgs e) { LoadHomeEditor(new()); HomeSettingsStatus.Text = "已恢復編輯欄位，按套用後儲存。原背景檔案不會刪除。"; }
-    private void OnCenterClock(object? sender, RoutedEventArgs e) { ClockXSlider.Value = ClockYSlider.Value = .5; HomeSettingsStatus.Text = "位置已歸中；按套用後儲存。"; }
+    private void OnResetHome(object? sender, RoutedEventArgs e) { LoadHomeEditor(new()); HomeSettingsStatus.Text = "已恢复编辑栏位，按套用后保存。原背景文件不会删除。"; }
+    private void OnCenterClock(object? sender, RoutedEventArgs e) { ClockXSlider.Value = ClockYSlider.Value = .5; HomeSettingsStatus.Text = "位置已归中；按套用后保存。"; }
     private void OnBackgroundKindChanged(object? sender, SelectionChangedEventArgs e) => UpdateBackgroundEditor();
     private void UpdateBackgroundEditor()
     {
@@ -153,38 +153,38 @@ public partial class MainWindow
         BackgroundFileFields.IsVisible = kind is "Image" or "Video";
         BackgroundHelp.Text = kind switch
         {
-            "Image" => "選擇本機圖片；只參照檔案，不複製或上傳。最大 80 MB，超大圖片會縮小解碼。",
-            "Video" => "本機 MP4 H.264，循環靜音；需要系統已安裝的 VLC 播放元件（libvlc）。離開首頁停止播放；無法解碼時回退靜態背景。",
-            _ => "靜態背景跟隨明暗主題，無需選擇檔案。"
+            "Image" => "选择本机图片；只参照文件，不复制或上传。最大 80 MB，超大图片会缩小解码。",
+            "Video" => "本机 MP4 H.264，循环静音；需要系统已安装的 VLC 播放元件（libvlc）。离开首页停止播放；无法解码时回退静态背景。",
+            _ => "静态背景跟随明暗主题，无需选择文件。"
         };
     }
     private async void OnBrowseBackground(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "選擇首頁背景", AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("圖片或 MP4 影片") { Patterns = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp", "*.mp4"] },
-                new FilePickerFileType("圖片") { Patterns = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp"] }, new FilePickerFileType("MP4 影片") { Patterns = ["*.mp4"] }]
+            Title = "选择首页背景", AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("图片或 MP4 视频") { Patterns = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp", "*.mp4"] },
+                new FilePickerFileType("图片") { Patterns = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp"] }, new FilePickerFileType("MP4 视频") { Patterns = ["*.mp4"] }]
         });
         if (files.Count == 0) return;
         SelectBackgroundFile(files[0].TryGetLocalPath());
     }
     public void SelectBackgroundFile(string? path)
     {
-        if (!HomeSettings.IsLocalPath(path)) { HomeSettingsStatus.Text = "請選擇本機磁碟上的檔案，不支援網路位置。"; return; }
+        if (!HomeSettings.IsLocalPath(path)) { HomeSettingsStatus.Text = "请选择本机磁碟上的文件，不支持网络位置。"; return; }
         BackgroundPathInput.Text = path;
         BackgroundPicker.SelectedIndex = Path.GetExtension(path!).Equals(".mp4", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
-        HomeSettingsStatus.Text = "已選擇檔案；按套用後才會載入。";
+        HomeSettingsStatus.Text = "已选择文件；按套用后才会载入。";
     }
     private void OnApplyHome(object? sender, RoutedEventArgs e) => ApplyHome();
     public bool ApplyHome()
     {
         var color = (ClockColorInput.Text ?? "").Trim();
-        if (!HomeSettings.ValidColor(color)) { HomeSettingsStatus.Text = "顏色請填 Auto 或 #RRGGBB，例如 #65DCEC。"; ClockColorInput.Focus(); return false; }
+        if (!HomeSettings.ValidColor(color)) { HomeSettingsStatus.Text = "颜色请填 Auto 或 #RRGGBB，例如 #65DCEC。"; ClockColorInput.Focus(); return false; }
         var background = (string)((ComboBoxItem)BackgroundPicker.SelectedItem!).Tag!;
         var path = BackgroundPathInput.Text ?? "";
         if (background is "Image" or "Video" && (!HomeSettings.IsLocalPath(path) || !File.Exists(path)))
-        { HomeSettingsStatus.Text = "請先選擇存在的本機背景檔案。"; return false; }
+        { HomeSettingsStatus.Text = "请先选择存在的本机背景文件。"; return false; }
         var current = model.Settings.Home;
         var options = new HomeSettings((string)((ComboBoxItem)ClockStylePicker.SelectedItem!).Tag!,
             ClockSizeSlider.Value, color, ClockXSlider.Value, ClockYSlider.Value,
@@ -194,7 +194,7 @@ public partial class MainWindow
             ClockSizeSlider.Value == current?.Size ? current?.ClockHeightScale : null);
         if (!model.SaveHome(options)) { HomeSettingsStatus.Text = model.Status; return false; }
         clockView.Configure(options); HomeBackground.Configure(options);
-        HomeSettingsStatus.Text = "首頁設定已儲存。";
+        HomeSettingsStatus.Text = "首页设置已保存。";
         CloseHomeCustomize();
         return true;
     }
@@ -217,7 +217,7 @@ public partial class MainWindow
         menu.Items.Add(new Separator());
         if (utilityWidgets.Count > 0)
         {
-            menu.Items.Add(new MenuItem { Header = "選取現有組件", IsEnabled = false });
+            menu.Items.Add(new MenuItem { Header = "选取现有组件", IsEnabled = false });
             var ordinal = 0;
             foreach (var widget in utilityWidgets.Values)
             {
@@ -226,7 +226,7 @@ public partial class MainWindow
                 menu.Items.Add(item);
             }
         }
-        menu.Items.Add(new MenuItem { Header = $"已加入 {utilityWidgets.Count} / 12  ·  可重複新增", IsEnabled = false });
+        menu.Items.Add(new MenuItem { Header = $"已加入 {utilityWidgets.Count} / 12  ·  可重复添加", IsEnabled = false });
         menu.ShowAt((Control)sender!);
     }
     private void BringToFront(WidgetFrame frame)
@@ -248,7 +248,7 @@ public partial class MainWindow
         AttachUtilityWidget(widget);
         BringToFront(utilityWidgets[widget.Id].Frame);
         utilityWidgets[widget.Id].Frame.SelectForEditing();
-        HomeMediaStatus.Text = crowded ? "首頁空間已滿；新組件已放在最上層，可拖動調整或從組件清單選取。" : "";
+        HomeMediaStatus.Text = crowded ? "首页空间已满；新组件已放在最上层，可拖动调整或从组件清单选取。" : "";
         HomeHint.IsVisible = !crowded;
         UpdateHomeActivity();
         return true;
@@ -278,7 +278,7 @@ public partial class MainWindow
         var remove = new MenuItem { Header = "移除" + UtilityWidget.Title(settings.Kind) };
         remove.Click += async (_, _) =>
         {
-            if (await ConfirmAsync("移除組件", "移除此組件？其中的資料及未儲存編輯也會一併移除。", "移除")) RemoveHomeWidget(settings.Id);
+            if (await ConfirmAsync("移除组件", "移除此组件？其中的数据及未保存编辑也会一并移除。", "移除")) RemoveHomeWidget(settings.Id);
         };
         frame.ContextMenu = new ContextMenu { Items = { remove } };
         if (settings.Kind == "AiUsage")
@@ -287,13 +287,13 @@ public partial class MainWindow
             online.Click += async (_, _) =>
             {
                 var enable = !content.Settings.ClaudeOnline;
-                if (enable && !await ConfirmAsync("啟用 Claude 線上用量", content.Settings.UsageSource == "Main" ? OnlineUsageMainWarning : OnlineUsageWarning, "啟用")) { online.IsChecked = false; return; }
+                if (enable && !await ConfirmAsync("启用 Claude 线上用量", content.Settings.UsageSource == "Main" ? OnlineUsageMainWarning : OnlineUsageWarning, "启用")) { online.IsChecked = false; return; }
                 content.SetClaudeOnline(enable);
                 online.IsChecked = content.Settings.ClaudeOnline;
             };
             frame.ContextMenu.Items.Insert(0, online);
             // Which services to show, as three exclusive choices; the online source needs Claude shown.
-            var choices = new[] { ("Both", "顯示 Claude 和 Codex"), ("Claude", "只顯示 Claude"), ("Codex", "只顯示 Codex") }
+            var choices = new[] { ("Both", "显示 Claude 和 Codex"), ("Claude", "只显示 Claude"), ("Codex", "只显示 Codex") }
                 .Select(c => (Item: new MenuItem { Header = c.Item2, ToggleType = MenuItemToggleType.Radio, GroupName = "usage-" + settings.Id }, Providers: c.Item1)).ToArray();
             void Refresh()
             {
@@ -310,13 +310,13 @@ public partial class MainWindow
             Refresh();
         }
     }
-    internal const string OnlineUsageHeader = "Claude 線上用量（非官方）";
+    internal const string OnlineUsageHeader = "Claude 线上用量（非官方）";
     private const string OnlineUsageMainWarning =
-        "這個組件顯示主電腦的用量：主電腦的連接助手會用主電腦上 Claude Code CLI 的登入 token，最多每 5 分鐘呼叫一次 api.anthropic.com 的未公開用量端點。token 不會傳到這台設備，設備只收到百分比與重置時間。\n\n" +
-        "主電腦也需要在連接助手選單勾選「允許設備使用 Claude 線上用量」。這個端點沒有公開文件，可能隨時失效或改變。";
+        "这个组件显示主机的用量：主机的连接助手会用主机上 Claude Code CLI 的登录 token，最多每 5 分钟呼叫一次 api.anthropic.com 的未公开用量端点。token 不会传到这台设备，设备只收到百分比与重置时间。\n\n" +
+        "主机也需要在连接助手菜单勾选「允许设备使用 Claude 线上用量」。这个端点没有公开文件，可能随时失效或改变。";
     private const string OnlineUsageWarning =
-        "Secondary 會讀取 ~/.claude/.credentials.json 裡 Claude Code CLI 的登入 token，最多每 5 分鐘傳送一次到 api.anthropic.com 的未公開用量端點，以取得五小時與每週百分比。\n\n" +
-        "這個端點沒有公開文件，可能隨時失效或改變。token 只送往該端點，不會儲存或顯示。Claude 桌面版的登入不在這個檔案，只用桌面版時會顯示「無法取得」。";
+        "Secondary 会读取 ~/.claude/.credentials.json 里 Claude Code CLI 的登录 token，最多每 5 分钟传送一次到 api.anthropic.com 的未公开用量端点，以取得五小时与每周百分比。\n\n" +
+        "这个端点没有公开文件，可能随时失效或改变。token 只送往该端点，不会保存或显示。Claude 桌面版的登录不在这个文件，只用桌面版时会显示「无法取得」。";
     private bool SaveUtilityWidget(HomeWidgetSettings next)
     {
         var home = model.Settings.Home ?? new();

@@ -18,7 +18,7 @@ internal static class RemoteDeviceChecks
         public int WatchOn, WatchOff, ArtworkRequests, Cancels;
         public string? LastCommand;
         public volatile bool HoldRuns;
-        public List<ShortcutEntry> Entries = [new("game", "Game", "主電腦", "🎮", [new("Open", @"C:\Games\game.exe")])];
+        public List<ShortcutEntry> Entries = [new("game", "Game", "主机", "🎮", [new("Open", @"C:\Games\game.exe")])];
         public async Task Handle(string device, JsonObject message, FrameChannel channel, CancellationToken token)
         {
             switch (TypeOf(message))
@@ -43,17 +43,17 @@ internal static class RemoteDeviceChecks
                 case "shortcut-save":
                     var entry = RemoteShortcuts.ReadEntry(message["entry"]);
                     if (entry is not null) Entries.Add(entry);
-                    await channel.SendAsync(Reply(message, Message("shortcut-reply", ("ok", entry is not null), ("error", entry is null ? "目標需為本機絕對路徑或 HTTP／HTTPS 網址。" : null))), token);
+                    await channel.SendAsync(Reply(message, Message("shortcut-reply", ("ok", entry is not null), ("error", entry is null ? "目标需为本机绝对路径或 HTTP／HTTPS 网址。" : null))), token);
                     break;
                 case "shortcut-run":
                     var run = Text(message, "run")!;
                     _ = Task.Run(async () =>
                     {
-                        await channel.SendAsync(Message("shortcut-status", ("run", run), ("text", "等待主電腦確認：請到主電腦上確認或取消。")), token);
+                        await channel.SendAsync(Message("shortcut-status", ("run", run), ("text", "等待主机确认：请到主机上确认或取消。")), token);
                         while (HoldRuns && !token.IsCancellationRequested && Cancels == 0) await Task.Delay(20, token);
                         var cancelled = Cancels > 0;
-                        if (!cancelled) await channel.SendAsync(Message("shortcut-status", ("run", run), ("text", "在主電腦執行「Game」· 步驟 1/1")), token);
-                        await channel.SendAsync(Reply(message, Message("shortcut-result", ("ok", !cancelled), ("text", cancelled ? "已取消" : "已在主電腦完成：Game"))), token);
+                        if (!cancelled) await channel.SendAsync(Message("shortcut-status", ("run", run), ("text", "在主机执行「Game」· 步骤 1/1")), token);
+                        await channel.SendAsync(Reply(message, Message("shortcut-result", ("ok", !cancelled), ("text", cancelled ? "已取消" : "已在主机完成：Game"))), token);
                     }, token).ContinueWith(_ => { }, TaskScheduler.Default);
                     break;
                 case "shortcut-cancel": Cancels++; break;
@@ -79,7 +79,7 @@ internal static class RemoteDeviceChecks
     private static void CheckMessages(Action<bool, string> check)
     {
         check(RemoteMediaMessages.ReadState(Parse(RemoteMediaMessages.State(Song, "播放中"))) is { Media: var media, Status: "播放中" } && media == Song, "A media state survives the wire");
-        check(RemoteMediaMessages.ReadState(Parse(RemoteMediaMessages.State(null, "主電腦目前沒有播放中的媒體"))) is { Media: null }, "No player is reported as no media");
+        check(RemoteMediaMessages.ReadState(Parse(RemoteMediaMessages.State(null, "主机目前没有播放中的媒体"))) is { Media: null }, "No player is reported as no media");
         check(RemoteMediaMessages.ReadState(Parse(RemoteMediaMessages.State(Song with { Title = new string('a', 400) }, "x"))) is null &&
             RemoteMediaMessages.ReadState(Parse(RemoteMediaMessages.State(Song with { Position = -1 }, "x"))) is null, "Oversized titles and negative positions are rejected");
 
@@ -111,7 +111,7 @@ internal static class RemoteDeviceChecks
         using var media = new RemoteMediaClient(controller);
         try
         {
-            check(media.Status == "主電腦未連線" && media.Media is null, "Before connecting, main-computer media is unavailable");
+            check(media.Status == "主机未连接" && media.Media is null, "Before connecting, main-computer media is unavailable");
             var paired = await DeviceLink.PairAsync(deviceIdentity, helpers, "Surface", "127.0.0.1", server.Port, int.Parse(server.StartPairing()), CancellationToken.None);
             controller.Connect(paired.Fingerprint);
             check(await Until(() => controller.State == LinkState.Connected), "The device connects");
@@ -138,7 +138,7 @@ internal static class RemoteDeviceChecks
             using var again = media.Watch(() => { });
             check(await Until(() => helper.WatchOn == 2), "Watching again resubscribes");
             controller.Disconnect();
-            check(await Until(() => media.Media is null && media.Status == "主電腦未連線"), "A lost connection clears the main computer's player");
+            check(await Until(() => media.Media is null && media.Status == "主机未连接"), "A lost connection clears the main computer's player");
             controller.Connect(paired.Fingerprint);
             check(await Until(() => helper.WatchOn == 3 && media.Media is not null), "After reconnecting, a watching widget resubscribes");
 
@@ -148,12 +148,12 @@ internal static class RemoteDeviceChecks
             var shortcuts = await RemoteShortcuts.ListAsync(controller);
             check(shortcuts.Entries.Single().Name == "Game" && shortcuts.Approved.Contains("game"), "The device lists the main computer's shortcuts");
             check(await RemoteShortcuts.SaveAsync(controller, new ShortcutEntry("web", "Docs", Steps: [new("Open", "https://example.com/")])) is null && helper.Entries.Count == 2, "A device can add a shortcut to the main computer");
-            check(await RemoteShortcuts.SaveAsync(controller, new ShortcutEntry("bad", "Bad", Steps: [new("Open", "app.exe")])) is { } refused && refused.Contains("本機絕對路徑", StringComparison.Ordinal),
+            check(await RemoteShortcuts.SaveAsync(controller, new ShortcutEntry("bad", "Bad", Steps: [new("Open", "app.exe")])) is { } refused && refused.Contains("本机绝对路径", StringComparison.Ordinal),
                 "The main computer's refusal is shown to the device");
 
             var progress = new List<string>();
             var result = await RemoteShortcuts.RunAsync(controller, "game", text => { lock (progress) progress.Add(text); });
-            check(result is (true, "已在主電腦完成：Game") && progress.Any(p => p.StartsWith("等待主電腦確認", StringComparison.Ordinal)) && progress.Any(p => p.Contains("步驟 1/1", StringComparison.Ordinal)),
+            check(result is (true, "已在主机完成：Game") && progress.Any(p => p.StartsWith("等待主机确认", StringComparison.Ordinal)) && progress.Any(p => p.Contains("步骤 1/1", StringComparison.Ordinal)),
                 "Running a shortcut reports waiting for confirmation, the steps and the result");
             helper.HoldRuns = true;
             using (var cancel = new CancellationTokenSource())
@@ -166,7 +166,7 @@ internal static class RemoteDeviceChecks
             await Until(() => helper.HoldRuns && server.ActiveDevice is not null);
             await Task.Delay(200);
             controller.Disconnect();
-            check((await lost) is (false, var why) && why.Contains("連線中斷", StringComparison.Ordinal), "A lost connection ends the run and says so");
+            check((await lost) is (false, var why) && why.Contains("连接中断", StringComparison.Ordinal), "A lost connection ends the run and says so");
         }
         finally
         {

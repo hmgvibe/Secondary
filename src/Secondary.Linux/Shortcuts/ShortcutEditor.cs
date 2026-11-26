@@ -44,38 +44,38 @@ public sealed class ShortcutEditor : StackPanel
         if (mainName is not null)
         {
             var placement = new StackPanel { Margin = new Thickness(0, 0, 0, 18) };
-            placement.Children.Add(new TextBlock { Text = "儲存與執行位置", FontSize = 16, FontWeight = FontWeight.SemiBold });
+            placement.Children.Add(new TextBlock { Text = "保存与执行位置", FontSize = 16, FontWeight = FontWeight.SemiBold });
             if (canChoose)
             {
                 var choices = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
-                LocalChoice = new RadioButton { Content = "本機", IsChecked = !main, GroupName = "ShortcutPlacement", Margin = new Thickness(0, 0, 20, 0), MinHeight = 44 };
-                MainChoice = new RadioButton { Content = "主電腦「" + mainName + "」", IsChecked = main, GroupName = "ShortcutPlacement", MinHeight = 44 };
+                LocalChoice = new RadioButton { Content = "本机", IsChecked = !main, GroupName = "ShortcutPlacement", Margin = new Thickness(0, 0, 20, 0), MinHeight = 44 };
+                MainChoice = new RadioButton { Content = "主机「" + mainName + "」", IsChecked = main, GroupName = "ShortcutPlacement", MinHeight = 44 };
                 LocalChoice.IsCheckedChanged += (_, _) => { if (LocalChoice.IsChecked == true) SetMain(false); };
                 MainChoice.IsCheckedChanged += (_, _) => { if (MainChoice.IsChecked == true) SetMain(true); };
                 choices.Children.Add(LocalChoice); choices.Children.Add(MainChoice);
                 placement.Children.Add(choices);
             }
-            else placement.Children.Add(new TextBlock { Text = main ? "主電腦「" + mainName + "」" : "本機", FontSize = 14, Margin = new Thickness(0, 8, 0, 0) });
+            else placement.Children.Add(new TextBlock { Text = main ? "主机「" + mainName + "」" : "本机", FontSize = 14, Margin = new Thickness(0, 8, 0, 0) });
             placementHint = new TextBlock { Classes = { "label" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
             placement.Children.Add(placementHint);
             basic.Children.Add(placement);
         }
-        basic.Children.Add(new TextBlock { Text = "基本資料", FontSize = 16, FontWeight = FontWeight.SemiBold });
-        name = Field(basic, "名稱", entry.Name, 80);
+        basic.Children.Add(new TextBlock { Text = "基本数据", FontSize = 16, FontWeight = FontWeight.SemiBold });
+        name = Field(basic, "名称", entry.Name, 80);
         var metadata = new WrapPanel();
         var groupPanel = new StackPanel { Width = 200, Margin = new Thickness(0, 0, 16, 0) };
         var iconPanel = new StackPanel { Width = 120 };
-        group = Field(groupPanel, "分組", entry.Group, 40);
-        icon = Field(iconPanel, "圖示／符號", entry.Icon, 8);
+        group = Field(groupPanel, "分组", entry.Group, 40);
+        icon = Field(iconPanel, "图标／符号", entry.Icon, 8);
         metadata.Children.Add(groupPanel); metadata.Children.Add(iconPanel);
         basic.Children.Add(metadata);
         Children.Add(Surface(basic));
         stepHeading = new TextBlock { FontSize = 16, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 22, 0, 6) };
         Children.Add(stepHeading);
-        Children.Add(new TextBlock { Text = "由上往下依序執行；簡單捷徑只需一個「開啟」步驟。", Classes = { "label" }, FontSize = 12, Margin = new Thickness(0, 0, 0, 14) });
+        Children.Add(new TextBlock { Text = "由上往下依序执行；简单快捷方式只需一个「开启」步骤。", Classes = { "label" }, FontSize = 12, Margin = new Thickness(0, 0, 0, 14) });
         foreach (var step in entry.Steps ?? [new ShortcutStep()]) steps.Add(new StepEditor(step, Storage));
         var add = new WrapPanel();
-        foreach (var (kind, title) in new[] { ("Open", "＋ 開啟"), ("Wait", "＋ 等待"), ("Script", "＋ 腳本") })
+        foreach (var (kind, title) in new[] { ("Open", "＋ 开启"), ("Wait", "＋ 等待"), ("Script", "＋ 脚本") })
             add.Children.Add(Button(title, () => AddStep(kind)));
         Children.Add(stepsPanel); Children.Add(add);
         keysNote = new TextBlock { Classes = { "label" }, FontSize = 12, Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap };
@@ -92,14 +92,14 @@ public sealed class ShortcutEditor : StackPanel
     private void Describe()
     {
         if (placementHint is not null) placementHint.Text = Main
-            ? "存在主電腦上並在主電腦執行，套用 Windows 規則；路徑請填主電腦上的位置（例如 C:\\Games\\game.exe）。第一次執行或內容變更後，需要在主電腦上確認。"
-            : "存在這臺設備並在這臺設備執行。";
-        keysNote!.Text = Main ? "Linux 版編輯器沒有「視窗快捷鍵」步驟；需要時請在 Windows 設備編輯。" : localRules.KeysUnsupported ?? "";
+            ? "存在主机上并在主机执行，套用 Windows 规则；路径请填主机上的位置（例如 C:\\Games\\game.exe）。第一次执行或内容变更后，需要在主机上确认。"
+            : "存在这台设备并在这台设备执行。";
+        keysNote!.Text = Main ? "Linux 版编辑器没有「窗口快捷键」步骤；需要时请在 Windows 设备编辑。" : localRules.KeysUnsupported ?? "";
         keysNote.IsVisible = keysNote.Text.Length > 0;
     }
     public void AddStep(string kind)
     {
-        if (steps.Count == 20) { ShowError("最多 20 個步驟。"); return; }
+        if (steps.Count == 20) { ShowError("最多 20 个步骤。"); return; }
         steps.Add(new StepEditor(new ShortcutStep(kind), Storage)); Render();
     }
     public void MoveStep(int index, int delta)
@@ -114,7 +114,7 @@ public sealed class ShortcutEditor : StackPanel
     private void Render()
     {
         stepsPanel.Children.Clear();
-        stepHeading.Text = $"執行步驟  ·  {steps.Count} / 20";
+        stepHeading.Text = $"执行步骤  ·  {steps.Count} / 20";
         for (var i = 0; i < steps.Count; i++)
         {
             var index = i; var step = steps[i];
@@ -136,7 +136,7 @@ public sealed class ShortcutEditor : StackPanel
     {
         var candidate = entry with
         {
-            Name = (name.Text ?? "").Trim(), Group = string.IsNullOrWhiteSpace(group.Text) ? "未分組" : group.Text.Trim(),
+            Name = (name.Text ?? "").Trim(), Group = string.IsNullOrWhiteSpace(group.Text) ? "未分组" : group.Text.Trim(),
             Icon = icon.Text ?? "", Steps = steps.Select(s => s.Value).ToArray()
         };
         if (ShortcutPolicy.Validate(candidate, rules) is { } problem) { ShowError(problem); return null; }
@@ -170,37 +170,37 @@ public sealed class ShortcutEditor : StackPanel
     {
         private readonly string kind;
         private readonly TextBox? target, args, working, seconds;
-        public string Caption => kind switch { "Open" => "開啟目標", "Wait" => "等待", "Keys" => "視窗快捷鍵（Linux 不支援）", _ => "外部腳本" };
+        public string Caption => kind switch { "Open" => "开启目标", "Wait" => "等待", "Keys" => "窗口快捷键（Linux 不支持）", _ => "外部脚本" };
         public TextBox? Target => target;
         public TextBox? Arguments => args;
         public TextBox? Seconds => seconds;
         public StepEditor(ShortcutStep step, Func<IStorageProvider?> storage)
         {
             kind = step.Kind;
-            if (kind == "Wait") { seconds = Field(this, "等待秒數 · 1–3600", step.Seconds.ToString(CultureInfo.InvariantCulture), 4); return; }
-            target = Field(this, kind == "Script" ? "本機腳本路徑 · .sh（以 /bin/sh 執行）" : "程式、AppImage、檔案、資料夾、.desktop 啟動器或 HTTPS 網址", step.Target);
+            if (kind == "Wait") { seconds = Field(this, "等待秒数 · 1–3600", step.Seconds.ToString(CultureInfo.InvariantCulture), 4); return; }
+            target = Field(this, kind == "Script" ? "本机脚本路径 · .sh（以 /bin/sh 执行）" : "程序、AppImage、文件、文件夹、.desktop 启动器或 HTTPS 网址", step.Target);
             if (kind == "Keys") return;
-            var browse = Button("瀏覽檔案…", async () =>
+            var browse = Button("浏览文件…", async () =>
             {
                 if (storage() is not { } picker) return;
                 var files = await picker.OpenFilePickerAsync(new FilePickerOpenOptions
                 {
-                    Title = kind == "Script" ? "選擇腳本" : "選擇目標", AllowMultiple = false,
-                    FileTypeFilter = kind == "Script" ? [new FilePickerFileType("Shell 腳本") { Patterns = ["*.sh"] }] : null
+                    Title = kind == "Script" ? "选择脚本" : "选择目标", AllowMultiple = false,
+                    FileTypeFilter = kind == "Script" ? [new FilePickerFileType("Shell 脚本") { Patterns = ["*.sh"] }] : null
                 });
                 if (files.Count > 0 && files[0].TryGetLocalPath() is { } path) target.Text = path;
             });
             browse.HorizontalAlignment = HorizontalAlignment.Right; browse.Margin = new Thickness(0, 8, 0, 0);
             Children.Add(browse);
             var advanced = new StackPanel { IsVisible = step.Arguments.Length > 0 || step.WorkingDirectory.Length > 0 };
-            var expand = Button("進階選項  ⌄", () => advanced.IsVisible = !advanced.IsVisible);
+            var expand = Button("进阶选项  ⌄", () => advanced.IsVisible = !advanced.IsVisible);
             expand.HorizontalAlignment = HorizontalAlignment.Left; expand.Margin = new Thickness(0, 12, 0, 0);
             Children.Add(expand); Children.Add(advanced);
-            if (kind == "Open") args = Field(advanced, "啟動參數 · 僅可執行程式與 AppImage 適用", step.Arguments);
-            working = Field(advanced, "工作目錄 · 可留空", step.WorkingDirectory);
+            if (kind == "Open") args = Field(advanced, "启动参数 · 仅可执行程序与 AppImage 适用", step.Arguments);
+            working = Field(advanced, "工作目录 · 可留空", step.WorkingDirectory);
             if (kind == "Script") Children.Add(new TextBlock
             {
-                Text = "一般權限以 /bin/sh 執行，不使用 sudo 或 pkexec。執行的是你確認時的內容；之後若檔案變更會要求重新確認。不接受額外參數。取消只停止此腳本程序，不保證能撤銷腳本已做的修改。",
+                Text = "一般权限以 /bin/sh 执行，不使用 sudo 或 pkexec。执行的是你确认时的内容；之后若文件变更会要求重新确认。不接受额外参数。取消只停止此脚本程序，不保证能撤销脚本已做的修改。",
                 Classes = { "label" }, FontSize = 12, Margin = new Thickness(0, 8, 0, 0)
             });
         }

@@ -44,15 +44,15 @@ public sealed class HomeWidget : Grid
         mover.Tag = ResizeEdges.None;
         Panel.SetZIndex(mover, 1);
         Children.Add(mover);
-        AddResizeHandle(ResizeEdges.Left, Cursors.SizeWE, "左邊");
-        AddResizeHandle(ResizeEdges.Top, Cursors.SizeNS, "上邊");
-        AddResizeHandle(ResizeEdges.Right, Cursors.SizeWE, "右邊");
-        AddResizeHandle(ResizeEdges.Bottom, Cursors.SizeNS, "下邊");
+        AddResizeHandle(ResizeEdges.Left, Cursors.SizeWE, "左边");
+        AddResizeHandle(ResizeEdges.Top, Cursors.SizeNS, "上边");
+        AddResizeHandle(ResizeEdges.Right, Cursors.SizeWE, "右边");
+        AddResizeHandle(ResizeEdges.Bottom, Cursors.SizeNS, "下边");
         AddResizeHandle(ResizeEdges.Left | ResizeEdges.Top, Cursors.SizeNWSE, "左上角");
         AddResizeHandle(ResizeEdges.Right | ResizeEdges.Top, Cursors.SizeNESW, "右上角");
         AddResizeHandle(ResizeEdges.Left | ResizeEdges.Bottom, Cursors.SizeNESW, "左下角");
         AddResizeHandle(ResizeEdges.Right | ResizeEdges.Bottom, Cursors.SizeNWSE, "右下角");
-        SetInteractionNames("時鐘");
+        SetInteractionNames("时钟");
         foreach (var thumb in new[] { mover }.Concat(resizers.Keys))
         {
             thumb.DragStarted += (_, _) =>
@@ -109,14 +109,14 @@ public sealed class HomeWidget : Grid
         var area = new FrameworkElementFactory(typeof(Border));
         area.SetValue(Border.BackgroundProperty, Brushes.Transparent); area.AppendChild(marker);
         thumb.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = area };
-        thumb.ToolTip = name + "縮放；按住 Alt 暫停吸附";
+        thumb.ToolTip = name + "缩放；按住 Alt 暂停吸附";
         Panel.SetZIndex(thumb, 20); resizers.Add(thumb, edges); Children.Add(thumb);
     }
     private void SetInteractionNames(string title)
     {
-        AutomationProperties.SetName(mover, "拖動" + title + "組件；方向鍵移動，Ctrl 加方向鍵縮放，Alt 暫停吸附，Esc 取消拖曳");
+        AutomationProperties.SetName(mover, "拖动" + title + "组件；方向键移动，Ctrl 加方向键缩放，Alt 暂停吸附，Esc 取消拖曳");
         foreach (var thumb in resizers.Keys)
-            AutomationProperties.SetName(thumb, "調整" + title + "組件" + ((string)thumb.ToolTip).Replace("縮放；", "；"));
+            AutomationProperties.SetName(thumb, "调整" + title + "组件" + ((string)thumb.ToolTip).Replace("缩放；", "；"));
     }
     private static Line CreateGuide()
     {

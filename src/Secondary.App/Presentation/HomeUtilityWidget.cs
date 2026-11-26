@@ -35,7 +35,7 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
     public HomeWidgetSettings Settings { get; private set; }
     public bool IsRefreshing => refresh.IsEnabled;
     public event Func<HomeWidgetSettings, bool>? SaveRequested;
-    public static string Title(string kind) => kind switch { "Calendar" => ChineseLocale.Convert("日曆"), "Note" => ChineseLocale.Convert("便箋"), "Countdown" => ChineseLocale.Convert("倒數計時"), "Stopwatch" => ChineseLocale.Convert("碼錶"), "Todo" => ChineseLocale.Convert("待辦清單"), "Counter" => ChineseLocale.Convert("計數器"), "TimeProgress" => ChineseLocale.Convert("時間進度"), "Media" => ChineseLocale.Convert("媒體"), "Weather" => ChineseLocale.Convert("天氣"), "EventCountdown" => ChineseLocale.Convert("倒數日"), "AiUsage" => ChineseLocale.Convert("AI 用量"), _ => kind };
+    public static string Title(string kind) => kind switch { "Calendar" => ("日历"), "Note" => ("便签"), "Countdown" => ("倒数计时"), "Stopwatch" => ("码表"), "Todo" => ("待办清单"), "Counter" => ("计数器"), "TimeProgress" => ("时间进度"), "Media" => ("媒体"), "Weather" => ("天气"), "EventCountdown" => ("倒数日"), "AiUsage" => ("AI 用量"), _ => kind };
     public HomeUtilityWidget(HomeWidgetSettings settings) : this(settings, WeatherDataService.Shared) { }
     internal HomeUtilityWidget(HomeWidgetSettings settings, AiUsageService usageSource) : this(settings, WeatherDataService.Shared, usageSource) { }
     internal HomeUtilityWidget(HomeWidgetSettings settings, WeatherDataService weatherSource, AiUsageService? usageSource = null)
@@ -62,31 +62,31 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
             note = new TextBox { Text = Settings.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 144, MaxLength = 4000, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             contentScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
             note.SetResourceReference(StyleProperty,"WidgetInput");
-            status.Text = ChineseLocale.Convert("僅儲存於此電腦");
-            System.Windows.Automation.AutomationProperties.SetName(note, ChineseLocale.Convert("便箋內容"));
+            status.Text = ("仅保存于此电脑");
+            System.Windows.Automation.AutomationProperties.SetName(note, ("便签内容"));
             body.Children.Add(note);
-            var save = ActionButton(ChineseLocale.Convert("儲存便箋"), () => SaveNote()); body.Children.Add(save); body.Children.Add(status);
-            note.TextChanged += (_, _) => status.Text = ChineseLocale.Convert("尚未儲存");
+            var save = ActionButton(("保存便签"), () => SaveNote()); body.Children.Add(save); body.Children.Add(status);
+            note.TextChanged += (_, _) => status.Text = ("尚未保存");
             note.PreviewKeyDown += (_, e) => { if (e.Key == Key.S && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { SaveNote(); e.Handled = true; } };
         }
         else
         {
-            var eyebrow = new TextBlock { Text = settings.Kind == "Countdown" ? ChineseLocale.Convert("專注當下") : ChineseLocale.Convert("記錄每一刻"), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0,6,0,0) };
+            var eyebrow = new TextBlock { Text = settings.Kind == "Countdown" ? ("专注当下") : ("记录每一刻"), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0,6,0,0) };
             eyebrow.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush"); body.Children.Add(eyebrow);
             body.Children.Add(numberHost);
             if (settings.Kind == "Countdown")
             {
                 var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-                row.Children.Add(new TextBlock { Text = ChineseLocale.Convert("分鐘"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,8,0) });
+                row.Children.Add(new TextBlock { Text = ("分钟"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,8,0) });
                 minutes = new TextBox { Text = Settings.Minutes.ToString(CultureInfo.InvariantCulture), Width = 80, MaxLength = 4 };
                 minutes.SetResourceReference(StyleProperty,"WidgetInput"); minutes.TextAlignment = TextAlignment.Center; minutes.Padding = new Thickness(8,5,8,5);
-                System.Windows.Automation.AutomationProperties.SetName(minutes, ChineseLocale.Convert("倒數分鐘，1 至 1440"));
+                System.Windows.Automation.AutomationProperties.SetName(minutes, ("倒数分钟，1 至 1440"));
                 row.Children.Add(minutes); body.Children.Add(row);
             }
             var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
-            toggle = ActionButton(ChineseLocale.Convert("開始"), Toggle); actions.Children.Add(toggle);
+            toggle = ActionButton(("开始"), Toggle); actions.Children.Add(toggle);
             toggle.SetResourceReference(Control.BackgroundProperty,"SelectedBrush");
-            actions.Children.Add(ActionButton(ChineseLocale.Convert("重設"), () => { elapsed.Reset(); toggle.Content = ChineseLocale.Convert("開始"); if (minutes is not null) minutes.IsEnabled = true; UpdateTime(); }));
+            actions.Children.Add(ActionButton(("重设"), () => { elapsed.Reset(); toggle.Content = ("开始"); if (minutes is not null) minutes.IsEnabled = true; UpdateTime(); }));
             body.Children.Add(actions); body.Children.Add(status);
             UpdateTime();
         }
@@ -127,28 +127,28 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
     {
         if (note is null) return true;
         var next = Settings with { Text = note.Text };
-        if (SaveRequested?.Invoke(next) != true) { status.Text = ChineseLocale.Convert("儲存失敗，內容仍保留，請重試。"); return false; }
-        Settings = next; status.Text = ChineseLocale.Convert("已儲存"); return true;
+        if (SaveRequested?.Invoke(next) != true) { status.Text = ("保存失败，内容仍保留，请重试。"); return false; }
+        Settings = next; status.Text = ("已保存"); return true;
     }
     private void Toggle()
     {
-        if (elapsed.IsRunning) { elapsed.Stop(); toggle!.Content = ChineseLocale.Convert("繼續"); UpdateTime(); return; }
+        if (elapsed.IsRunning) { elapsed.Stop(); toggle!.Content = ("继续"); UpdateTime(); return; }
         if (Settings.Kind == "Countdown" && elapsed.Elapsed == TimeSpan.Zero)
         {
-            if (!int.TryParse(minutes!.Text, out var duration) || duration is < 1 or > 1440) { status.Text = ChineseLocale.Convert("請輸入 1–1440 分鐘。"); return; }
+            if (!int.TryParse(minutes!.Text, out var duration) || duration is < 1 or > 1440) { status.Text = ("请输入 1–1440 分钟。"); return; }
             var next = Settings with { Minutes = duration };
-            if (SaveRequested?.Invoke(next) != true) { status.Text = ChineseLocale.Convert("無法儲存時間，請重試。"); return; }
+            if (SaveRequested?.Invoke(next) != true) { status.Text = ("无法保存时间，请重试。"); return; }
             Settings = next; minutes.IsEnabled = false;
         }
         if (Settings.Kind == "Countdown" && elapsed.Elapsed.TotalMinutes >= Settings.Minutes) elapsed.Reset();
-        elapsed.Start(); toggle!.Content = ChineseLocale.Convert("暫停"); UpdateTime();
+        elapsed.Start(); toggle!.Content = ("暂停"); UpdateTime();
     }
     private void UpdateTime()
     {
         var remaining = Settings.Kind == "Countdown" ? TimeSpan.FromMinutes(Settings.Minutes) - elapsed.Elapsed : elapsed.Elapsed;
-        if (remaining < TimeSpan.Zero) { remaining = TimeSpan.Zero; elapsed.Stop(); toggle!.Content = ChineseLocale.Convert("重新開始"); }
+        if (remaining < TimeSpan.Zero) { remaining = TimeSpan.Zero; elapsed.Stop(); toggle!.Content = ("重新开始"); }
         readout.Text = $"{(int)remaining.TotalHours:00}:{remaining.Minutes:00}:{remaining.Seconds:00}";
-        status.Text = Settings.Kind == "Countdown" && remaining == TimeSpan.Zero ? ChineseLocale.Convert("時間到！") : ChineseLocale.Convert("切頁繼續計時；關閉程式後重設。");
+        status.Text = Settings.Kind == "Countdown" && remaining == TimeSpan.Zero ? ("时间到！") : ("切页继续计时；关闭程序后重设。");
     }
     private void OnTick(object? sender, EventArgs e)
     {
@@ -176,8 +176,8 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
         var header = new DockPanel();
         var previous = ActionButton("‹", () => { if (month.Year > 1 || month.Month > 1) { month = month.AddMonths(-1); UpdateCalendar(); } });
         var next = ActionButton("›", () => { if (month.Year < 9999 || month.Month < 12) { month = month.AddMonths(1); UpdateCalendar(); } });
-        System.Windows.Automation.AutomationProperties.SetName(previous, ChineseLocale.Convert("上一個月"));
-        System.Windows.Automation.AutomationProperties.SetName(next, ChineseLocale.Convert("下一個月"));
+        System.Windows.Automation.AutomationProperties.SetName(previous, ("上一个月"));
+        System.Windows.Automation.AutomationProperties.SetName(next, ("下一个月"));
         foreach (var button in new[] { previous, next }) { button.Width = 36; button.MinWidth = 36; button.Padding = new Thickness(0); button.Margin = new Thickness(0); button.FontSize = 20; button.Background = Brushes.Transparent; }
         DockPanel.SetDock(next, Dock.Right); header.Children.Add(next); DockPanel.SetDock(previous, Dock.Left); header.Children.Add(previous);
         calendarHeading = new TextBlock { FontSize = 17, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -185,17 +185,17 @@ public sealed partial class HomeUtilityWidget : Border, IDisposable
         body.Children.Add(header);
         calendarGrid = new UniformGrid { Columns = 7, Rows = 7, Height = 144, Margin = new Thickness(0,8,0,0) };
         body.Children.Add(calendarGrid);
-        body.Children.Add(ActionButton(ChineseLocale.Convert("回到今天"), () => { month = new(DateTime.Today.Year,DateTime.Today.Month,1); UpdateCalendar(); }));
+        body.Children.Add(ActionButton(("回到今天"), () => { month = new(DateTime.Today.Year,DateTime.Today.Month,1); UpdateCalendar(); }));
         UpdateCalendar();
     }
     private void UpdateCalendar()
     {
         if (calendarGrid is null || calendarHeading is null) return;
         calendarDay = DateTime.Today;
-        calendarHeading.Text = month.ToString(ChineseLocale.Convert("yyyy 年 M 月"));
+        calendarHeading.Text = month.ToString(("yyyy 年 M 月"));
         var days = calendarGrid;
         days.Children.Clear(); calendarLabels.Clear();
-        foreach (var day in new[] { ChineseLocale.Convert("日"), ChineseLocale.Convert("一"), ChineseLocale.Convert("二"), ChineseLocale.Convert("三"), ChineseLocale.Convert("四"), ChineseLocale.Convert("五"), ChineseLocale.Convert("六") })
+        foreach (var day in new[] { ("日"), ("一"), ("二"), ("三"), ("四"), ("五"), ("六") })
         {
             var label = new TextBlock { Text = day, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Opacity = .55 };
             days.Children.Add(label); calendarLabels.Add(label);

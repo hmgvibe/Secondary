@@ -28,22 +28,22 @@ public sealed partial class UtilityWidget
     private bool Commit(HomeWidgetSettings next)
     {
         next = next.Normalize();
-        if (SaveRequested?.Invoke(next) != true) { status.Text = "儲存失敗，請重試。"; return false; }
+        if (SaveRequested?.Invoke(next) != true) { status.Text = "保存失败，请重试。"; return false; }
         Settings = next; return true;
     }
 
     private void RenderCounter()
     {
-        var eyebrow = new TextBlock { Text = "記錄次數 · 自動儲存", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+        var eyebrow = new TextBlock { Text = "记录次数 · 自动保存", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
         Muted(eyebrow); body.Children.Add(eyebrow);
         readout.FontSize = 48; body.Children.Add(numberHost);
         var row = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
         counterMinus = ActionButton("− 1", () => ChangeCount(-1));
         counterPlus = ActionButton("＋ 1", () => ChangeCount(1));
-        AutomationProperties.SetName(counterMinus, "減 1");
+        AutomationProperties.SetName(counterMinus, "减 1");
         AutomationProperties.SetName(counterPlus, "加 1");
         row.Children.Add(counterMinus); row.Children.Add(counterPlus); body.Children.Add(row);
-        var reset = ActionButton("歸零", () => { if (Commit(Settings with { Count = 0 })) UpdateCounter(); });
+        var reset = ActionButton("归零", () => { if (Commit(Settings with { Count = 0 })) UpdateCounter(); });
         reset.HorizontalAlignment = HorizontalAlignment.Center; body.Children.Add(reset);
         body.Children.Add(status); UpdateCounter();
     }
@@ -53,16 +53,16 @@ public sealed partial class UtilityWidget
         readout.Text = Settings.Count.ToString(CultureInfo.InvariantCulture);
         counterMinus!.IsEnabled = Settings.Count > -999999;
         counterPlus!.IsEnabled = Settings.Count < 999999;
-        status.Text = "關閉程式後仍保留數字";
+        status.Text = "关闭程序后仍保留数字";
     }
 
     private void RenderTodo()
     {
         contentScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
         todoEntry = new TextBox { MaxLength = 120, MinHeight = 36, Padding = new Thickness(8, 5) };
-        AutomationProperties.SetName(todoEntry, "新增待辦事項；Enter 新增");
+        AutomationProperties.SetName(todoEntry, "添加待办事项；Enter 添加");
         var row = new DockPanel();
-        todoAdd = ActionButton("新增", AddTodo);
+        todoAdd = ActionButton("添加", AddTodo);
         todoAdd.Margin = new Thickness(6, 0, 0, 0); todoAdd.Padding = new Thickness(10, 4);
         todoEntry.AddHandler(KeyDownEvent, (_, e) => { if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift)) { AddTodo(); e.Handled = true; } }, RoutingStrategies.Tunnel);
         DockPanel.SetDock(todoAdd, Dock.Right); row.Children.Add(todoAdd); row.Children.Add(todoEntry); body.Children.Add(row);
@@ -73,8 +73,8 @@ public sealed partial class UtilityWidget
     public void AddTodo()
     {
         var tasks = Settings.Tasks ?? [];
-        if (tasks.Length >= 20) { status.Text = "最多 20 項；請先移除已完成項目。"; return; }
-        if (string.IsNullOrWhiteSpace(todoEntry!.Text)) { status.Text = "請先輸入待辦內容"; return; }
+        if (tasks.Length >= 20) { status.Text = "最多 20 项；请先移除已完成项目。"; return; }
+        if (string.IsNullOrWhiteSpace(todoEntry!.Text)) { status.Text = "请先输入待办内容"; return; }
         if (!Commit(Settings with { Tasks = tasks.Append(new TodoItem(todoEntry.Text)).ToArray() })) return;
         todoEntry.Text = ""; UpdateTodoList(); todoEntry.Focus();
     }
@@ -99,7 +99,7 @@ public sealed partial class UtilityWidget
             var line = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
             var remove = ActionButton("×", () => RemoveTodo(index));
             remove.Margin = new Thickness(4, 0, 0, 0); remove.Padding = new Thickness(6, 0); remove.MinWidth = 28;
-            AutomationProperties.SetName(remove, "移除待辦：" + task.Text);
+            AutomationProperties.SetName(remove, "移除待办：" + task.Text);
             DockPanel.SetDock(remove, Dock.Right); line.Children.Add(remove);
             var text = new TextBlock { Text = (task.Done ? "✓  " : "○  ") + task.Text, TextWrapping = TextWrapping.Wrap, FontSize = 13, Opacity = task.Done ? .55 : 1 };
             var check = ActionButton("", () => ToggleTodo(index));
@@ -109,9 +109,9 @@ public sealed partial class UtilityWidget
             line.Children.Add(check); todoList.Children.Add(line);
             if (focusIndex == index) check.Focus();
         }
-        if (tasks.Length == 0) todoList.Children.Add(new TextBlock { Text = "把今天想完成的事寫下來", FontSize = 13, Opacity = .6, Margin = new Thickness(4, 16, 0, 0) });
+        if (tasks.Length == 0) todoList.Children.Add(new TextBlock { Text = "把今天想完成的事写下来", FontSize = 13, Opacity = .6, Margin = new Thickness(4, 16, 0, 0) });
         todoAdd!.IsEnabled = tasks.Length < 20;
-        status.Text = $"已完成 {tasks.Count(t => t.Done)} / {tasks.Length} · 最多 20 項 · 自動儲存";
+        status.Text = $"已完成 {tasks.Count(t => t.Done)} / {tasks.Length} · 最多 20 项 · 自动保存";
         todoScroll.Offset = offset;
         if (focusIndex is < 0) todoEntry!.Focus();
         UpdateResponsiveLayout();
@@ -131,7 +131,7 @@ public sealed partial class UtilityWidget
             track.Bind(Panel.BackgroundProperty, track.GetResourceObservable("InsetBrush"));
             track.Children.Add(fill); body.Children.Add(track);
         }
-        status.Text = "本機時間 · 週一開始 · 每分鐘更新"; body.Children.Add(status); UpdateProgress();
+        status.Text = "本机时间 · 周一开始 · 每分钟更新"; body.Children.Add(status); UpdateProgress();
     }
     public string[] ProgressTexts => progressLabels.Select(l => l?.Text ?? "").ToArray();
     private void UpdateProgress()
@@ -141,7 +141,7 @@ public sealed partial class UtilityWidget
         progressDate.Text = now.ToString("MM 月 dd 日 · dddd", Chinese);
         var weekStart = now.Date.AddDays(-(((int)now.DayOfWeek + 6) % 7));
         var yearStart = new DateTime(now.Year, 1, 1);
-        var values = new[] { ("今日", now.TimeOfDay.TotalDays), ("本週", (now - weekStart).TotalDays / 7), ("今年", (now - yearStart).TotalDays / (DateTime.IsLeapYear(now.Year) ? 366 : 365)) };
+        var values = new[] { ("今日", now.TimeOfDay.TotalDays), ("本周", (now - weekStart).TotalDays / 7), ("今年", (now - yearStart).TotalDays / (DateTime.IsLeapYear(now.Year) ? 366 : 365)) };
         for (var i = 0; i < values.Length; i++)
         {
             var fraction = Math.Clamp(values[i].Item2, 0, 1);

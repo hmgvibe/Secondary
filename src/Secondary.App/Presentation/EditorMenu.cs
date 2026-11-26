@@ -63,9 +63,9 @@ public static class EditorMenu
         menu.Items.Clear(); menu.Style = (Style)box.FindResource("WidgetMenu");
         if (Window.GetWindow(box) is { } window) menu.Resources = window.Resources;
         foreach (var (title, gesture, command) in new[] {
-            ("復原", "Ctrl+Z", ApplicationCommands.Undo), ("剪下", "Ctrl+X", ApplicationCommands.Cut),
-            ("複製", "Ctrl+C", ApplicationCommands.Copy), ("貼上", "Ctrl+V", ApplicationCommands.Paste),
-            ("全選", "Ctrl+A", ApplicationCommands.SelectAll) })
+            ("复原", "Ctrl+Z", ApplicationCommands.Undo), ("剪下", "Ctrl+X", ApplicationCommands.Cut),
+            ("复制", "Ctrl+C", ApplicationCommands.Copy), ("贴上", "Ctrl+V", ApplicationCommands.Paste),
+            ("全选", "Ctrl+A", ApplicationCommands.SelectAll) })
         {
             menu.Items.Add(new MenuItem { Header = title, InputGestureText = gesture, Command = command,
                 CommandTarget = box, Style = (Style)box.FindResource("WidgetMenuItem") });

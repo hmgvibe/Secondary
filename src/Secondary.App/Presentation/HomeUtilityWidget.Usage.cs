@@ -44,12 +44,12 @@ public sealed partial class HomeUtilityWidget
         usageSourceButton = ActionButton("", () => SetUsageSource(MainUsage ? "Local" : "Main"));
         usageSourceButton.FontSize = 11; usageSourceButton.MinHeight = usageSourceButton.Height = 28;
         usageSourceButton.Padding = new Thickness(10, 0, 10, 0); usageSourceButton.Margin = new Thickness(8, 0, 0, 0);
-        AutomationProperties.SetName(usageSourceButton, ChineseLocale.Convert("切換 AI 用量來源：本機或主電腦"));
+        AutomationProperties.SetName(usageSourceButton, ("切换 AI 用量来源：本机或主机"));
         DockPanel.SetDock(usageSourceButton, Dock.Right); row.Children.Add(usageSourceButton);
         // Unchecked: the widget keeps its last reading and stops reading files and the network.
-        usageAutoUpdate = new CheckBox { Content = ChineseLocale.Convert("每分鐘自動更新"), IsChecked = !Settings.UsagePaused, FontSize = 11, MinHeight = 28, VerticalAlignment = VerticalAlignment.Center };
+        usageAutoUpdate = new CheckBox { Content = ("每分钟自动更新"), IsChecked = !Settings.UsagePaused, FontSize = 11, MinHeight = 28, VerticalAlignment = VerticalAlignment.Center };
         usageAutoUpdate.SetResourceReference(Control.ForegroundProperty, "MutedBrush");
-        AutomationProperties.SetName(usageAutoUpdate, ChineseLocale.Convert("AI 用量每分鐘自動更新"));
+        AutomationProperties.SetName(usageAutoUpdate, ("AI 用量每分钟自动更新"));
         usageAutoUpdate.Click += (_, _) => SetUsagePaused(usageAutoUpdate.IsChecked != true);
         DockPanel.SetDock(usageAutoUpdate, Dock.Left); row.Children.Add(usageAutoUpdate);
         body.Children.Add(row);
@@ -66,8 +66,8 @@ public sealed partial class HomeUtilityWidget
         claudeUsage!.Panel.Visibility = Settings.ShowsClaude() ? Visibility.Visible : Visibility.Collapsed;
         codexUsage!.Panel.Visibility = Settings.ShowsCodex() ? Visibility.Visible : Visibility.Collapsed;
         codexUsage.Panel.Margin = new Thickness(0, Settings.ShowsClaude() ? 12 : 2, 0, 0);
-        usageSourceButton!.Content = MainUsage ? ChineseLocale.Convert("主電腦") : ChineseLocale.Convert("本機");
-        ShowUsageMessage(Settings.UsagePaused ? ChineseLocale.Convert("已暫停自動更新；勾選下方開關後讀取") : MainUsage ? ChineseLocale.Convert("等待主電腦回報用量") : ChineseLocale.Convert("正在讀取…"));
+        usageSourceButton!.Content = MainUsage ? ("主机") : ("本机");
+        ShowUsageMessage(Settings.UsagePaused ? ("已暂停自动更新；勾选下方开关后读取") : MainUsage ? ("等待主机回报用量") : ("正在读取…"));
     }
 
     // Clears the readings and puts one explanation under the first shown section.
@@ -162,11 +162,11 @@ public sealed partial class HomeUtilityWidget
     private void ShowRemoteUsage()
     {
         var client = RemoteUsageClient.Current;
-        if (client is null) { lastUsage = null; ShowUsageMessage(ChineseLocale.Convert("連線模式未啟用；可切回本機")); return; }
-        if (!client.Connected) { lastUsage = null; ShowUsageMessage(ChineseLocale.Convert("主電腦未連線；連上後自動顯示")); return; }
+        if (client is null) { lastUsage = null; ShowUsageMessage(("连接模式未启用；可切回本机")); return; }
+        if (!client.Connected) { lastUsage = null; ShowUsageMessage(("主机未连接；连上后自动显示")); return; }
         if (client.Snapshot is not { } snapshot) { lastUsage = null; ShowUsageMessage(client.Status); return; }
         lastUsage = snapshot;
-        ShowUsage(snapshot, client.MainNow, ChineseLocale.Convert("主電腦 · "));
+        ShowUsage(snapshot, client.MainNow, ("主机 · "));
     }
 
     private async Task RefreshUsageAsync()
@@ -188,7 +188,7 @@ public sealed partial class HomeUtilityWidget
         catch (OperationCanceledException) when (request.IsCancellationRequested) { }
         catch (Exception)
         {
-            if (!disposed && !request.IsCancellationRequested) { status.Text = ChineseLocale.Convert("讀取用量紀錄失敗，下一分鐘會重試。"); status.Visibility = Visibility.Visible; }
+            if (!disposed && !request.IsCancellationRequested) { status.Text = ("读取用量纪录失败，下一分钟会重试。"); status.Visibility = Visibility.Visible; }
         }
         finally
         {
@@ -206,10 +206,10 @@ public sealed partial class HomeUtilityWidget
     private void ShowUsage(AiUsageSnapshot snapshot, DateTimeOffset now, string agePrefix = "")
     {
         if (claudeUsage is null || codexUsage is null) return;
-        ShowSection(claudeUsage, snapshot.Claude, now, snapshot.ClaudeOnlineProblem is { } problem ? ChineseLocale.Convert("線上用量無法取得：") + problem :
-            snapshot.Claude.HasData ? "" : ChineseLocale.Convert("桌面版不提供百分比，用完額度時顯示重置時間"), agePrefix);
+        ShowSection(claudeUsage, snapshot.Claude, now, snapshot.ClaudeOnlineProblem is { } problem ? ("线上用量无法取得：") + problem :
+            snapshot.Claude.HasData ? "" : ("桌面版不提供百分比，用完额度时显示重置时间"), agePrefix);
         ShowSection(codexUsage, snapshot.Codex, now, snapshot.Codex.HasData ? "" :
-            ChineseLocale.Convert("尚無紀錄，使用 Codex 後自動顯示"), agePrefix);
+            ("尚无纪录，使用 Codex 后自动显示"), agePrefix);
         UpdateResponsiveLayout();
     }
 
@@ -244,8 +244,8 @@ public sealed partial class HomeUtilityWidget
         var title = Label(name, 15); title.Margin = new Thickness(0); title.FontWeight = FontWeights.SemiBold;
         header.Children.Add(title);
         panel.Children.Add(header);
-        var fiveHour = UsageRow(panel, name, ChineseLocale.Convert("五小時"));
-        var weekly = UsageRow(panel, name, ChineseLocale.Convert("每週"));
+        var fiveHour = UsageRow(panel, name, ("五小时"));
+        var weekly = UsageRow(panel, name, ("每周"));
         var note = Label("", 11); note.Visibility = Visibility.Collapsed;
         note.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         panel.Children.Add(note);
@@ -264,7 +264,7 @@ public sealed partial class HomeUtilityWidget
         var value = new TextBlock { Text = "—", FontSize = 15, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Bahnschrift"), VerticalAlignment = VerticalAlignment.Bottom };
         Grid.SetColumn(detail, 1); Grid.SetColumn(value, 2);
         line.Children.Add(label); line.Children.Add(detail); line.Children.Add(value);
-        AutomationProperties.SetName(value, provider + " " + window + ChineseLocale.Convert("用量"));
+        AutomationProperties.SetName(value, provider + " " + window + ("用量"));
         panel.Children.Add(line);
         var fill = new Border { CornerRadius = new CornerRadius(3) };
         fill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");

@@ -34,8 +34,8 @@ public sealed class SettingsStore(string path)
         try
         {
             if (!File.Exists(path)) return new();
-            var settings = BoundedJson.Read<AppSettings>(path, MaximumBytes, "設定資料過大；原始設定已保留。");
-            if (settings is null || settings.Version is < 1 or > 3) throw new InvalidDataException("不支援的設定版本");
+            var settings = BoundedJson.Read<AppSettings>(path, MaximumBytes, "设置数据过大；原始设置已保留。");
+            if (settings is null || settings.Version is < 1 or > 3) throw new InvalidDataException("不支持的设置版本");
             preserveOriginal = settings.Version < 3;
             NeedsSave = preserveOriginal;
             return settings with { Version = 3,
@@ -63,7 +63,7 @@ public sealed class SettingsStore(string path)
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            var bytes = BoundedJson.Serialize(settings, MaximumBytes, "設定資料過大，未覆寫原始設定。");
+            var bytes = BoundedJson.Serialize(settings, MaximumBytes, "设置数据过大，未覆写原始设置。");
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             if (preserveOriginal && File.Exists(path))
             { File.Copy(path, path + "." + Guid.NewGuid().ToString("N") + ".bak"); preserveOriginal = false; }

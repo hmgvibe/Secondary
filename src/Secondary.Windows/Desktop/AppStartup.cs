@@ -9,7 +9,7 @@ public interface IAppStartup
     void Set(bool enabled);
 }
 
-// "登入時啟動": a per-user Run entry, so no administrator rights are needed. Off by default.
+// "登录时启动": a per-user Run entry, so no administrator rights are needed. Off by default.
 // Launches the main app silently into the tray via --background.
 public sealed class AppStartup : IAppStartup
 {

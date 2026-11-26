@@ -33,7 +33,7 @@ public partial class App : Application
                 settingsPath = Path.Combine(benchmarkDirectory, "settings.json");
             }
             catch (Exception error) when (error is ArgumentException or IOException)
-            { MessageBox.Show("效能量測參數無效：" + error.Message, "Secondary"); Shutdown(2); return; }
+            { MessageBox.Show("性能量测参数无效：" + error.Message, "Secondary"); Shutdown(2); return; }
         }
         else
         {
@@ -41,7 +41,7 @@ public partial class App : Application
             if (instance is null)
             {
                 if (!SingleInstanceCoordinator.ShowExistingAsync(settingsPath).GetAwaiter().GetResult())
-                    MessageBox.Show("Secondary 已在執行，但現有視窗暫時無法回應。請從系統匣顯示介面。", "Secondary");
+                    MessageBox.Show("Secondary 已在执行，但现有窗口暂时无法响应。请从系统托盘显示界面。", "Secondary");
                 Shutdown(); return;
             }
         }
@@ -72,7 +72,7 @@ public partial class App : Application
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
         {
             AppDiagnostics.Write("connection-identity", error);
-            problem = "連線模式無法啟用：無法建立本機連線身分（" + error.Message + "）。";
+            problem = "连接模式无法启用：无法建立本机连接身分（" + error.Message + "）。";
         }
         window.AttachConnection(connection, problem);
         connection?.Start();

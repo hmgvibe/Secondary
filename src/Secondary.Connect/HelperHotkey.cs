@@ -9,7 +9,7 @@ namespace Secondary.Connect;
 // game switches the device in or out of game mode. A hidden window on the tray's thread receives WM_HOTKEY.
 public sealed class HelperHotkey : NativeWindow, IDisposable
 {
-    private const string Idle = "快捷鍵：等待設備連線";
+    private const string Idle = "快捷键：等待设备连接";
     private readonly Action pressed;
     private readonly HotkeyBinding binding;
     public string? Gesture { get; private set; }
@@ -28,18 +28,18 @@ public sealed class HelperHotkey : NativeWindow, IDisposable
         if (!HotkeyGesture.TryParse(text, out var gesture) || gesture is null)
         {
             Clear();
-            Status = "快捷鍵：設備送來的快捷鍵格式無效";
-            return (false, "主電腦無法使用這個快捷鍵格式。");
+            Status = "快捷键：设备送来的快捷键格式无效";
+            return (false, "主机无法使用这个快捷键格式。");
         }
         if (!binding.Set(gesture))
         {
             Clear();
-            Status = $"快捷鍵：{gesture} 已被主電腦上的其他程式使用";
-            return (false, $"主電腦上的 {gesture} 已被其他程式使用；請改用其他快捷鍵。");
+            Status = $"快捷键：{gesture} 已被主机上的其他程序使用";
+            return (false, $"主机上的 {gesture} 已被其他程序使用；请改用其他快捷键。");
         }
         Gesture = gesture.ToString();
-        Status = $"快捷鍵：{Gesture}（按下時設備進出遊戲模式）";
-        return (true, $"在主電腦按 {Gesture} 也能進出遊戲模式。");
+        Status = $"快捷键：{Gesture}（按下时设备进出游戏模式）";
+        return (true, $"在主机按 {Gesture} 也能进出游戏模式。");
     }
 
     public void Clear()

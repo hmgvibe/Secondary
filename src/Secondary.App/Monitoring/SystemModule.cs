@@ -26,14 +26,14 @@ public sealed class SystemModule(SystemDashboardModel model, Dispatcher dispatch
     {
         lock (cancellationGate) cancellation?.Cancel();
         if (disposed || !active || !visible)
-        { model.Status = "採樣已暫停；返回系統分區並顯示視窗後恢復。"; return; }
+        { model.Status = "采样已暂停；返回系统分区并显示窗口后恢复。"; return; }
         var previous = worker;
         var owner = new CancellationTokenSource();
         lock (cancellationGate) cancellation = owner;
         var token = owner.Token;
         var gameMode = game;
         var highSampling = high;
-        model.Status = "正在取得採樣基準…";
+        model.Status = "正在取得采样基准…";
         // One serial worker, no overlapping queries, no UI-thread native calls,
         // and at most one awaited dispatcher update. Old generations cannot publish.
         worker = Task.Run(async () =>
@@ -55,7 +55,7 @@ public sealed class SystemModule(SystemDashboardModel model, Dispatcher dispatch
             catch (Exception)
             {
                 if (!token.IsCancellationRequested && !dispatcher.HasShutdownStarted)
-                    await dispatcher.InvokeAsync(() => { if (!token.IsCancellationRequested) model.Status = "採樣失敗；離開再返回系統分區可重試。"; });
+                    await dispatcher.InvokeAsync(() => { if (!token.IsCancellationRequested) model.Status = "采样失败；离开再返回系统分区可重试。"; });
             }
         });
         // Cleanup is independent of the dispatcher, including application shutdown.

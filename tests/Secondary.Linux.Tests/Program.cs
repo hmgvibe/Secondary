@@ -89,9 +89,9 @@ internal static class Program
     private static void TestDisplays()
     {
         var displays = DisplayCatalog.From([("DP-1", new PixelRect(0, 0, 2560, 1440), true), ("HDMI-1", new PixelRect(2560, 0, 1920, 1080), false)]);
-        Check(displays.Select(d => d.Id).SequenceEqual(["name:DP-1", "name:HDMI-1"]) && displays[1].Label.Contains("副螢幕"), "Connector names become stable display identities");
+        Check(displays.Select(d => d.Id).SequenceEqual(["name:DP-1", "name:HDMI-1"]) && displays[1].Label.Contains("副屏"), "Connector names become stable display identities");
         var unnamed = DisplayCatalog.From([(null, new PixelRect(0, 0, 1920, 1080), true), ("Same", new PixelRect(1920, 0, 1280, 800), false), ("Same", new PixelRect(3200, 0, 1280, 800), false)]);
-        Check(unnamed[0].Id == "rect:0,0,1920x1080" && unnamed[1].Id != unnamed[2].Id && unnamed[0].Name == "螢幕 1", "Missing or duplicate names fall back to distinct geometry identities");
+        Check(unnamed[0].Id == "rect:0,0,1920x1080" && unnamed[1].Id != unnamed[2].Id && unnamed[0].Name == "屏幕 1", "Missing or duplicate names fall back to distinct geometry identities");
     }
 
     private static void TestLauncher()
@@ -174,7 +174,7 @@ internal static class Program
             Pump();
             RadioButton[] Items() => window.FindControl<StackPanel>("NavigationItems")!.Children.OfType<RadioButton>().ToArray();
             string[] Keys() => Items().Select(i => (string)i.Tag!).ToArray();
-            Check(Keys().SequenceEqual(["home", "shortcuts", "game", "settings"]), "Daily navigation is 首頁｜快捷導航｜遊戲模式｜設定");
+            Check(Keys().SequenceEqual(["home", "shortcuts", "game", "settings"]), "Daily navigation is 首页｜快捷导航｜游戏模式｜设置");
             Check(window.CurrentPage == "home" && window.FindControl<Grid>("HomeLayer")!.IsVisible && !window.FindControl<ScrollViewer>("Frame")!.IsVisible, "Home is the first page and does not scroll");
             Check(window.ClockRunning, "Home clock ticks while home is visible");
             Check(Items().All(i => Automation(i).Length > 0 && ToolTip.GetTip(i) is string), "Every navigation item has an accessible name and tooltip");
@@ -183,7 +183,7 @@ internal static class Program
             Check(window.CurrentPage == "shortcuts" && !window.ClockRunning, "Leaving home stops the clock");
             window.Navigate("game");
             Pump();
-            Check(model.Modes.Mode == AppMode.Game && Keys().SequenceEqual(["game", "exit", "settings"]), "Game mode shows 監測｜退出｜設定");
+            Check(model.Modes.Mode == AppMode.Game && Keys().SequenceEqual(["game", "exit", "settings"]), "Game mode shows 监测｜退出｜设置");
             Check(Brush(window, "AccentBrush") == Color.Parse("#65DCEC") && window.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark, "Game mode uses the dark game palette");
             Check(new SettingsStore(settingsPath).Load().Mode == AppMode.Game, "Entering game mode is saved");
             window.Navigate("settings");
@@ -214,27 +214,27 @@ internal static class Program
             var hotkey = window.FindControl<TextBox>("HotkeyInput")!;
             var hotkeyStatus = window.FindControl<TextBlock>("HotkeyStatus")!;
             hotkey.Text = "G";
-            Click(window, "套用快捷鍵");
+            Click(window, "套用快捷键");
             Check(hotkeyStatus.Text!.StartsWith("格式例如", StringComparison.Ordinal) && model.Settings.Hotkey == "Ctrl+Alt+G", "Invalid hotkeys are rejected without saving");
             hotkey.Text = "ctrl+shift+f5";
-            Click(window, "套用快捷鍵");
+            Click(window, "套用快捷键");
             Pump();
-            Check(model.Settings.Hotkey == "Ctrl+Shift+F5" && hotkeyStatus.Text!.Contains("請使用下方指令", StringComparison.Ordinal), "Valid hotkeys are saved; without a portal the command fallback is offered");
+            Check(model.Settings.Hotkey == "Ctrl+Shift+F5" && hotkeyStatus.Text!.Contains("请使用下方指令", StringComparison.Ordinal), "Valid hotkeys are saved; without a portal the command fallback is offered");
             Check(window.FindControl<TextBox>("ToggleCommand")!.Text!.EndsWith(" --toggle-game", StringComparison.Ordinal), "The toggle command is shown for desktop shortcut binding");
 
             var reconnects = 0;
-            var answer = new ShortcutResult(ShortcutState.NotAllowed, "桌面不允許這個程式綁定全域快捷鍵。");
+            var answer = new ShortcutResult(ShortcutState.NotAllowed, "桌面不允许这个程序绑定全局快捷键。");
             window.SetDesktopServices(true, _ => Task.FromResult(answer), () => { reconnects++; return Task.CompletedTask; });
             Pump();
             Check(window.ShortcutOutcome == ShortcutState.NotAllowed && hotkeyStatus.Text!.Contains("桌面整合", StringComparison.Ordinal), "A refused shortcut without a launcher points to desktop integration");
-            Click(window, "加入應用程式選單");
+            Click(window, "加入应用程序菜单");
             Check(File.Exists(Path.Combine(launcherData, "applications", "io.github.hmgvibe.Secondary.desktop")) && reconnects == 1, "Adding the launcher writes the entry and reconnects to the portal");
-            Check(window.LauncherText.StartsWith("已加入應用程式選單", StringComparison.Ordinal) && !window.FindControl<Button>("InstallLauncherButton")!.IsEnabled, "Launcher status reports the current program");
-            answer = new ShortcutResult(ShortcutState.Bound, "已由桌面綁定：Ctrl+Alt+G");
+            Check(window.LauncherText.StartsWith("已加入应用程序菜单", StringComparison.Ordinal) && !window.FindControl<Button>("InstallLauncherButton")!.IsEnabled, "Launcher status reports the current program");
+            answer = new ShortcutResult(ShortcutState.Bound, "已由桌面绑定：Ctrl+Alt+G");
             window.SetDesktopServices(true, _ => Task.FromResult(answer), null);
             Pump();
-            Check(window.ShortcutOutcome == ShortcutState.Bound && hotkeyStatus.Text == "已由桌面綁定：Ctrl+Alt+G", "A bound shortcut shows the desktop's own description");
-            Click(window, "從選單移除");
+            Check(window.ShortcutOutcome == ShortcutState.Bound && hotkeyStatus.Text == "已由桌面绑定：Ctrl+Alt+G", "A bound shortcut shows the desktop's own description");
+            Click(window, "从菜单移除");
             Check(!File.Exists(Path.Combine(launcherData, "applications", "io.github.hmgvibe.Secondary.desktop")) && window.FindControl<Button>("InstallLauncherButton")!.IsEnabled, "The launcher can be removed again");
             window.SetDesktopServices(false, null);
             Pump();

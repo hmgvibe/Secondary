@@ -24,19 +24,19 @@ public sealed class TrayService : IDisposable
             using var outline = TrayMenuRenderer.Rounded(new RectangleF(0,0,menu.Width,menu.Height),10*menu.DeviceDpi/96f);
             var old = menu.Region; menu.Region = new Region(outline); old?.Dispose();
         };
-        var show = Item("顯示介面", (_, _) => window.ShowInterface());
-        var hide = Item("隱藏介面", (_, _) => window.Hide());
-        var display = Item("選擇顯示器", (_, _) => window.ShowPicker());
-        var windowed = Item("返回一般視窗", (_, _) => { window.ReturnToWindow(); window.ShowInterface(); });
+        var show = Item("显示界面", (_, _) => window.ShowInterface());
+        var hide = Item("隐藏界面", (_, _) => window.Hide());
+        var display = Item("选择显示器", (_, _) => window.ShowPicker());
+        var windowed = Item("返回一般窗口", (_, _) => { window.ReturnToWindow(); window.ShowInterface(); });
         menu.Items.AddRange(new Forms.ToolStripItem[] { show, hide, display, windowed, new Forms.ToolStripSeparator() });
-        var game = Item("進入遊戲模式", (_, _) => window.ToggleGame());
+        var game = Item("进入游戏模式", (_, _) => window.ToggleGame());
         menu.Items.Add(game);
-        var signIn = new Forms.ToolStripMenuItem(ChineseLocale.Convert("登入時啟動")) { Checked = this.startup!.Enabled, CheckOnClick = true };
-        signIn.Tag = "登入時啟動";
+        var signIn = new Forms.ToolStripMenuItem(("登录时启动")) { Checked = this.startup!.Enabled, CheckOnClick = true };
+        signIn.Tag = "登录时启动";
         signIn.CheckedChanged += (_, _) =>
         {
             try { this.startup!.Set(signIn.Checked); }
-            catch (Exception error) { icon.ShowBalloonTip(5000, "Secondary", ChineseLocale.Convert("無法變更登入時啟動：") + error.Message, Forms.ToolTipIcon.Warning); }
+            catch (Exception error) { icon.ShowBalloonTip(5000, "Secondary", ("无法变更登录时启动：") + error.Message, Forms.ToolTipIcon.Warning); }
         };
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(signIn);
@@ -48,13 +48,13 @@ public sealed class TrayService : IDisposable
         icon.DoubleClick += (_, _) => window.ShowInterface();
         menu.Opening += (_, _) =>
         {
-            game.Text = ChineseLocale.Convert((string?)game.Tag ?? "進入遊戲模式");
+            game.Text = ((string?)game.Tag ?? "进入游戏模式");
             signIn.Checked = this.startup!.Enabled;
         };
     }
     private Forms.ToolStripMenuItem Item(string source, EventHandler handler)
     {
-        var item = new Forms.ToolStripMenuItem(ChineseLocale.Convert(source)) { Tag = source };
+        var item = new Forms.ToolStripMenuItem((source)) { Tag = source };
         item.Click += handler;
         return item;
     }
@@ -62,7 +62,7 @@ public sealed class TrayService : IDisposable
     {
         if (menu.InvokeRequired) { try { menu.BeginInvoke((Action)OnLocaleChanged); } catch (Exception) { } return; }
         foreach (Forms.ToolStripItem item in menu.Items)
-            if (item.Tag is string source) item.Text = ChineseLocale.Convert(source);
+            if (item.Tag is string source) item.Text = (source);
     }
     public void Dispose()
     {

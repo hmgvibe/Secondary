@@ -57,7 +57,7 @@ try
                 readings.Add(new(hardware.Name + " / " + sensor.Name, "LibreHardwareMonitor 0.9.6",
                     sensor.Identifier.ToString(), DateTimeOffset.UtcNow, value, unit,
                     value.HasValue ? ReadingState.Available : ReadingState.Unavailable,
-                    value.HasValue ? null : "感測器未回傳數值；可能不支援或缺少存取權限。"));
+                    value.HasValue ? null : "传感器未返回数值；可能不支持或缺少存取权限。"));
             }
             foreach (var child in hardware.SubHardware) Read(child);
         }
@@ -68,20 +68,20 @@ try
         watchdog.Change(20000, Timeout.Infinite);
         readings.Clear();
         foreach (var hardware in computer.Hardware) Read(hardware);
-        if (!cpuEnabled) Unavailable("CPU 溫度／時脈／功耗、Intel GPU", "cpu/pawnio",
-            "未偵測到已安裝的 PawnIO，已略過依賴此來源的 CPU 與 Intel GPU 探測；不會自動安裝。");
-        if (readings.Count == 0) Unavailable("硬體感測", "system", "沒有可讀取的感測器。");
+        if (!cpuEnabled) Unavailable("CPU 温度／时脉／功耗、Intel GPU", "cpu/pawnio",
+            "未侦测到已安装的 PawnIO，已略过依赖此来源的 CPU 与 Intel GPU 探测；不会自动安装。");
+        if (readings.Count == 0) Unavailable("硬件感测", "system", "没有可读取的传感器。");
         if (!streaming) break;
         Console.WriteLine(JsonSerializer.Serialize(new SensorSnapshot(1, readings.ToArray())));
         await Console.Out.FlushAsync();
         await Task.Delay(args[0] == "--stream-high" ? 2000 : 10000);
     } while (streaming);
 }
-catch (Exception e) { Unavailable("硬體感測", "system", e.Message); }
+catch (Exception e) { Unavailable("硬件感测", "system", e.Message); }
 finally
 {
     try { computer.Close(); }
-    catch (Exception e) { Unavailable("釋放感測元件", "system", e.Message); }
+    catch (Exception e) { Unavailable("释放感测元件", "system", e.Message); }
 }
 Console.WriteLine(JsonSerializer.Serialize(new SensorSnapshot(1, readings.ToArray())));
 return 0;

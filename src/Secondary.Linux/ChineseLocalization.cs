@@ -61,7 +61,7 @@ public static class ChineseLocalization
             source = ChineseLocale.Original(current);
             SetSourceText(element, source);
         }
-        var target = ChineseLocale.Convert(source);
+        var target = (source);
         if (!string.Equals(current, target, StringComparison.Ordinal)) element.SetValue(property, target);
     }
 }

@@ -28,14 +28,14 @@ internal static class WidgetInteractionChecks
         var directory = Path.Combine(Path.GetTempPath(), "Secondary.WidgetInteractions-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var canvas = Surface(1120, 840);
-        var editor = new TextBox { Text = "未儲存的草稿", AcceptsReturn = true, Background = Brushes.White, Foreground = Brushes.Black };
+        var editor = new TextBox { Text = "未保存的草稿", AcceptsReturn = true, Background = Brushes.White, Foreground = Brushes.Black };
         editor.Select(1, 3);
         var button = new Button { Content = "保存", Height = 38, Background = Brushes.LightGray, Foreground = Brushes.Black };
         var content = new Grid { Background = Brushes.White };
         content.RowDefinitions.Add(new RowDefinition()); content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Grid.SetRow(button, 1); content.Children.Add(editor); content.Children.Add(button);
         var frame = new HomeWidget(); var peer = new HomeWidget();
-        frame.Attach(canvas, content, "測試便箋"); peer.Attach(canvas, new TextBlock { Text = "對齊目標", Foreground = Brushes.Black }, "目標");
+        frame.Attach(canvas, content, "测试便签"); peer.Attach(canvas, new TextBlock { Text = "对齐目标", Foreground = Brushes.Black }, "目标");
         Panel.SetZIndex(frame, 1);
         var store = new SettingsStore(Path.Combine(directory, "settings.json"));
         var commits = 0;
@@ -43,7 +43,7 @@ internal static class WidgetInteractionChecks
         {
             commits++;
             if (!store.Save(new AppSettings(Home: new HomeSettings(Widgets:
-                [new HomeWidgetSettings("fixture", "Note", placement, Text: "已保存內容")])))) throw new IOException(store.LastError);
+                [new HomeWidgetSettings("fixture", "Note", placement, Text: "已保存内容")])))) throw new IOException(store.LastError);
         };
         try
         {
@@ -59,7 +59,7 @@ internal static class WidgetInteractionChecks
                 var thumb = handles[edge]; var bounds = thumb.TransformToAncestor(frame).TransformBounds(new Rect(thumb.RenderSize));
                 check(bounds.Width > 0 && bounds.Height > 0 && bounds.Left >= -.1 && bounds.Top >= -.1 && bounds.Right <= frame.Width + .1 && bounds.Bottom <= frame.Height + .1,
                     edge + " resize hit area stays inside the frame");
-                check(thumb.Cursor == CursorFor(edge) && AutomationProperties.GetName(thumb).Contains("測試便箋"), edge + " handle has the matching cursor and accessible widget name");
+                check(thumb.Cursor == CursorFor(edge) && AutomationProperties.GetName(thumb).Contains("测试便签"), edge + " handle has the matching cursor and accessible widget name");
                 check(Ancestor<Thumb>(Hit(frame, Center(bounds))) == thumb, edge + " handle wins off-screen hit testing over content and header");
                 check(Panel.GetZIndex(thumb) > Panel.GetZIndex(mover) && thumb.Focusable, edge + " handle is above the move layer and keyboard selectable");
             }
@@ -85,7 +85,7 @@ internal static class WidgetInteractionChecks
                     edge + " programmatic controller resizes only its tagged axes");
                 check((!edge.HasFlag(ResizeEdges.Left) || Near(after.Right, before.Right)) && (!edge.HasFlag(ResizeEdges.Right) || Near(after.Left, before.Left)) &&
                     (!edge.HasFlag(ResizeEdges.Top) || Near(after.Bottom, before.Bottom)) && (!edge.HasFlag(ResizeEdges.Bottom) || Near(after.Top, before.Top)), edge + " controller keeps opposite edges fixed");
-                check(editor.Text == "未儲存的草稿" && editor.SelectionStart == 1 && editor.SelectionLength == 3 && content.Children.Contains(editor), edge + " interaction preserves draft controls and selection");
+                check(editor.Text == "未保存的草稿" && editor.SelectionStart == 1 && editor.SelectionLength == 3 && content.Children.Contains(editor), edge + " interaction preserves draft controls and selection");
                 if (outputDirectory is not null && edge == (ResizeEdges.Right | ResizeEdges.Bottom)) Save(canvas, outputDirectory, "widget-edit-handles.png");
                 Complete(thumb, false);
                 check(!frame.IsInteracting && commits == count + 1 && !Guides(canvas).Any(), edge + " routed completion commits exactly once and removes guides");

@@ -56,7 +56,7 @@ public static class RemoteShortcuts
     private static async Task<string?> Change(ConnectionController controller, JsonObject message, CancellationToken token)
     {
         var reply = await controller.RequestAsync(message, Wait, token).ConfigureAwait(false);
-        return reply["ok"]?.GetValueKind() == JsonValueKind.True ? null : Text(reply, "error") ?? "主電腦拒絕了這項變更。";
+        return reply["ok"]?.GetValueKind() == JsonValueKind.True ? null : Text(reply, "error") ?? "主机拒绝了这项变更。";
     }
 
     // Runs one shortcut on the main computer. Progress arrives as text (waiting for confirmation there, step n/m);
@@ -76,7 +76,7 @@ public static class RemoteShortcuts
             return (reply["ok"]?.GetValueKind() == JsonValueKind.True, Text(reply, "text") ?? "");
         }
         catch (Exception error) when (error is IOException or ObjectDisposedException or InvalidOperationException)
-        { return (false, "與主電腦的連線中斷；主電腦上的捷徑已停止。"); }
+        { return (false, "与主机的连接中断；主机上的快捷方式已停止。"); }
         finally { controller.MessageReceived -= OnMessage; }
     }
 }

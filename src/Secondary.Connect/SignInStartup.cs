@@ -9,7 +9,7 @@ public interface IStartupSetting
     void Set(bool enabled);
 }
 
-// "登入時啟動": a per-user Run entry, so no administrator rights are needed. Off by default.
+// "登录时启动": a per-user Run entry, so no administrator rights are needed. Off by default.
 public sealed class SignInStartup : IStartupSetting
 {
     private const string Key = @"Software\Microsoft\Windows\CurrentVersion\Run";

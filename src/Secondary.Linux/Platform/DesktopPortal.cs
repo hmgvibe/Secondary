@@ -128,14 +128,14 @@ public sealed class DesktopPortal : IDisposable
         try
         {
             if (!await HasGlobalShortcutsAsync().ConfigureAwait(false))
-                return new(ShortcutState.Unsupported, "此桌面的入口服務不提供全域快捷鍵。");
+                return new(ShortcutState.Unsupported, "此桌面的入口服务不提供全局快捷键。");
             await CloseShortcutSessionAsync().ConfigureAwait(false);
             var sessionToken = Token();
             var created = await RequestAsync("CreateSession", "a{sv}", token => (ref MessageWriter w) =>
                 w.WriteDictionary(new Dictionary<string, VariantValue> { ["handle_token"] = VariantValue.String(token), ["session_handle_token"] = VariantValue.String(sessionToken) }),
                 TimeSpan.FromSeconds(10), cancellation).ConfigureAwait(false);
             if (created.Code != 0 || !created.Results.TryGetValue("session_handle", out var handle))
-                return new(ShortcutState.Failed, "無法建立快捷鍵工作階段。");
+                return new(ShortcutState.Failed, "无法建立快捷键工作阶段。");
             var session = handle.Type == VariantValueType.ObjectPath ? handle.GetObjectPathAsString() : handle.GetString();
             shortcutSession = session;
             activatedWatch = await connection.WatchSignalAsync(PortalBus, PortalPath, "org.freedesktop.portal.GlobalShortcuts", "Activated",
@@ -149,25 +149,25 @@ public sealed class DesktopPortal : IDisposable
                 var shortcuts = w.WriteArrayStart(DBusType.Struct);
                 w.WriteStructureStart();
                 w.WriteString(ToggleGameShortcut);
-                w.WriteDictionary(new Dictionary<string, VariantValue> { ["description"] = VariantValue.String("切換 Secondary 遊戲模式"), ["preferred_trigger"] = VariantValue.String(preferredTrigger) });
+                w.WriteDictionary(new Dictionary<string, VariantValue> { ["description"] = VariantValue.String("切换 Secondary 游戏模式"), ["preferred_trigger"] = VariantValue.String(preferredTrigger) });
                 w.WriteArrayEnd(shortcuts);
                 w.WriteString("");
                 w.WriteDictionary(new Dictionary<string, VariantValue> { ["handle_token"] = VariantValue.String(token) });
             }, TimeSpan.FromMinutes(3), cancellation).ConfigureAwait(false);
-            if (bound.Code == 1) return new(ShortcutState.Declined, "已在桌面對話框取消；可重新套用。");
-            if (bound.Code != 0) return new(ShortcutState.Failed, "桌面未完成快捷鍵綁定。");
-            return new(ShortcutState.Bound, Describe(bound.Results) ?? "已由桌面綁定。");
+            if (bound.Code == 1) return new(ShortcutState.Declined, "已在桌面对话框取消；可重新套用。");
+            if (bound.Code != 0) return new(ShortcutState.Failed, "桌面未完成快捷键绑定。");
+            return new(ShortcutState.Bound, Describe(bound.Results) ?? "已由桌面绑定。");
         }
-        catch (TimeoutException) { return new(ShortcutState.Failed, "等待桌面回應逾時；可重新套用。"); }
+        catch (TimeoutException) { return new(ShortcutState.Failed, "等待桌面响应超时；可重新套用。"); }
         catch (OperationCanceledException) { return new(ShortcutState.Failed, "已停止。"); }
         catch (DBusErrorReplyException error) when (error.ErrorName == "org.freedesktop.portal.Error.NotAllowed")
-        { return new(ShortcutState.NotAllowed, "桌面不允許這個程式綁定全域快捷鍵。"); }
+        { return new(ShortcutState.NotAllowed, "桌面不允许这个程序绑定全局快捷键。"); }
         catch (DBusExceptionBase error)
         {
             AppDiagnostics.Write("global-shortcuts", error);
             // The D-Bus error name identifies the refusal without carrying user data.
             var name = error is DBusErrorReplyException reply ? "（" + reply.ErrorName + "）" : "";
-            return new(ShortcutState.Failed, "入口服務回報錯誤" + name + "，請改用自訂快捷鍵指令。");
+            return new(ShortcutState.Failed, "入口服务回报错误" + name + "，请改用自订快捷键指令。");
         }
     }
 
@@ -185,7 +185,7 @@ public sealed class DesktopPortal : IDisposable
                 if (pair.Key.GetString() != "trigger_description") continue;
                 var value = pair.Value;
                 while (value.Type == VariantValueType.Variant) value = value.GetVariantValue();
-                return "已由桌面綁定：" + value.GetString();
+                return "已由桌面绑定：" + value.GetString();
             }
         }
         return null;

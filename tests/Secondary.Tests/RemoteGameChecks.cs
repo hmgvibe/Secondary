@@ -13,16 +13,16 @@ internal static class RemoteGameChecks
     // A snapshot as the helper would send it while a game runs on an NVIDIA GPU.
     internal static RemoteGameSnapshot Sample(long session, double cpu = 37) => new(session, DateTimeOffset.UtcNow, false,
         cpu, 16UL << 30, 8UL << 30, 2048, 1024,
-        TelemetrySourceState.Available, TelemetrySourceState.Available, TelemetrySourceState.Available, TelemetrySourceState.Available, "整機採樣 / 持續更新",
-        55, TelemetrySourceState.Available, "GPU 引擎 / 持續更新",
+        TelemetrySourceState.Available, TelemetrySourceState.Available, TelemetrySourceState.Available, TelemetrySourceState.Available, "整机采样 / 持续更新",
+        55, TelemetrySourceState.Available, "GPU 引擎 / 持续更新",
         [
             new("NVIDIA GeForce RTX 4060 / GPU Core", "LibreHardwareMonitor 0.9.6", "/gpu-nvidia/0/load/0", DateTimeOffset.UtcNow, 64, "%", ReadingState.Available),
             new("NVIDIA GeForce RTX 4060 / GPU Core", "LibreHardwareMonitor 0.9.6", "/gpu-nvidia/0/temperature/0", DateTimeOffset.UtcNow, 61, "°C", ReadingState.Available),
             new("NVIDIA GeForce RTX 4060 / GPU Memory Used", "LibreHardwareMonitor 0.9.6", "/gpu-nvidia/0/smalldata/1", DateTimeOffset.UtcNow, 4096, "MB", ReadingState.Available),
             new("NVIDIA GeForce RTX 4060 / GPU Memory Total", "LibreHardwareMonitor 0.9.6", "/gpu-nvidia/0/smalldata/2", DateTimeOffset.UtcNow, 8192, "MB", ReadingState.Available),
             new("Intel Core i7 / CPU Package", "LibreHardwareMonitor 0.9.6", "/intelcpu/0/temperature/0", DateTimeOffset.UtcNow, 72, "°C", ReadingState.Available)
-        ], TelemetrySourceState.Available, "硬體助手 / 持續採樣",
-        new FrameStatistics("0x1A2B", 600, 120, 90, 8.33, false), TelemetrySourceState.Available, "PresentMon / 目前活動交換鏈", false);
+        ], TelemetrySourceState.Available, "硬件助手 / 持续采样",
+        new FrameStatistics("0x1A2B", 600, 120, 90, 8.33, false), TelemetrySourceState.Available, "PresentMon / 目前活动交换链", false);
 
     // Stands in for the connection helper: records requests and streams snapshots for the newest game-start.
     private sealed class FakeHelper
@@ -54,7 +54,7 @@ internal static class RemoteGameChecks
                 case "processes": await channel.SendAsync(Reply(message, RemoteGame.ProcessList([new(4242, 99, "fakegame"), new(7, 1, "explorer")])), token); break;
                 case "hotkey":
                     Hotkey = Text(message, "gesture");
-                    await channel.SendAsync(RemoteGame.HotkeyStatus(true, $"在主電腦按 {Hotkey} 也能進出遊戲模式。"), token);
+                    await channel.SendAsync(RemoteGame.HotkeyStatus(true, $"在主机按 {Hotkey} 也能进出游戏模式。"), token);
                     break;
             }
         }
@@ -131,7 +131,7 @@ internal static class RemoteGameChecks
             controller.Hotkey = "Ctrl+Alt+Shift+F11";
             controller.Connect(paired.Fingerprint);
             check(await Until(() => controller.State == LinkState.Connected) && await Until(() => helper.Hotkey == "Ctrl+Alt+Shift+F11"), "Connecting sends the device's hotkey to the main computer");
-            check(await Until(() => controller.StatusLine.Contains("在主電腦按 Ctrl+Alt+Shift+F11", StringComparison.Ordinal)), "The card shows whether the hotkey works on the main computer");
+            check(await Until(() => controller.StatusLine.Contains("在主机按 Ctrl+Alt+Shift+F11", StringComparison.Ordinal)), "The card shows whether the hotkey works on the main computer");
             controller.Hotkey = "Ctrl+Alt+H";
             check(await Until(() => helper.Hotkey == "Ctrl+Alt+H"), "Changing the hotkey on the device updates the main computer");
             check(await server.SendToActiveAsync(Message("toggle-game")) && await Until(() => toggles == 1), "The main computer's hotkey asks the device to switch game mode");
@@ -155,14 +155,14 @@ internal static class RemoteGameChecks
             await helper.Channel!.SendAsync(RemoteGame.Snapshot(Sample(client.Session + 1000, 99)), CancellationToken.None);
             await Task.Delay(300);
             check(client.Read().Snapshot?.Cpu == 37, "Snapshots for another request are ignored");
-            check(await Until(() => client.Read().Stale, 6000) && client.Read().Status.Contains("過期", StringComparison.Ordinal), "Without new snapshots the data turns stale");
+            check(await Until(() => client.Read().Stale, 6000) && client.Read().Status.Contains("过期", StringComparison.Ordinal), "Without new snapshots the data turns stale");
             helper.Streaming = true;
             check(await Until(() => !client.Read().Stale), "Fresh snapshots end the stale state");
 
             var sessionToken = helper.SessionToken;
             var starts = helper.Starts;
             controller.Disconnect();
-            check(await Until(() => controller.State == LinkState.Idle) && client.Read() is { Snapshot: null } gone && gone.Status.Contains("中斷", StringComparison.Ordinal), "A lost connection shows no values");
+            check(await Until(() => controller.State == LinkState.Idle) && client.Read() is { Snapshot: null } gone && gone.Status.Contains("中断", StringComparison.Ordinal), "A lost connection shows no values");
             check(await Until(() => sessionToken.IsCancellationRequested), "The helper's work for that connection is cancelled when it ends");
             check(await Until(() => controller.HotkeyStatus is null), "A disconnected device no longer reports the main computer's hotkey: " + controller.HotkeyStatus);
             controller.Connect(paired.Fingerprint);

@@ -10,7 +10,7 @@ namespace Secondary.Monitoring;
 public sealed record GameTarget(int Id, long StartedUtcTicks, string Name);
 public sealed record GameTelemetrySnapshot(SystemSample? System, double? Gpu, string GpuStatus,
     SensorSnapshot? Sensors, string SensorStatus, FrameStatistics Frames, string FrameStatus, bool TargetExited,
-    string SystemStatus = "等待系統採樣", TelemetrySourceState SystemState = TelemetrySourceState.Waiting,
+    string SystemStatus = "等待系统采样", TelemetrySourceState SystemState = TelemetrySourceState.Waiting,
     TelemetrySourceState GpuState = TelemetrySourceState.Waiting, TelemetrySourceState SensorState = TelemetrySourceState.Waiting,
     TelemetrySourceState FrameState = TelemetrySourceState.Waiting, DateTimeOffset? LastSystemSuccess = null,
     DateTimeOffset? LastGpuSuccess = null, DateTimeOffset? LastSensorSuccess = null, DateTimeOffset? LastFrameSuccess = null,
@@ -30,9 +30,9 @@ public sealed class GameTelemetrySession(bool high, bool sensors, GameTarget? ta
     private readonly object gate = new();
     private SystemSample? system;
     private double? gpu;
-    private string systemStatus = "等待系統採樣";
-    private string gpuStatus = "等待 GPU 基準", sensorStatus = sensors ? "正在啟動感測助手" : "硬體助手未啟用";
-    private string frameStatus = target is null ? "請手動選擇遊戲程序" : "等待 PresentMon";
+    private string systemStatus = "等待系统采样";
+    private string gpuStatus = "等待 GPU 基准", sensorStatus = sensors ? "正在启动感测助手" : "硬件助手未启用";
+    private string frameStatus = target is null ? "请手动选择游戏程序" : "等待 PresentMon";
     private SensorSnapshot? sensorSnapshot;
     private readonly FrameWindow frames = new(target?.Id ?? 0);
     private long lastSystem, lastGpu, lastSensor;
@@ -89,18 +89,18 @@ public sealed class GameTelemetrySession(bool high, bool sensors, GameTarget? ta
                 var expired = currentSensors.Readings.Count(r => r.State == ReadingState.Available && !Fresh(r.Time, now, high ? 8 : 25));
                 if (expired > 0)
                     currentSensors = currentSensors with { Readings = currentSensors.Readings.Select(r => r.State == ReadingState.Available && !Fresh(r.Time, now, high ? 8 : 25)
-                        ? r with { Value = null, State = ReadingState.Unavailable, Reason = "感測資料已過期或時間無效；等待新的硬體讀數。" } : r).ToArray() };
+                        ? r with { Value = null, State = ReadingState.Unavailable, Reason = "感测数据已过期或时间无效；等待新的硬件读数。" } : r).ToArray() };
                 var available = currentSensors.Readings.Any(r => r.State == ReadingState.Available);
-                if (!available) { hardwareState = expired > 0 ? TelemetrySourceState.Stale : TelemetrySourceState.Failed; hardwareStatus = expired > 0 ? "硬體讀數已過期；助手傳輸仍持續，等待新資料" : "硬體助手已連接，來源目前無可用讀數"; }
-                else if (expired > 0) hardwareStatus = "部分硬體讀數已過期；其他來源照常更新";
+                if (!available) { hardwareState = expired > 0 ? TelemetrySourceState.Stale : TelemetrySourceState.Failed; hardwareStatus = expired > 0 ? "硬件读数已过期；助手传输仍持续，等待新数据" : "硬件助手已连接，来源目前无可用读数"; }
+                else if (expired > 0) hardwareStatus = "部分硬件读数已过期；其他来源照常更新";
             }
             return new(currentSystem, gpuFresh && !stopped ? gpu : null,
-                stopped ? "GPU 採樣已停止" : gpuState == TelemetrySourceState.Stale ? "GPU 資料已過期，等待重新採樣" : gpuStatus,
+                stopped ? "GPU 采样已停止" : gpuState == TelemetrySourceState.Stale ? "GPU 数据已过期，等待重新采样" : gpuStatus,
                 currentSensors,
-                stopped ? "硬體採樣已停止" : !sensorFresh && lastSensor != 0 && !sensorFailed ? "硬體資料已過期，等待助手回應" : hardwareStatus,
+                stopped ? "硬件采样已停止" : !sensorFresh && lastSensor != 0 && !sensorFailed ? "硬件数据已过期，等待助手响应" : hardwareStatus,
                 frameFresh ? frameSnapshot : new(null, 0, null, null, null, false),
-                stopped ? "幀監測已停止" : frameFresh ? "PresentMon / 目前活動交換鏈" : lastFrame != 0 && !frameEnded && !targetExited ? "選定交換鏈暫無新幀，等待程序恢復呈現" : frameStatus, targetExited,
-                stopped ? "系統採樣已停止" : !systemFresh && lastSystem != 0 && !systemFailed ? "系統資料已過期，等待重新採樣" : systemStatus,
+                stopped ? "帧监测已停止" : frameFresh ? "PresentMon / 目前活动交换链" : lastFrame != 0 && !frameEnded && !targetExited ? "选定交换链暂无新帧，等待程序恢复呈现" : frameStatus, targetExited,
+                stopped ? "系统采样已停止" : !systemFresh && lastSystem != 0 && !systemFailed ? "系统数据已过期，等待重新采样" : systemStatus,
                 basicState, gpuState, hardwareState,
                 stopped || targetExited ? TelemetrySourceState.Stopped : frameEnded ? TelemetrySourceState.Failed :
                 frameFresh ? TelemetrySourceState.Available : lastFrame != 0 ? TelemetrySourceState.Stale : target is null ? TelemetrySourceState.Disabled : TelemetrySourceState.Waiting,
@@ -129,7 +129,7 @@ public sealed class GameTelemetrySession(bool high, bool sensors, GameTarget? ta
                     system = value; lastSystem = Stopwatch.GetTimestamp();
                     if (Fresh(value.Time, DateTimeOffset.UtcNow, high ? 4 : 8) &&
                         (value.CpuState == TelemetrySourceState.Available || value.MemoryState == TelemetrySourceState.Available || value.NetworkState == TelemetrySourceState.Available)) systemSuccess = value.Time;
-                    systemStatus = value.SourceStatus ?? (value.TotalMemory > 0 ? "整機採樣 / 持續更新" : "整機採樣 / 記憶體來源無資料");
+                    systemStatus = value.SourceStatus ?? (value.TotalMemory > 0 ? "整机采样 / 持续更新" : "整机采样 / 内存来源无数据");
                 }
                 await Task.Delay(SamplingPolicy.IntervalMs(true, high), token);
             }
@@ -156,13 +156,13 @@ public sealed class GameTelemetrySession(bool high, bool sensors, GameTarget? ta
             {
                 lock (gate)
                 {
-                    sensorSnapshot = value; lastSensor = Stopwatch.GetTimestamp(); sensorStatus = "硬體助手 / 持續採樣";
+                    sensorSnapshot = value; lastSensor = Stopwatch.GetTimestamp(); sensorStatus = "硬件助手 / 持续采样";
                     var now = DateTimeOffset.UtcNow;
                     var successful = value.Readings.Where(r => r.State == ReadingState.Available && Fresh(r.Time, now, high ? 8 : 25)).Select(r => (DateTimeOffset?)r.Time).Max();
                     if (successful.HasValue) sensorSuccess = successful.Value;
                 }
             }, token);
-            if (!token.IsCancellationRequested) lock (gate) { sensorFailed = true; sensorSnapshot = null; sensorStatus = "硬體助手已停止；重新切換監測可重試。"; }
+            if (!token.IsCancellationRequested) lock (gate) { sensorFailed = true; sensorSnapshot = null; sensorStatus = "硬件助手已停止；重新切换监测可重试。"; }
         }
         async Task FrameStatisticsWorker()
         {
@@ -183,7 +183,7 @@ public sealed class GameTelemetrySession(bool high, bool sensors, GameTarget? ta
         {
             if (target is null) return;
             using var selected = Process.GetProcessById(target.Id);
-            if (selected.StartTime.ToUniversalTime().Ticks != target.StartedUtcTicks) throw new InvalidOperationException("原程序已退出或 PID 已重新使用；請重新選擇。");
+            if (selected.StartTime.ToUniversalTime().Ticks != target.StartedUtcTicks) throw new InvalidOperationException("原程序已退出或 PID 已重新使用；请重新选择。");
             using var capture = CancellationTokenSource.CreateLinkedTokenSource(token);
             var stream = PresentMonStream.RunAsync(target.Id,
                 value => frames.Add(value),
@@ -193,7 +193,7 @@ public sealed class GameTelemetrySession(bool high, bool sensors, GameTarget? ta
             {
                 var finished = await Task.WhenAny(stream, exit);
                 if (finished == exit && !token.IsCancellationRequested)
-                    lock (gate) { targetExited = true; frameStatus = "選定程序已退出；請手動選擇新程序。"; }
+                    lock (gate) { targetExited = true; frameStatus = "选定程序已退出；请手动选择新程序。"; }
                 else { await stream; lock (gate) frameEnded = true; }
                 // Even if ETW is denied, retain exit detection without restarting capture.
                 if (!selected.HasExited && !token.IsCancellationRequested) await exit;
@@ -201,7 +201,7 @@ public sealed class GameTelemetrySession(bool high, bool sensors, GameTarget? ta
             finally
             {
                 if (selected.HasExited && !token.IsCancellationRequested)
-                    lock (gate) { targetExited = true; frameStatus = "選定程序已退出；請手動選擇新程序。"; }
+                    lock (gate) { targetExited = true; frameStatus = "选定程序已退出；请手动选择新程序。"; }
                 capture.Cancel();
                 try { await stream; } catch (OperationCanceledException) when (capture.IsCancellationRequested) { }
                 try { await exit; } catch (OperationCanceledException) when (capture.IsCancellationRequested) { }
@@ -211,11 +211,11 @@ public sealed class GameTelemetrySession(bool high, bool sensors, GameTarget? ta
         try
         {
             await Task.WhenAll(
-                Task.Run(() => Protect(Basic, message => { system = null; systemFailed = true; systemStatus = "系統採樣失敗：" + message; }), token),
+                Task.Run(() => Protect(Basic, message => { system = null; systemFailed = true; systemStatus = "系统采样失败：" + message; }), token),
                 Task.Run(() => Protect(Gpu, message => { gpu = null; gpuFailed = true; gpuStatus = message; }), token),
                 Task.Run(() => Protect(Hardware, message => { sensorSnapshot = null; sensorFailed = true; sensorStatus = message; }), token),
                 Task.Run(() => Protect(Frames, message => { frameStatus = message; frameEnded = true; }), token),
-                Task.Run(() => Protect(FrameStatisticsWorker, message => { frameStatus = "幀統計失敗：" + message; frameEnded = true; }), token));
+                Task.Run(() => Protect(FrameStatisticsWorker, message => { frameStatus = "帧统计失败：" + message; frameEnded = true; }), token));
         }
         finally { lock (gate) stopped = true; }
     }

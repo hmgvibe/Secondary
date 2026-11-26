@@ -9,7 +9,7 @@ namespace Secondary.Connect;
 public sealed class ShortcutConfirmForm : Form
 {
     public static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
-    private readonly Button run = new() { Text = "確認並執行", AutoSize = true, MinimumSize = new Size(130, 40), Margin = new Padding(0, 0, 12, 0) };
+    private readonly Button run = new() { Text = "确认并执行", AutoSize = true, MinimumSize = new Size(130, 40), Margin = new Padding(0, 0, 12, 0) };
     private readonly Button cancel = new() { Text = "取消", AutoSize = true, MinimumSize = new Size(110, 40) };
     private readonly Timer expiry = new() { Interval = (int)Timeout.TotalMilliseconds };
     private bool decided;
@@ -19,7 +19,7 @@ public sealed class ShortcutConfirmForm : Form
 
     public ShortcutConfirmForm(ShortcutConfirmation request)
     {
-        Text = "確認執行 · Secondary 連接助手";
+        Text = "确认执行 · Secondary 连接助手";
         Font = new Font("Segoe UI", 10.5f);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = MinimizeBox = false;
@@ -27,13 +27,13 @@ public sealed class ShortcutConfirmForm : Form
         TopMost = true;
         AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
         Padding = new Padding(24);
-        Heading = $"「{request.Device}」要求在這臺電腦執行「{request.Name}」";
+        Heading = $"「{request.Device}」要求在这台电脑执行「{request.Name}」";
         DetailsText = request.Details;
         var layout = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
         layout.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(560, 0), Font = new Font("Segoe UI", 13f, FontStyle.Bold), Text = Heading });
         layout.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(560, 0), Margin = new Padding(0, 8, 0, 8),
-            Text = "這是首次執行，或內容已變更。請確認以下目標與步驟，只執行你信任的內容。確認後會記住選擇；執行步驟或腳本內容變更時才會再次詢問。2 分鐘內未回應即取消。" });
-        var details = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Width = 560, Height = 220, Text = DetailsText.Replace("\n", Environment.NewLine), AccessibleName = "執行內容", TabIndex = 2 };
+            Text = "这是首次执行，或内容已变更。请确认以下目标与步骤，只执行你信任的内容。确认后会记住选择；执行步骤或脚本内容变更时才会再次询问。2 分钟内未响应即取消。" });
+        var details = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Width = 560, Height = 220, Text = DetailsText.Replace("\n", Environment.NewLine), AccessibleName = "执行内容", TabIndex = 2 };
         layout.Controls.Add(details);
         var buttons = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 16, 0, 0) };
         buttons.Controls.Add(run); buttons.Controls.Add(cancel);

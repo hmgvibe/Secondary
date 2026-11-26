@@ -126,17 +126,17 @@ internal static class AiUsageChecks
 
     private static void CheckText(Action<bool, string> check)
     {
-        check(AiUsageText.Describe(null, Now) is { Value: "—", Detail: "沒有資料", Fraction: 0 }, "Missing usage window reads as no data");
-        check(AiUsageText.Describe(new UsageWindow(24.4, Now.AddHours(3).AddMinutes(12)), Now) is { Value: "24%", Detail: "3 小時 12 分後重置" } row && Math.Abs(row.Fraction - .244) < 1e-9,
+        check(AiUsageText.Describe(null, Now) is { Value: "—", Detail: "没有数据", Fraction: 0 }, "Missing usage window reads as no data");
+        check(AiUsageText.Describe(new UsageWindow(24.4, Now.AddHours(3).AddMinutes(12)), Now) is { Value: "24%", Detail: "3 小时 12 分后重置" } row && Math.Abs(row.Fraction - .244) < 1e-9,
             "Usage percent and reset countdown are formatted");
-        check(AiUsageText.Describe(new UsageWindow(6, Now.AddDays(6).AddHours(4)), Now).Detail == "6 天 4 小時後重置", "Weekly reset countdown uses days");
-        check(AiUsageText.Describe(new UsageWindow(100, Now.AddMinutes(9).AddSeconds(30), true), Now) is { Value: "已用完", Detail: "9 分鐘後重置", Fraction: 1 },
+        check(AiUsageText.Describe(new UsageWindow(6, Now.AddDays(6).AddHours(4)), Now).Detail == "6 天 4 小时后重置", "Weekly reset countdown uses days");
+        check(AiUsageText.Describe(new UsageWindow(100, Now.AddMinutes(9).AddSeconds(30), true), Now) is { Value: "已用完", Detail: "9 分钟后重置", Fraction: 1 },
             "Reached limit shows exhausted state and its reset time");
         check(AiUsageText.Describe(new UsageWindow(80, Now.AddMinutes(-1)), Now) is { Value: "—", Fraction: 0 } reset && reset.Detail.Contains("已重置"),
             "A passed reset time never shows the stale percentage");
-        check(AiUsageText.Describe(new UsageWindow(5, null), Now).Detail == "重置時間未知", "Missing reset time is stated");
-        check(AiUsageText.Age(Now.AddSeconds(-20), Now) == "剛剛更新" && AiUsageText.Age(Now.AddMinutes(-12), Now) == "12 分鐘前更新" &&
-            AiUsageText.Age(Now.AddHours(-5), Now) == "5 小時前更新" && AiUsageText.Age(Now.AddDays(-2), Now) == "2 天前更新" && AiUsageText.Age(null, Now) == "",
+        check(AiUsageText.Describe(new UsageWindow(5, null), Now).Detail == "重置时间未知", "Missing reset time is stated");
+        check(AiUsageText.Age(Now.AddSeconds(-20), Now) == "刚刚更新" && AiUsageText.Age(Now.AddMinutes(-12), Now) == "12 分钟前更新" &&
+            AiUsageText.Age(Now.AddHours(-5), Now) == "5 小时前更新" && AiUsageText.Age(Now.AddDays(-2), Now) == "2 天前更新" && AiUsageText.Age(null, Now) == "",
             "Usage age is described in local words");
     }
 }

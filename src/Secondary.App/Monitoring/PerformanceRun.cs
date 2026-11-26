@@ -23,21 +23,21 @@ public static class PerformanceRun
     public static PerformanceRequest Parse(string[] args)
     {
         if (args.Length < 3 || args[0] != "--measure" || !scenes.Contains(args[2]))
-            throw new ArgumentException("量測方式：--measure <新報告路徑> <Home|HomeWidgets|Shortcuts|GameLow|GameHigh|GameSensors|Hidden|Minimized|Image|Video> [--seconds=60] [--warmup=10] [--media=本機檔案]");
+            throw new ArgumentException("量测方式：--measure <新报告路径> <Home|HomeWidgets|Shortcuts|GameLow|GameHigh|GameSensors|Hidden|Minimized|Image|Video> [--seconds=60] [--warmup=10] [--media=本机文件]");
         var report = Path.GetFullPath(args[1]);
-        if (File.Exists(report) || Directory.Exists(report)) throw new ArgumentException("報告已存在；請指定新的檔案名稱。");
+        if (File.Exists(report) || Directory.Exists(report)) throw new ArgumentException("报告已存在；请指定新的文件名称。");
         var seconds = 60; var warmup = 10; string? media = null;
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var arg in args.Skip(3))
         {
             var key = arg.Split('=', 2)[0];
-            if (!seen.Add(key)) throw new ArgumentException("量測參數重複：" + key);
+            if (!seen.Add(key)) throw new ArgumentException("量测参数重复：" + key);
             if (arg.StartsWith("--seconds=", StringComparison.Ordinal) && int.TryParse(arg[10..], out var duration) && duration is >= 5 and <= 86400) seconds = duration;
             else if (arg.StartsWith("--warmup=", StringComparison.Ordinal) && int.TryParse(arg[9..], out var delay) && delay is >= 0 and <= 300) warmup = delay;
             else if (arg.StartsWith("--media=", StringComparison.Ordinal) && arg.Length > 8) media = Path.GetFullPath(arg[8..]);
-            else throw new ArgumentException("無效量測參數：" + arg);
+            else throw new ArgumentException("无效量测参数：" + arg);
         }
-        if (args[2] is "Image" or "Video" && (media is null || !File.Exists(media))) throw new ArgumentException("圖片／影片情境需指定存在的 --media 本機檔案。");
+        if (args[2] is "Image" or "Video" && (media is null || !File.Exists(media))) throw new ArgumentException("图片／视频情境需指定存在的 --media 本机文件。");
         return new(report, args[2], seconds, warmup, media);
     }
 

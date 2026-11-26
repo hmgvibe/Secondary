@@ -61,7 +61,7 @@ public sealed class LibVlcVideo : IVideoBackground
         formatCallback = Format; cleanupCallback = Cleanup; lockCallback = Lock; unlockCallback = Unlock; displayCallback = Display;
         player.SetVideoFormatCallbacks(formatCallback, cleanupCallback);
         player.SetVideoCallbacks(lockCallback, unlockCallback, displayCallback);
-        player.EncounteredError += (_, _) => Failed?.Invoke("請選擇本機 MP4 H.264 影片；系統的 VLC 播放元件無法解碼此檔案。");
+        player.EncounteredError += (_, _) => Failed?.Invoke("请选择本机 MP4 H.264 视频；系统的 VLC 播放元件无法解码此文件。");
     }
     private static bool resolverRegistered;
     // Distributions ship libvlc.so.5 without the unversioned libvlc.so (that comes with -dev packages),
@@ -80,7 +80,7 @@ public sealed class LibVlcVideo : IVideoBackground
     {
         try { return new LibVlcVideo(path); }
         catch (Exception error) when (error is VLCException or DllNotFoundException or TypeInitializationException or EntryPointNotFoundException)
-        { throw new InvalidOperationException("找不到系統的 libvlc。", error); }
+        { throw new InvalidOperationException("找不到系统的 libvlc。", error); }
     }
     public void Play() => player.Play();
 
