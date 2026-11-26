@@ -130,17 +130,8 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
     private void BuildNavigation()
     {
         NavigationItems.Children.Clear();
-        if (model.Modes.Mode == AppMode.Game)
-        {
-            AddNavigation("game", "监测", Icons.Monitor);
-            AddNavigation("exit", "退出游戏模式", Icons.Exit);
-        }
-        else
-        {
-            AddNavigation("home", "首页", Icons.Home);
-            AddNavigation("shortcuts", "快捷导航", Icons.Shortcuts);
-            AddNavigation("game", "游戏模式", Icons.Game);
-        }
+        AddNavigation("home", "首页", Icons.Home);
+        AddNavigation("shortcuts", "快捷导航", Icons.Shortcuts);
         AddNavigation("settings", "设置", Icons.Settings);
         ApplyResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width, Bounds.Height > 0 ? Bounds.Height : Height);
     }
@@ -158,8 +149,6 @@ public partial class MainWindow : Window, Shortcuts.ILaunchpadHost
         switch (key)
         {
             case "settings": settingsOpen = true; break;
-            case "exit": ExitGame(); return;
-            case "game" when model.Modes.Mode != AppMode.Game: EnterGame(); return;
             default:
                 settingsOpen = false;
                 model.Modes.Navigate(key);

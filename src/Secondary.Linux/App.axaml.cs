@@ -39,11 +39,11 @@ public partial class App : Application
             window.Show();
             startup.Instance?.Listen(command =>
             {
-                Dispatcher.UIThread.Post(() => { if (command == InstanceCommand.ToggleGame) window.ToggleGame(); else window.ShowInterface(); });
+                Dispatcher.UIThread.Post(() => window.ShowInterface());
                 return true;
             });
             StartConnection(window, startup.Paths.DataDirectory);
-            if (startup.Options.ToggleGame) window.ToggleGame();
+            // Game mode removed: --toggle-game no longer enters anything.
             desktop.Exit += (_, _) => Cleanup();
             _ = ConnectDesktopAsync(window);
         }
@@ -92,12 +92,10 @@ public partial class App : Application
     {
         var show = new NativeMenuItem("显示 Secondary");
         show.Click += (_, _) => window.ShowInterface();
-        var game = new NativeMenuItem("进入／退出游戏模式");
-        game.Click += (_, _) => { window.ShowInterface(); window.ToggleGame(); };
         var quit = new NativeMenuItem("退出 Secondary");
         quit.Click += (_, _) => { window.AllowClose = true; desktop.Shutdown(); };
         var menu = new NativeMenu();
-        menu.Items.Add(show); menu.Items.Add(game); menu.Items.Add(new NativeMenuItemSeparator()); menu.Items.Add(quit);
+        menu.Items.Add(show); menu.Items.Add(new NativeMenuItemSeparator()); menu.Items.Add(quit);
         tray = new TrayIcon { Icon = window.Icon, ToolTipText = "Secondary", Menu = menu };
         tray.Clicked += (_, _) => window.ShowInterface();
         TrayIcon.SetIcons(this, new TrayIcons { tray });

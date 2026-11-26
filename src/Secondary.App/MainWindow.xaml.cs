@@ -21,8 +21,6 @@ public partial class MainWindow : Window
     private bool fullscreen;
     private readonly ThemeService theme;
     private ThemeChoice themeChoice = ThemeChoice.System;
-    private GlobalHotkey? hotkey;
-    private string? registeredHotkey;
     private bool updatingMode, updatingNavigation, initializing = true;
     private Storyboard? transition;
     private IInputElement? previousFocus;
@@ -62,11 +60,7 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) =>
         {
             theme.Apply(model.Presentation.Appearance, themeChoice);
-            if (registerHotkey)
-            {
-                hotkey = new GlobalHotkey(new WindowInteropHelper(this).Handle, ToggleGame);
-                ApplyHotkey(model.Settings.Hotkey);
-            }
+            // Game mode removed: no global hotkey is registered.
         };
         model.TopologyChanged += OnTopologyChanged;
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
@@ -112,7 +106,7 @@ public partial class MainWindow : Window
         if (controller is not null)
         {
             // The main computer uses this device's hotkey while connected, and its game page follows the connection.
-            controller.Hotkey = registeredHotkey ?? model.Settings.Hotkey;
+            controller.Hotkey = model.Settings.Hotkey;
             controller.Changed += OnConnectionChanged;
             controller.ToggleGameRequested += OnRemoteToggle;
         }
@@ -132,19 +126,9 @@ public partial class MainWindow : Window
     {
         updatingNavigation = true;
         NavigationItems.Children.Clear();
-        if (IsGame)
-        {
-            AddNavigation("game", "游戏监测", "\uE9D9");
-            AddNavigation("exit-game", "退出游戏模式", "\uE8BB");
-            AddNavigation("settings", "设置", "\uE713");
-        }
-        else
-        {
-            AddNavigation("home", "首页", "\uE80F");
-            AddNavigation("shortcuts", "快捷导航", "\uE71D");
-            AddNavigation("enter-game", "游戏模式", "\uE7FC");
-            AddNavigation("settings", "设置", "\uE713");
-        }
+        AddNavigation("home", "首页", "\uE80F");
+        AddNavigation("shortcuts", "快捷导航", "\uE71D");
+        AddNavigation("settings", "设置", "\uE713");
         updatingNavigation = false;
         ShowCurrentPage();
         ApplyResponsiveLayout(ShellRoot.ActualWidth > 0 ? ShellRoot.ActualWidth : Width,
@@ -186,8 +170,6 @@ public partial class MainWindow : Window
     public void Navigate(string key)
     {
         if (key is "settings" or "more") { OpenSettings(); return; }
-        if (key == "enter-game") { SetAppearance(ShellAppearance.Game); return; }
-        if (key == "exit-game") { ExitGame(); return; }
         if (!model.Modes.Navigate(key)) return;
         CloseSettings();
         ShowCurrentPage();
@@ -304,25 +286,9 @@ public partial class MainWindow : Window
         GamePage.RenderTransform = Transform.Identity;
         ScanTransform.Y = 0;
     }
-    private void OnSaveHotkey(object sender, RoutedEventArgs e) => ApplyHotkey(HotkeyInput.Text);
-    private void OnResetHotkey(object sender, RoutedEventArgs e) { HotkeyInput.Text = "Ctrl+Alt+G"; ApplyHotkey(HotkeyInput.Text); }
-    private void ApplyHotkey(string text)
-    {
-        if (!HotkeyGesture.TryParse(text, out var gesture))
-        { HotkeyStatus.Text = "请使用 Ctrl 或 Alt，加上字母、数字或 F1–F11，例如 Ctrl+Alt+G。"; return; }
-        var canonical = gesture!.ToString();
-        if (canonical != registeredHotkey && (hotkey is null || !hotkey.Set(gesture)))
-        {
-            HotkeyStatus.Text = "快捷键被占用或无法注册。" + (registeredHotkey is null ? "目前没有生效的全局快捷键；仍可用按钮及系统托盘退出。" : "原快捷键 " + registeredHotkey + " 仍有效。");
-            model.Status = HotkeyStatus.Text;
-            return;
-        }
-        registeredHotkey = canonical;
-        HotkeyInput.Text = canonical;
-        HotkeyStatus.Text = "已启用 " + canonical + "：手动进入／退出游戏模式（背景也有效）。";
-        model.SaveRuntime(hotkey: canonical);
-        if (connection is not null) connection.Hotkey = canonical;
-    }
+    // Game mode removed: hotkey registration is no longer available.
+    private void ApplyHotkey(string text) { }
+
     private void OnThemeChoice(object sender, SelectionChangedEventArgs e)
     {
         if (theme is null || ThemePicker.SelectedItem is not ComboBoxItem item) return;
@@ -457,7 +423,7 @@ public partial class MainWindow : Window
         if (!AllowClose) e.Cancel = true;
         base.OnClosing(e);
     }
-    protected override void OnClosed(EventArgs e) { DisposeGameTelemetry(); StopSensorCapture(); Launchpad.Dispose(); CancelTransition(); DisposeHome(); SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged; hotkey?.Dispose(); theme.Dispose(); model.TopologyChanged -= OnTopologyChanged; model.Dispose(); base.OnClosed(e); }
+    protected override void OnClosed(EventArgs e) { DisposeGameTelemetry(); StopSensorCapture(); Launchpad.Dispose(); CancelTransition(); DisposeHome(); SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged; theme.Dispose(); model.TopologyChanged -= OnTopologyChanged; model.Dispose(); base.OnClosed(e); }
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);

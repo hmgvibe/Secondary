@@ -147,9 +147,8 @@ try
     }
     Check(created.Values.All(m => m.Disposed), "Shutdown disposes modules");
     using var restored = new ModeController(store.Load());
-    Check(restored.Mode == AppMode.Game && restored.Current == "game", "Game restores on restart");
-    restored.Switch(AppMode.Normal);
-    Check(restored.Current == "shortcuts" && store.Load().Theme == "Dark" && store.Load().Hotkey == "Alt+F11" && !store.Load().GameAnimation, "Restart preserves page and preferences");
+    Check(restored.Mode == AppMode.Normal, "Game mode is gone: restart always restores the daily layout");
+    Check(store.Load().Theme == "Dark" && store.Load().Hotkey == "Alt+F11" && !store.Load().GameAnimation, "Restart preserves preferences");
     foreach (var version in new[] { 1, 2 })
     foreach (var mode in new[] { 0, 1, 2 })
     {

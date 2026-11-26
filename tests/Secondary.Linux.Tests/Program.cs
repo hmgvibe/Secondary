@@ -109,7 +109,7 @@ internal static class Program
             launcher.Install(new MemoryStream([1, 2, 3]));
             Check(launcher.State == LauncherState.Current && File.ReadAllBytes(launcher.IconFile).SequenceEqual(new byte[] { 1, 2, 3 }), "Adding writes the desktop entry and icon");
             var text = File.ReadAllText(launcher.DesktopFile);
-            Check(text.Contains("Exec=/apps/Secondary.AppImage\n") && text.Contains("Exec=/apps/Secondary.AppImage --toggle-game") && text.Contains("Icon=io.github.hmgvibe.Secondary"), "The desktop entry launches the app and offers a game-mode action");
+            Check(text.Contains("Exec=/apps/Secondary.AppImage\n") && !text.Contains("--toggle-game") && text.Contains("Icon=io.github.hmgvibe.Secondary"), "Game mode removed: desktop entry launches the app with no game action");
             Check(new DesktopLauncher(data, "/elsewhere/secondary").State == LauncherState.Elsewhere, "A launcher for another location is reported for update");
             Check(!Directory.EnumerateFiles(data, "*.tmp-*", SearchOption.AllDirectories).Any(), "Atomic writes leave no temporary files");
             launcher.Remove();
@@ -174,7 +174,7 @@ internal static class Program
             Pump();
             RadioButton[] Items() => window.FindControl<StackPanel>("NavigationItems")!.Children.OfType<RadioButton>().ToArray();
             string[] Keys() => Items().Select(i => (string)i.Tag!).ToArray();
-            Check(Keys().SequenceEqual(["home", "shortcuts", "game", "settings"]), "Daily navigation is 首页｜快捷导航｜游戏模式｜设置");
+            Check(Keys().SequenceEqual(["home", "shortcuts", "settings"]), "Game mode removed: daily navigation is 首页｜快捷导航｜设置");
             Check(window.CurrentPage == "home" && window.FindControl<Grid>("HomeLayer")!.IsVisible && !window.FindControl<ScrollViewer>("Frame")!.IsVisible, "Home is the first page and does not scroll");
             Check(window.ClockRunning, "Home clock ticks while home is visible");
             Check(Items().All(i => Automation(i).Length > 0 && ToolTip.GetTip(i) is string), "Every navigation item has an accessible name and tooltip");
@@ -183,15 +183,7 @@ internal static class Program
             Check(window.CurrentPage == "shortcuts" && !window.ClockRunning, "Leaving home stops the clock");
             window.Navigate("game");
             Pump();
-            Check(model.Modes.Mode == AppMode.Game && Keys().SequenceEqual(["game", "exit", "settings"]), "Game mode shows 监测｜退出｜设置");
-            Check(Brush(window, "AccentBrush") == Color.Parse("#65DCEC") && window.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark, "Game mode uses the dark game palette");
-            Check(new SettingsStore(settingsPath).Load().Mode == AppMode.Game, "Entering game mode is saved");
-            window.Navigate("settings");
-            Check(window.CurrentPage == "settings" && model.Modes.Mode == AppMode.Game, "Settings opens inside game mode without leaving it");
-            window.Navigate("exit");
-            Check(model.Modes.Mode == AppMode.Normal && window.CurrentPage == "shortcuts", "Exiting game mode returns to the previous daily page");
-            window.ToggleGame(); window.ToggleGame();
-            Check(model.Modes.Mode == AppMode.Normal && window.CurrentPage == "shortcuts", "Toggle-game enters and leaves symmetrically");
+            Check(model.Modes.Mode == AppMode.Normal, "Game mode removed: navigating to game is a no-op");
 
             window.Navigate("settings");
             Check(window.SettingsOpen && window.FindControl<StackPanel>("SettingsPage")!.IsVisible, "Settings is an independent page");
@@ -211,29 +203,19 @@ internal static class Program
             Check(Brush(window, "TextBrush") == Color.Parse("#162A37") && !window.AnimationsEnabled, "Reduced motion is honoured without high contrast");
             window.SetAccessibility(false, true);
 
-            var hotkey = window.FindControl<TextBox>("HotkeyInput")!;
-            var hotkeyStatus = window.FindControl<TextBlock>("HotkeyStatus")!;
-            hotkey.Text = "G";
-            Click(window, "套用快捷键");
-            Check(hotkeyStatus.Text!.StartsWith("格式例如", StringComparison.Ordinal) && model.Settings.Hotkey == "Ctrl+Alt+G", "Invalid hotkeys are rejected without saving");
-            hotkey.Text = "ctrl+shift+f5";
-            Click(window, "套用快捷键");
-            Pump();
-            Check(model.Settings.Hotkey == "Ctrl+Shift+F5" && hotkeyStatus.Text!.Contains("请使用下方指令", StringComparison.Ordinal), "Valid hotkeys are saved; without a portal the command fallback is offered");
-            Check(window.FindControl<TextBox>("ToggleCommand")!.Text!.EndsWith(" --toggle-game", StringComparison.Ordinal), "The toggle command is shown for desktop shortcut binding");
 
             var reconnects = 0;
             var answer = new ShortcutResult(ShortcutState.NotAllowed, "桌面不允许这个程序绑定全局快捷键。");
             window.SetDesktopServices(true, _ => Task.FromResult(answer), () => { reconnects++; return Task.CompletedTask; });
             Pump();
-            Check(window.ShortcutOutcome == ShortcutState.NotAllowed && hotkeyStatus.Text!.Contains("桌面整合", StringComparison.Ordinal), "A refused shortcut without a launcher points to desktop integration");
+            Check(window.ShortcutOutcome == ShortcutState.NotAllowed, "A refused shortcut without a launcher points to desktop integration");
             Click(window, "加入应用程序菜单");
             Check(File.Exists(Path.Combine(launcherData, "applications", "io.github.hmgvibe.Secondary.desktop")) && reconnects == 1, "Adding the launcher writes the entry and reconnects to the portal");
             Check(window.LauncherText.StartsWith("已加入应用程序菜单", StringComparison.Ordinal) && !window.FindControl<Button>("InstallLauncherButton")!.IsEnabled, "Launcher status reports the current program");
             answer = new ShortcutResult(ShortcutState.Bound, "已由桌面绑定：Ctrl+Alt+G");
             window.SetDesktopServices(true, _ => Task.FromResult(answer), null);
             Pump();
-            Check(window.ShortcutOutcome == ShortcutState.Bound && hotkeyStatus.Text == "已由桌面绑定：Ctrl+Alt+G", "A bound shortcut shows the desktop's own description");
+            Check(window.ShortcutOutcome == ShortcutState.Bound, "A bound shortcut is reported by the desktop");
             Click(window, "从菜单移除");
             Check(!File.Exists(Path.Combine(launcherData, "applications", "io.github.hmgvibe.Secondary.desktop")) && window.FindControl<Button>("InstallLauncherButton")!.IsEnabled, "The launcher can be removed again");
             window.SetDesktopServices(false, null);
@@ -280,11 +262,10 @@ internal static class Program
             var combinations = 0;
             foreach (var (width, height) in new[] { (480.0, 420.0), (560.0, 480.0), (800.0, 600.0), (1200.0, 820.0), (1920.0, 1080.0), (2560.0, 1440.0) })
             foreach (var theme in new[] { 1, 2 })
-            foreach (var page in new[] { "home", "shortcuts", "game", "settings" })
+            foreach (var page in new[] { "home", "shortcuts", "settings" })
             {
                 window.FindControl<ComboBox>("ThemePicker")!.SelectedIndex = theme;
-                if (page == "game") { if (model.Modes.Mode != AppMode.Game) window.Navigate("game"); }
-                else { if (model.Modes.Mode == AppMode.Game) window.Navigate("exit"); window.Navigate(page); }
+                window.Navigate(page);
                 window.Width = width; window.Height = height;
                 window.ApplyResponsiveLayout(width, height);
                 Pump();
@@ -305,7 +286,7 @@ internal static class Program
                 if (output is not null && (width, height) is (1200, 820) or (560, 480))
                     window.CaptureRenderedFrame()?.Save(Path.Combine(output, $"linux-{page}-{(theme == 1 ? "light" : "dark")}-{width:0}.png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
             }
-            Check(combinations == 48, "48 viewport × theme × page combinations lay out without horizontal overflow");
+            Check(combinations == 36, "36 viewport × theme × page combinations lay out without horizontal overflow");
             if (model.Modes.Mode == AppMode.Game) window.Navigate("exit");
 
             window.AllowClose = true;

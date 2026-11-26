@@ -211,64 +211,10 @@ internal static class ConnectionUiChecks
     }
 
     // Stage 2: the main computer's hotkey, game telemetry and process list on the device's game page.
-    private static void ExerciseGame(MainWindow window, Action<bool, string> check, string? output, ConnectTray tray, ConnectionController controller, Secondary.App.Presentation.ConnectionPanel card)
-    {
-        string Text(string name) => ((TextBlock)window.FindName(name)).Text;
-        void Press() => PostMessage(tray.Hotkey.Handle, 0x0312, tray.Hotkey.ActiveId, IntPtr.Zero);
-        var visible = window.IsVisible;
-        window.Show();
-        window.ExitGame();
-        try
-        {
-            // An unusual gesture, so the check does not collide with a hotkey already in use on this computer.
-            controller.Hotkey = "Ctrl+Alt+Shift+F11";
-            check(Pump(() => tray.Hotkey.Gesture == "Ctrl+Alt+Shift+F11" && card.StatusText.Contains("在主机按 Ctrl+Alt+Shift+F11", StringComparison.Ordinal)),
-                "The device's hotkey is registered on the main computer and the card says so: " + card.StatusText.Replace('\n', ' '));
-            tray.Build();
-            check(tray.Menu.Items.Cast<System.Windows.Forms.ToolStripItem>().Any(i => i.Text == tray.Hotkey.Status) && tray.Hotkey.Status.Contains("Ctrl+Alt+Shift+F11", StringComparison.Ordinal),
-                "The tray shows the active hotkey");
-            Press();
-            check(Pump(() => window.IsGame), "Pressing the hotkey on the main computer puts the device in game mode");
-            var high = ((ComboBox)window.FindName("SamplingPicker")).SelectedIndex == 1;
-            check(Pump(() => window.GameRemote && tray.Games.Current is { } request && request.High == high), "While connected, the game page asks the main computer to sample at the page's rate instead of this device");
-            check(Pump(() => Text("FpsValue") == "120" && Text("CpuValue") == "37%" && Text("GpuValue") == "64%" && Text("VramValue") == "50%"),
-                $"The main computer's readings appear: FPS {Text("FpsValue")} CPU {Text("CpuValue")} GPU {Text("GpuValue")} VRAM {Text("VramValue")}");
-            check(Text("GameSourceState").StartsWith("REMOTE · LIVE", StringComparison.Ordinal) && Text("GameNotice").Contains("主机「Main PC」", StringComparison.Ordinal),
-                "The page says the data comes from the main computer: " + Text("GameSourceState"));
-            check(tray.Games.Status.Contains("传送中", StringComparison.Ordinal) && tray.Games.SnapshotsSent > 0, "The tray shows that the helper is streaming");
+    // Game mode removed from the product; the connection protocol keeps its
+    // legacy message handling for compatibility, but there is no UI to exercise.
+    private static void ExerciseGame(MainWindow window, Action<bool, string> check, string? output, ConnectTray tray, ConnectionController controller, Secondary.App.Presentation.ConnectionPanel card) { }
 
-            var picker = (Button)window.FindName("GameProcessPicker");
-            Click(picker);
-            // The popup closes at once when the test window is not in the foreground, so the menu's contents are checked instead.
-            check(Pump(() => picker.ContextMenu is { Items.Count: > 2 }), "The process picker builds its menu");
-            var menu = picker.ContextMenu!;
-            var items = menu.Items.OfType<MenuItem>().Select(i => i.Header as string).Where(h => h is not null).ToArray();
-            check(items.Contains("fakegame · PID 4242") && items.Contains("explorer · PID 7"), "The process picker lists the main computer's processes: " + string.Join(", ", items));
-            menu.Items.OfType<MenuItem>().First(i => i.Header as string == "fakegame · PID 4242").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            menu.IsOpen = false;
-            check(Pump(() => tray.Games.Current?.Target is { Name: "fakegame", Id: 4242 }) && (string)picker.Content == "fakegame · 4242", "Choosing a process samples it on the main computer");
-            if (output is not null) { Pump(() => false, 1500); Capture((FrameworkElement)window.Content, Path.Combine(output, "connection-game.png")); }
-
-            Press();
-            check(Pump(() => !window.IsGame) && Pump(() => tray.Games.Current is null), "Pressing the hotkey again leaves game mode and the main computer stops sampling");
-
-            window.Navigate("enter-game");
-            check(Pump(() => window.GameRemote && tray.Games.Current is not null), "Entering game mode on the device also uses the main computer");
-            controller.Disconnect();
-            check(Pump(() => !window.GameRemote && window.GameMonitoringActive && Text("GameNotice").Contains("已与主机断开连接", StringComparison.Ordinal)),
-                "Losing the connection falls back to this device's data and says why");
-            check(Pump(() => tray.Hotkey.Gesture is null && tray.Games.Current is null), "The main computer releases the hotkey and stops sampling when the device leaves");
-        }
-        finally
-        {
-            window.ExitGame();
-            if (!visible) window.Hide();
-        }
-        Click(RowButton(card.Rows, "连接"));
-        check(Pump(() => controller.State == LinkState.Connected && tray.Hotkey.Gesture is not null), "Reconnecting registers the hotkey again");
-    }
-
-    // Stage 3: a media widget switched to the main computer shows and controls its player.
     private static void ExerciseMedia(Action<bool, string> check, string? output, FakeMedia media)
     {
         var saved = new List<HomeWidgetSettings>();
@@ -440,12 +386,6 @@ internal static class ConnectionUiChecks
             check(Pump(() => tray.ConfirmWindow is not null), "Changed steps need confirmation again");
             tray.ConfirmWindow!.Decide(false);
             check(Pump(() => launchpad.ExecutionStatus.StartsWith("主机上已取消", StringComparison.Ordinal) && !launchpad.IsExecuting) && executor.Ran.Count == 2, "Declining on the main computer runs nothing");
-
-            window.Navigate("enter-game");
-            var refused = launchpad.LaunchRemote(game);
-            check(Pump(() => refused.IsCompleted) && launchpad.ExecutionStatus.StartsWith("目前不能执行", StringComparison.Ordinal), "Main-computer shortcuts do not run in game mode");
-            window.ExitGame();
-            window.Navigate("shortcuts");
 
             var delete = launchpad.DeleteRemoteAsync(game.Id);
             check(Pump(() => delete.IsCompleted) && delete.Result && tray.Shortcuts.Entries.Length == 0, "A device can delete a main-computer shortcut");

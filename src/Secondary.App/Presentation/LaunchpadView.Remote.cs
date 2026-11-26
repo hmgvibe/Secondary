@@ -127,7 +127,7 @@ public sealed partial class LaunchpadView
     // The device only asks; the main computer reviews, asks its own user when needed, and runs the steps.
     public async Task LaunchRemote(ShortcutEntry entry)
     {
-        if (disposed || execution is not null || !CanRun()) { status.Text = "目前不能执行；请先取消正在进行的巨集或退出游戏模式。"; return; }
+        if (disposed || execution is not null || !CanRun()) { status.Text = "目前不能执行；请先取消正在进行的巨集。"; return; }
         if (remote is not { State: LinkState.Connected } link) { status.Text = "主机未连接，这次未执行。"; return; }
         using var cancellation = new CancellationTokenSource();
         execution = cancellation; cancel.IsEnabled = true;

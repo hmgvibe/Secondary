@@ -150,7 +150,7 @@
        <StackPanel><TextBlock Text="PREFERENCES" FontSize="11" Foreground="{DynamicResource AccentBrush}"/><TextBlock Text="设置" FontSize="34" FontWeight="SemiBold" Margin="0,6,0,0"/></StackPanel>
        <Button x:Name="BackSettingsButton" Grid.Column="1" Content="返回" Click="OnCloseSettings" VerticalAlignment="Center" Margin="16,0,0,0"/>
       </Grid>
-      <TextBlock x:Name="SettingsHint" Text="显示器、明暗主题、快捷键与游戏动画。首页外观请由首页「自订首页」调整。" Style="{StaticResource Label}" Margin="0,0,0,24"/>
+      <TextBlock x:Name="SettingsHint" Text="显示器、明暗主题与导航栏。首页外观请由首页「自订首页」调整。" Style="{StaticResource Label}" Margin="0,0,0,24"/>
       <DockPanel Margin="8,0,8,16" MaxWidth="800" HorizontalAlignment="Center">
        <Button Content="重试保存" Click="OnRetrySaveSettings" IsEnabled="{Binding HasUnsavedSettings}" DockPanel.Dock="Right" Margin="12,0,0,0"/>
        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}"/>
@@ -158,7 +158,7 @@
       <StackPanel x:Name="SettingsPanels" HorizontalAlignment="Center">
       <Border Style="{StaticResource Panel}" MaxWidth="800" VerticalAlignment="Top" Margin="8,0,8,16"><StackPanel>
        <TextBlock Text="导航栏" FontSize="20" FontWeight="SemiBold"/>
-       <TextBlock Text="大小与位置立即套用，日常与游戏模式共用。" Style="{StaticResource Label}" Margin="0,6,0,16"/>
+       <TextBlock Text="大小与位置立即套用。" Style="{StaticResource Label}" Margin="0,6,0,16"/>
        <TextBlock Text="大小" Style="{StaticResource Label}"/>
        <ComboBox x:Name="NavigationSizePicker" SelectionChanged="OnNavigationPreference" Margin="0,6,0,16" AutomationProperties.Name="导航栏大小"><ComboBoxItem Content="标准 · 100%" Tag="Standard"/><ComboBoxItem Content="小 · 80%（操作区至少 44）" Tag="Small"/></ComboBox>
        <TextBlock Text="位置" Style="{StaticResource Label}"/>
@@ -171,18 +171,16 @@
        <TextBlock Text="{Binding Status}" Style="{StaticResource Label}" Margin="0,8,0,0"/>
       </StackPanel></Border>
       <Border Style="{StaticResource Panel}" MaxWidth="800" VerticalAlignment="Top" Margin="8,0,8,16"><StackPanel>
-       <TextBlock Text="色彩与外观" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="明暗默认跟随 Windows，游戏外观固定深色。" Style="{StaticResource Label}" Margin="0,6,0,16"/>
+       <TextBlock Text="色彩与外观" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="明暗默认跟随 Windows。" Style="{StaticResource Label}" Margin="0,6,0,16"/>
        <ComboBox x:Name="ThemePicker" SelectionChanged="OnThemeChoice" AutomationProperties.Name="明暗主题"><ComboBoxItem Content="跟随 Windows" Tag="System"/><ComboBoxItem Content="浅色" Tag="Light"/><ComboBoxItem Content="深色" Tag="Dark"/></ComboBox>
        <TextBlock Text="明暗主题及最后使用的页面会自动保存。" Style="{StaticResource Label}" FontSize="12" Margin="0,16,0,0"/>
       </StackPanel></Border>
-      <Border Style="{StaticResource Panel}" MaxWidth="800" VerticalAlignment="Top" Margin="8,0,8,16"><StackPanel>
-       <TextBlock Text="游戏模式快捷键" FontSize="20" FontWeight="SemiBold"/>
-       <TextBlock Text="手动进出，不侦测游戏或自动切换。输入组合后按套用。" Style="{StaticResource Label}" Margin="0,6,0,16"/>
-       <TextBox x:Name="HotkeyInput" MinHeight="44" Padding="12,10" FontSize="16" Background="{DynamicResource InsetBrush}" Foreground="{DynamicResource TextBrush}" BorderBrush="{DynamicResource LineBrush}" CaretBrush="{DynamicResource TextBrush}" AutomationProperties.Name="游戏模式全局快捷键"/>
-       <WrapPanel Margin="0,12,0,0"><Button Content="套用快捷键" Click="OnSaveHotkey" Margin="0,0,12,8"/><Button Content="恢复 Ctrl+Alt+G" Click="OnResetHotkey" Margin="0,0,0,8"/></WrapPanel>
-       <TextBlock x:Name="HotkeyStatus" Style="{StaticResource Label}" Text="等待注册全局快捷键。" Margin="0,8,0,0"/>
-      </StackPanel></Border>
-            <Border Style="{StaticResource Panel}" Margin="8,0,8,16" Padding="24" MaxWidth="800" VerticalAlignment="Top"><StackPanel><TextBlock Text="游戏进场动画" FontSize="20" Margin="0,0,0,12"/><CheckBox x:Name="GameAnimationToggle" Content="播放短暂启动动画" Foreground="{DynamicResource TextBrush}" Checked="OnAnimationPreference" Unchecked="OnAnimationPreference"/><TextBlock Text="约 1.2 秒，完成后停止特效；遵循系统减少动画设置。" Style="{StaticResource Label}" FontSize="12" Margin="0,10,0,0"/></StackPanel></Border>
+      <!-- Game mode has been removed. Hidden placeholders keep code-behind field references valid. -->
+      <StackPanel Visibility="Collapsed">
+       <TextBox x:Name="HotkeyInput" Text="Ctrl+Alt+G"/>
+       <TextBlock x:Name="HotkeyStatus"/>
+       <CheckBox x:Name="GameAnimationToggle" IsChecked="True"/>
+      </StackPanel>
       <Border Style="{StaticResource Panel}" MaxWidth="800" Margin="8,0,8,16"><StackPanel>
        <TextBlock Text="硬件感测助手" FontSize="20" FontWeight="SemiBold"/>
        <TextBlock Text="默认关闭。手动读取一次温度、时脉、功耗与内存感测值；不自动提权、不安装驱动、不调整硬件。离开设置或隐藏窗口会停止。" Style="{StaticResource Label}" TextWrapping="Wrap" Margin="0,8,0,16"/>

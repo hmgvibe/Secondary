@@ -140,9 +140,6 @@ internal static class ShortcutChecks
         var cancelled = window.EditShortcutAsync(new ShortcutEntry("e2", "x", Steps: [new()]), ShortcutRules.Linux); Pump();
         window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null); Pump();
         Check(cancelled.IsCompleted && cancelled.Result is null && !window.ShortcutEditorOpen, "Esc closes the editor without saving");
-        window.Navigate("game"); Pump();
-        Check(!window.Launchpad.CanRun(), "Macros cannot run in game mode");
-        window.Navigate("exit");
         window.AllowClose = true; window.Close(); Pump();
         model.Dispose();
     }

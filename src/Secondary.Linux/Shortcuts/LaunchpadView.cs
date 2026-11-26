@@ -361,7 +361,7 @@ public sealed partial class LaunchpadView : StackPanel, IDisposable
     });
     public async Task Launch(ShortcutEntry entry)
     {
-        if (disposed || execution is not null || !CanRun()) { status.Text = "目前不能执行；请先取消正在进行的巨集或退出游戏模式。"; return; }
+        if (disposed || execution is not null || !CanRun()) { status.Text = "目前不能执行；请先取消正在进行的巨集。"; return; }
         // A tile can outlive an edit made elsewhere: resolve the current entry and copy its steps.
         var currentEntry = entries.FirstOrDefault(e => e.Id == entry.Id);
         if (currentEntry is null) { status.Text = "快捷方式已移除，这次未执行。"; return; }

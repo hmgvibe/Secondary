@@ -103,9 +103,9 @@ public sealed class DesktopLauncher(string dataHome, string program, IReadOnlyLi
     }
 
     public static string Content(string program) => string.Join('\n',
-        "[Desktop Entry]", "Type=Application", "Name=Secondary", "Comment=副屏首页、快捷导航与游戏模式",
-        "Exec=" + Exec(program), "Icon=" + DesktopPortal.ApplicationId, "Categories=Utility;", "StartupWMClass=secondary", "Actions=ToggleGame;", "",
-        "[Desktop Action ToggleGame]", "Name=进入／退出游戏模式", "Exec=" + Exec(program) + " --toggle-game", "");
+        "[Desktop Entry]", "Type=Application", "Name=Secondary", "Comment=副屏首页与快捷导航",
+        "Exec=" + Exec(program), "Icon=" + DesktopPortal.ApplicationId, "Categories=Utility;", "StartupWMClass=secondary", "");
+
 
     // Desktop Entry Specification: quote arguments with reserved characters and double % codes. The
     // quoting backslash is itself escaped by the string rule, so it is written twice (a literal

@@ -129,8 +129,7 @@ internal static class Program
                     Check(Math.Abs(nav.CornerRadius.TopLeft - nav.ActualHeight / 2) <= .5, "Navigation caps are semicircular");
                     Check(nav.ActualWidth <= size.Width - 30, "Navigation fits narrow view");
                     var items = ((StackPanel)window.FindName("NavigationItems")).Children.OfType<RadioButton>().ToArray();
-                    Check(items.Select(b => (string)b.Tag).SequenceEqual(look == ShellAppearance.Game
-                        ? new[] { "game", "exit-game", "settings" } : new[] { "home", "shortcuts", "enter-game", "settings" }), "Correct bottom navigation order");
+                    Check(items.Select(b => (string)b.Tag).SequenceEqual(new[] { "home", "shortcuts", "settings" }), "Game mode removed: bottom navigation is home/shortcuts/settings");
                     foreach (var button in items)
                     {
                         Check(button.ActualHeight >= 44, "Accessible navigation target");
@@ -198,25 +197,14 @@ internal static class Program
             TestNavigation(window, model, root, args);
             window.SetAppearance(ShellAppearance.Normal); window.Navigate("shortcuts");
             window.Navigate("enter-game");
-            Check(window.IsGame, "Dock enters game");
-            window.Navigate("exit-game");
-            Check(model.Modes.Current == "shortcuts", "Exit returns to previous page");
+            Check(!window.IsGame, "Game mode removed: dock no longer enters game");
             window.OpenSettings();
-            Check(!window.TransitionRunning, "Settings cancel transition");
+            Check(!window.TransitionRunning, "Settings do not start a transition");
             window.CloseSettings();
-            var toggle = (CheckBox)window.FindName("GameAnimationToggle");
-            toggle.IsChecked = false;
-            Check(!model.Settings.GameAnimation, "Animation preference saved");
-            window.Navigate("enter-game");
-            Check(!window.TransitionRunning, "Disabled animation does not start");
-            window.CancelTransition();
-            Check(((FrameworkElement)window.FindName("GameTransition")).Visibility == Visibility.Collapsed, "Cancelled overlay removed");
-            ((ComboBox)window.FindName("SamplingPicker")).SelectedIndex = 1;
-            Check(model.Settings.GameHighSampling, "Sampling preference retained for future monitoring");
             Check(model.SystemDashboard.UpdateCount == 0, "Preview never starts real telemetry");
             using (var restarted = new ShellViewModel(displays, new SettingsStore(Path.Combine(testDirectory,"settings.json"))))
-                Check(restarted.Modes.Mode == AppMode.Game && !restarted.Settings.GameAnimation && restarted.Settings.GameHighSampling, "V3 settings survive app restart");
-            theme.Apply(ShellAppearance.Game, ThemeChoice.Dark, true, true);
+                Check(restarted.Modes.Mode == AppMode.Normal, "Game mode removed: restart stays in daily layout");
+            theme.Apply(ShellAppearance.Normal, ThemeChoice.Dark, true, true);
             Check(!theme.AnimationsEnabled && (Brush)window.Resources["CanvasBrush"] == SystemColors.WindowBrush, "High contrast overrides visuals");
             TestMonitoring(); // Keep data-layer regression coverage with injected fakes only.
             TestHome(window, model, testDirectory, root, args);
@@ -303,24 +291,7 @@ internal static class Program
                 Check(clockWidget.Children.OfType<Thumb>().Where(t => t.Tag is ResizeEdges e && e != ResizeEdges.None).All(t => t.Opacity == expectedChrome),
                     "Keyboard selection keeps all eight resize handles visible for editing");
                 window.Navigate("enter-game");
-                if (SystemParameters.ClientAreaAnimation && !SystemParameters.HighContrast)
-                {
-                    Check(window.TransitionRunning, "Real window starts transition");
-                    PumpUntil(() => !window.TransitionRunning);
-                    Check(((FrameworkElement)window.FindName("GameTransition")).Visibility == Visibility.Collapsed, "Completion removes transition layer");
-                    for (var i = 0; i < 8; i++)
-                    {
-                        window.ExitGame(); window.Navigate("enter-game");
-                        Check(window.TransitionRunning, "Repeated entry owns one transition");
-                        window.ExitGame();
-                        Check(!window.TransitionRunning && !window.IsGame, "Mid-transition exit cancels immediately");
-                    }
-                    window.Navigate("enter-game"); window.OpenSettings();
-                    Check(!window.TransitionRunning && window.SettingsOpen, "Settings interrupt running animation");
-                    window.CloseSettings(); window.StartGameTransition(); window.Hide();
-                    Check(!window.TransitionRunning, "Hiding removes running clocks");
-                }
-                else Check(!window.TransitionRunning, "OS reduced-motion skips transition");
+                Check(!window.TransitionRunning, "Game mode removed: no transition starts");
                 window.Hide();
             }
             // Native window layout constrains its content to the real client size.

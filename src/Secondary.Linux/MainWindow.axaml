@@ -158,7 +158,7 @@
       <StackPanel><TextBlock Text="PREFERENCES" Classes="eyebrow"/><TextBlock Text="设置" FontSize="34" FontWeight="SemiBold" Margin="0,6,0,0"/></StackPanel>
       <Button x:Name="BackSettingsButton" Grid.Column="1" Content="返回" Click="OnCloseSettings" VerticalAlignment="Center" Margin="16,0,0,0"/>
      </Grid>
-     <TextBlock Text="显示器、明暗主题、快捷键与导航栏。首页外观会在 L2 由首页「自订首页」调整。" Classes="label" Margin="8,0,8,24"/>
+     <TextBlock Text="显示器、明暗主题与导航栏。首页外观会在 L2 由首页「自订首页」调整。" Classes="label" Margin="8,0,8,24"/>
      <DockPanel Margin="8,0,8,16" MaxWidth="800">
       <Button Content="重试保存" Click="OnRetrySaveSettings" IsEnabled="{Binding HasUnsavedSettings}" DockPanel.Dock="Right" Margin="12,0,0,0"/>
       <TextBlock Text="{Binding Status}" Classes="label" VerticalAlignment="Center"/>
@@ -166,7 +166,7 @@
      <StackPanel x:Name="SettingsPanels">
       <Border Classes="card"><StackPanel>
        <TextBlock Text="导航栏" Classes="title"/>
-       <TextBlock Text="大小与位置立即套用，日常与游戏模式共用。" Classes="label" Margin="0,6,0,16"/>
+       <TextBlock Text="大小与位置立即套用。" Classes="label" Margin="0,6,0,16"/>
        <TextBlock Text="大小" Classes="label"/>
        <ComboBox x:Name="NavigationSizePicker" SelectionChanged="OnNavigationPreference" Margin="0,6,0,16" AutomationProperties.Name="导航栏大小">
         <ComboBoxItem Content="标准 · 100%" Tag="Standard"/><ComboBoxItem Content="小 · 80%（操作区至少 44）" Tag="Small"/>
@@ -185,35 +185,25 @@
        <TextBlock Text="Wayland 可能不允许程序自行移动窗口；若全屏幕出现在错误的屏幕，请先把窗口拖到副屏再按全屏幕。" Classes="label" FontSize="12" Margin="0,8,0,0"/>
       </StackPanel></Border>
       <Border Classes="card"><StackPanel>
-       <TextBlock Text="色彩与外观" Classes="title"/><TextBlock Text="明暗默认跟随系统，游戏外观固定深色。" Classes="label" Margin="0,6,0,16"/>
+       <TextBlock Text="色彩与外观" Classes="title"/><TextBlock Text="明暗默认跟随系统。" Classes="label" Margin="0,6,0,16"/>
        <ComboBox x:Name="ThemePicker" SelectionChanged="OnThemeChoice" AutomationProperties.Name="明暗主题">
         <ComboBoxItem Content="跟随系统" Tag="System"/><ComboBoxItem Content="浅色" Tag="Light"/><ComboBoxItem Content="深色" Tag="Dark"/>
        </ComboBox>
        <TextBlock x:Name="AccessibilityStatus" Classes="label" FontSize="12" Margin="0,16,0,0"/>
       </StackPanel></Border>
-      <Border Classes="card"><StackPanel>
-       <TextBlock Text="游戏模式快捷键" Classes="title"/>
-       <TextBlock Text="手动进出，不侦测游戏或自动切换。桌面会询问是否允许；可随时改用下方指令。" Classes="label" Margin="0,6,0,16"/>
-       <TextBox x:Name="HotkeyInput" FontSize="16" AutomationProperties.Name="游戏模式全局快捷键"/>
-       <WrapPanel Margin="0,12,0,0"><Button Content="套用快捷键" Click="OnSaveHotkey" Margin="0,0,12,8"/><Button Content="恢复 Ctrl+Alt+G" Click="OnResetHotkey" Margin="0,0,0,8"/></WrapPanel>
-       <TextBlock x:Name="HotkeyStatus" Classes="label" Text="等待桌面入口服务。" Margin="0,8,0,16"/>
-       <TextBlock Text="指令（可在 GNOME 设置 → 键盘 → 自订快捷键中绑定）" Classes="label"/>
-       <DockPanel Margin="0,6,0,0">
-        <Button Content="复制指令" Click="OnCopyCommand" DockPanel.Dock="Right" Margin="12,0,0,0"/>
-        <TextBox x:Name="ToggleCommand" IsReadOnly="True" FontFamily="monospace" AutomationProperties.Name="切换游戏模式指令"/>
-       </DockPanel>
-      </StackPanel></Border>
+      <!-- Game mode removed; hidden placeholders keep code-behind field references valid. -->
+      <StackPanel IsVisible="False">
+       <TextBox x:Name="HotkeyInput" Text="Ctrl+Alt+G"/>
+       <TextBlock x:Name="HotkeyStatus"/>
+       <TextBox x:Name="ToggleCommand"/>
+      </StackPanel>
       <Border Classes="card"><StackPanel>
        <TextBlock Text="桌面整合" Classes="title"/>
        <TextBlock Text="加入应用程序菜单后，可从 GNOME 活动总览启动 Secondary，GNOME 也才允许它绑定全局快捷键。只写入你自己的 ~/.local/share，不需要管理员权限。" Classes="label" Margin="0,6,0,16"/>
        <WrapPanel><Button x:Name="InstallLauncherButton" Content="加入应用程序菜单" Click="OnInstallLauncher" Margin="0,0,12,8"/><Button x:Name="RemoveLauncherButton" Content="从菜单移除" Click="OnRemoveLauncher" Margin="0,0,0,8"/></WrapPanel>
        <TextBlock x:Name="LauncherStatus" Classes="label" Margin="0,8,0,0"/>
       </StackPanel></Border>
-      <Border Classes="card"><StackPanel>
-       <TextBlock Text="游戏进场动画" Classes="title" Margin="0,0,0,12"/>
-       <CheckBox x:Name="GameAnimationToggle" Content="播放短暂启动动画" IsCheckedChanged="OnAnimationPreference"/>
-       <TextBlock Text="约 1.2 秒，完成后停止特效；系统关闭动画或使用高对比时不播放。" Classes="label" FontSize="12" Margin="0,10,0,0"/>
-      </StackPanel></Border>
+      <StackPanel IsVisible="False"><CheckBox x:Name="GameAnimationToggle" IsChecked="True"/></StackPanel>
      </StackPanel>
     </StackPanel>
 

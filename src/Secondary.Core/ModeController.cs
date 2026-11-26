@@ -32,9 +32,11 @@ public sealed class ModeController : IDisposable
     public ModeController(AppSettings settings, Func<string, ISectionModule>? factory = null)
     {
         this.factory = factory ?? (_ => new PlaceholderModule());
-        Mode = settings.Mode == AppMode.Game ? AppMode.Game : AppMode.Normal;
+        // Game mode has been removed from the product. Always start in the daily (Normal)
+        // layout even if an older settings file still carries Mode=2.
+        Mode = AppMode.Normal;
         lastNormal = ModePolicy.Validate(AppMode.Normal, settings.NormalSection);
-        Current = Mode == AppMode.Game ? "game" : lastNormal;
+        Current = lastNormal;
         Activate(Current);
     }
     private void Activate(string key)

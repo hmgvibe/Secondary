@@ -29,8 +29,6 @@ public sealed class TrayService : IDisposable
         var display = Item("选择显示器", (_, _) => window.ShowPicker());
         var windowed = Item("返回一般窗口", (_, _) => { window.ReturnToWindow(); window.ShowInterface(); });
         menu.Items.AddRange(new Forms.ToolStripItem[] { show, hide, display, windowed, new Forms.ToolStripSeparator() });
-        var game = Item("进入游戏模式", (_, _) => window.ToggleGame());
-        menu.Items.Add(game);
         var signIn = new Forms.ToolStripMenuItem(("登录时启动")) { Checked = this.startup!.Enabled, CheckOnClick = true };
         signIn.Tag = "登录时启动";
         signIn.CheckedChanged += (_, _) =>
@@ -48,7 +46,6 @@ public sealed class TrayService : IDisposable
         icon.DoubleClick += (_, _) => window.ShowInterface();
         menu.Opening += (_, _) =>
         {
-            game.Text = ((string?)game.Tag ?? "进入游戏模式");
             signIn.Checked = this.startup!.Enabled;
         };
     }
