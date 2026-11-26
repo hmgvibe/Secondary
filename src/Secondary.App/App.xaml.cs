@@ -53,7 +53,11 @@ public partial class App : Application
         MainWindow = window;
         tray = new TrayService(window, () => Shutdown(), new Secondary.Windows.AppStartup());
         if (!benchmark) StartConnection(window, Path.GetDirectoryName(settingsPath)!);
-        if (!background) window.Show();
+        // A configured display must auto-show on launch (including --background login startup).
+        // Without this, the window stays hidden in the tray and the Loaded handler that enters
+        // fullscreen on the saved display never runs, forcing a manual "显示介面" click.
+        var hasSavedDisplay = DisplayPolicy.FindSaved(model.Displays, model.Settings.DisplayId) is not null;
+        if (!background || hasSavedDisplay) window.Show();
         instance?.Listen(() => Dispatcher.BeginInvoke(() => window.ShowInterface()));
         if (!benchmark) _ = Secondary.Monitoring.PresentMonStream.RecoverAbandonedSessionsAsync(message =>
             Dispatcher.BeginInvoke(() => model.Status = message));
