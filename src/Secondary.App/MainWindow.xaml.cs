@@ -38,7 +38,7 @@ public partial class MainWindow : Window
         themeChoice = Enum.Parse<ThemeChoice>(model.Settings.Theme);
         ThemePicker.SelectedIndex = (int)themeChoice;
         WeatherKeyInput.Text = model.Settings.WeatherApiKey ?? "";
-        WeatherKeyStatus.Text = Secondary.Shared.WeatherDataService.UsesQWeather ? "当前使用：和风天气" : "当前使用：Open-Meteo（免密钥）";
+        WeatherKeyStatus.Text = Secondary.Shared.WeatherDataService.UsesQWeather ? "当前使用：和风天气（固定）" : "当前使用：免密钥自动轮换（墨迹天气 → Open-Meteo → wttr.in）";
         HotkeyInput.Text = model.Settings.Hotkey;
         GameAnimationToggle.IsChecked = model.Settings.GameAnimation;
         NavigationSizePicker.SelectedIndex = model.Settings.NavigationSize == "Small" ? 1 : 0;
@@ -315,8 +315,8 @@ public partial class MainWindow : Window
         Secondary.Shared.WeatherDataService.Configure(key);
         model.SaveRuntime(weatherApiKey: key);
         WeatherKeyStatus.Text = Secondary.Shared.WeatherDataService.UsesQWeather
-            ? "当前使用：和风天气；已保存。下次进入天气组件生效。"
-            : "当前使用：Open-Meteo（免密钥）；已保存。";
+            ? "当前使用：和风天气（固定）；已保存。下次进入天气组件生效。"
+            : "已清除；当前使用免密钥自动轮换（墨迹天气 → Open-Meteo → wttr.in）。";
         model.Status = WeatherKeyStatus.Text;
     }
     private void OnClearWeatherKey(object sender, RoutedEventArgs e)
@@ -324,7 +324,7 @@ public partial class MainWindow : Window
         WeatherKeyInput.Text = "";
         Secondary.Shared.WeatherDataService.Configure(null);
         model.SaveRuntime(weatherApiKey: null);
-        WeatherKeyStatus.Text = "已清除；当前使用 Open-Meteo（免密钥）。";
+        WeatherKeyStatus.Text = "已清除；当前使用免密钥自动轮换（墨迹天气 → Open-Meteo → wttr.in）。";
         model.Status = WeatherKeyStatus.Text;
     }
 

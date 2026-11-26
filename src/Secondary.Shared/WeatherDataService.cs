@@ -4,7 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,31 +13,36 @@ using Secondary.Core;
 namespace Secondary.Shared;
 
 internal sealed record WeatherReading(WeatherLocation Location, double Temperature, double ApparentTemperature, int Humidity,
-    double WindSpeed, int Code, DateTimeOffset FetchedAt, string SourceTime);
+    double WindSpeed, int Code, DateTimeOffset FetchedAt, string SourceTime, string Provider = "Open-Meteo");
 
 // Shared by all weather widgets. A widget may cancel its wait without cancelling
 // another widget's request; the last cancelled waiter stops the network request.
-// Each shared network operation also has a 12-second deadline.
+// Each shared network operation also has a deadline.
 internal sealed class WeatherDataService
 {
     internal const int MaximumResponseBytes = 256 * 1024;
     internal static readonly TimeSpan Freshness = TimeSpan.FromMinutes(15);
-    // Open-Meteo is reachable directly in mainland China, so the primary client bypasses the
-    // system proxy. A user's always-on VPN otherwise routes this foreign host through an
-    // unstable node and weather silently goes stale. If direct fails (e.g. a network that
-    // requires a proxy), retry the same host through the system proxy as a fallback.
+    // Several providers are reachable directly from mainland China. The primary client
+    // bypasses the system proxy: an always-on VPN otherwise routes these hosts through
+    // an unstable node and weather silently goes stale. If direct fails, a second route
+    // through the system proxy is available for proxy-only networks.
     private static HttpClient DirectClient() => new(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(9) };
     private static HttpClient ProxiedClient() => new() { Timeout = TimeSpan.FromSeconds(9) };
-    internal static readonly WeatherDataService Shared = new(DirectClient(), null, ProxiedClient());
+    // The live service rotates through free, key-less providers so one unreachable host
+    // never leaves the widget stuck. Injected test clients keep a single provider for
+    // deterministic request counts; pass rotation: true to exercise the rotation path.
+    internal static readonly WeatherDataService Shared = new(DirectClient(), null, ProxiedClient(), rotation: true);
     private readonly HttpClient client;
     private readonly HttpClient fallback;
     private readonly Func<DateTimeOffset> clock;
+    private readonly bool rotation;
     private readonly object sync = new();
     private readonly Dictionary<string, WeatherLocation[]> places = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SharedRequest<WeatherLocation[]>> searches = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, WeatherReading> readings = new();
     private readonly Dictionary<string, SharedRequest<WeatherReading>> requests = new();
-    internal WeatherDataService(HttpClient client, Func<DateTimeOffset>? clock = null, HttpClient? fallback = null) { this.client = client; this.fallback = fallback ?? client; this.clock = clock ?? (() => DateTimeOffset.UtcNow); }
+    internal WeatherDataService(HttpClient client, Func<DateTimeOffset>? clock = null, HttpClient? fallback = null, bool rotation = false)
+    { this.client = client; this.fallback = fallback ?? client; this.clock = clock ?? (() => DateTimeOffset.UtcNow); this.rotation = rotation; }
     internal DateTimeOffset UtcNow => clock();
     internal async Task<WeatherLocation[]> SearchAsync(string query, CancellationToken token)
     {
@@ -101,10 +106,9 @@ internal sealed class WeatherDataService
         if (cancel) request.Cancel();
     }
     private static string Key(WeatherLocation location) => location.Latitude.ToString("R", CultureInfo.InvariantCulture) + "," + location.Longitude.ToString("R", CultureInfo.InvariantCulture);
-    // QWeather (和风天气) is the preferred source in mainland China: direct, no VPN, and
+    // QWeather (和风天气) is an optional upgrade in mainland China: direct, no VPN, and
     // Simplified-Chinese city names. It requires a free developer key the user supplies in
-    // Settings. When no key is configured we transparently fall back to Open-Meteo, which also
-    // needs no key. The key is held in a static slot so every widget shares one configuration.
+    // Settings. When no key is configured we rotate through key-less providers instead.
     private static string? qweatherKey;
     internal static void Configure(string? apiKey) => qweatherKey = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim();
     internal static bool UsesQWeather => qweatherKey is not null;
@@ -141,27 +145,62 @@ internal sealed class WeatherDataService
         }
         return segments.Length <= 1 ? locations : locations.OrderByDescending(p => (p.Region + " " + p.Country).Contains(segments[^1], StringComparison.OrdinalIgnoreCase)).ToArray();
     }
+
+    // Key-less read path. The live service tries Baidu (Moji data) first because it is
+    // fastest from mainland China and accepts Chinese city names, then Open-Meteo, then
+    // wttr.in. Each provider has a short budget so a dead host cannot stall the widget.
     private async Task<WeatherReading> ReadCoreAsync(WeatherLocation location, CancellationToken token)
     {
-        var coords = Key(location).Split(',');
         var key = qweatherKey;
-        if (key is not null)
+        if (key is not null) return await ReadQWeatherAsync(location, key, token).ConfigureAwait(false);
+        if (!rotation) return await ReadOpenMeteoAsync(location, token).ConfigureAwait(false);
+
+        var providers = new (string Name, Func<CancellationToken, Task<WeatherReading>> Read)[]
         {
-            // lon,lat order for QWeather; coordinates limited to two decimals by the API.
-            var lat = Math.Round(double.Parse(coords[0], CultureInfo.InvariantCulture), 2);
-            var lon = Math.Round(double.Parse(coords[1], CultureInfo.InvariantCulture), 2);
-            var url = FormattableString.Invariant($"https://devapi.qweather.com/v7/weather/now?location={lon},{lat}&key={key}");
-            using var json = await ReadJsonAsync(url, token).ConfigureAwait(false);
-            if (String(json.RootElement, "code") != "200") throw new InvalidDataException("和风天气返回错误代码 " + String(json.RootElement, "code"));
-            var now = json.RootElement.GetProperty("now");
-            var temperature = Number(now, "temp");
-            var apparent = Number(now, "feelsLike");
-            var humidity = (int)Number(now, "humidity");
-            var wind = Number(now, "windSpeed");
-            var code = QWeatherCode((int)Number(now, "icon"));
-            if (!double.IsFinite(temperature) || !double.IsFinite(apparent) || !double.IsFinite(wind) || humidity is < 0 or > 100) throw new InvalidDataException("Invalid weather values.");
-            return new WeatherReading(location, temperature, apparent, humidity, wind, code, clock(), String(now, "obsTime"));
+            ("墨迹天气", ct => ReadBaiduAsync(location, ct)),
+            ("Open-Meteo", ct => ReadOpenMeteoAsync(location, ct)),
+            ("wttr.in", ct => ReadWttrAsync(location, ct))
+        };
+        Exception? last = null;
+        foreach (var provider in providers)
+        {
+            token.ThrowIfCancellationRequested();
+            try
+            {
+                // Cap each provider so the rotation as a whole stays under the widget's wait budget.
+                using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+                return await provider.Read(budget.Token).WaitAsync(TimeSpan.FromSeconds(5), budget.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && !token.IsCancellationRequested)
+            {
+                last = ex;
+            }
         }
+        throw last ?? new InvalidDataException("没有可用的天气数据源。");
+    }
+
+    private async Task<WeatherReading> ReadQWeatherAsync(WeatherLocation location, string key, CancellationToken token)
+    {
+        var coords = Key(location).Split(',');
+        // lon,lat order for QWeather; coordinates limited to two decimals by the API.
+        var lat = Math.Round(double.Parse(coords[0], CultureInfo.InvariantCulture), 2);
+        var lon = Math.Round(double.Parse(coords[1], CultureInfo.InvariantCulture), 2);
+        var url = FormattableString.Invariant($"https://devapi.qweather.com/v7/weather/now?location={lon},{lat}&key={key}");
+        using var json = await ReadJsonAsync(url, token).ConfigureAwait(false);
+        if (String(json.RootElement, "code") != "200") throw new InvalidDataException("和风天气返回错误代码 " + String(json.RootElement, "code"));
+        var now = json.RootElement.GetProperty("now");
+        var temperature = Number(now, "temp");
+        var apparent = Number(now, "feelsLike");
+        var humidity = (int)Number(now, "humidity");
+        var wind = Number(now, "windSpeed");
+        var code = QWeatherCode((int)Number(now, "icon"));
+        Validate(temperature, apparent, humidity, wind);
+        return new WeatherReading(location, temperature, apparent, humidity, wind, code, clock(), String(now, "obsTime"), "和风天气");
+    }
+
+    private async Task<WeatherReading> ReadOpenMeteoAsync(WeatherLocation location, CancellationToken token)
+    {
+        var coords = Key(location).Split(',');
         var openUrl = $"https://api.open-meteo.com/v1/forecast?latitude={coords[0]}&longitude={coords[1]}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto";
         using var openJson = await ReadJsonAsync(openUrl, token).ConfigureAwait(false);
         var current = openJson.RootElement.GetProperty("current");
@@ -169,9 +208,59 @@ internal sealed class WeatherDataService
         var a = current.GetProperty("apparent_temperature").GetDouble();
         var h = current.GetProperty("relative_humidity_2m").GetInt32();
         var w = current.GetProperty("wind_speed_10m").GetDouble();
-        if (!double.IsFinite(t) || !double.IsFinite(a) || !double.IsFinite(w) || h is < 0 or > 100) throw new InvalidDataException("Invalid weather values.");
-        return new WeatherReading(location, t, a, h, w, current.GetProperty("weather_code").GetInt32(), clock(), String(current, "time"));
+        Validate(t, a, h, w);
+        return new WeatherReading(location, t, a, h, w, current.GetProperty("weather_code").GetInt32(), clock(), String(current, "time"), "Open-Meteo");
     }
+
+    // Baidu's weather page embeds a JSON object in <script>window.tplData = {...}</script>.
+    // The data originates from Moji (site: moji), giving Simplified-Chinese conditions
+    // and direct mainland access without a key.
+    private async Task<WeatherReading> ReadBaiduAsync(WeatherLocation location, CancellationToken token)
+    {
+        var city = string.IsNullOrWhiteSpace(location.Name) ? location.Region : location.Name;
+        if (string.IsNullOrWhiteSpace(city)) throw new InvalidDataException("缺少城市名称。");
+        var url = "https://weathernew.pae.baidu.com/weathernew/pc?query=" + Uri.EscapeDataString(city.Trim() + "天气") + "&srcid=4982";
+        var html = await ReadTextAsync(url, token).ConfigureAwait(false);
+        var jsonText = ExtractJsonObject(html, "window.tplData");
+        if (jsonText is null) throw new InvalidDataException("百度天气返回格式无法识别。");
+        using var document = JsonDocument.Parse(jsonText, new JsonDocumentOptions { MaxDepth = 16 });
+        var root = document.RootElement;
+        if (!root.TryGetProperty("weather", out var now)) throw new InvalidDataException("百度天气缺少 weather 节点。");
+        var temperature = Number(now, "temperature");
+        var apparent = Number(now, "real_feel_temperature");
+        var humidity = (int)Number(now, "humidity");
+        var level = Number(now, "wind_power_num");
+        var wind = double.IsFinite(level) ? BeaufortToKmh((int)Math.Round(level)) : double.NaN;
+        var code = BaiduWeatherCode(String(now, "weather"));
+        Validate(temperature, apparent, humidity, wind);
+        var observed = String(now, "publish_time");
+        if (string.IsNullOrWhiteSpace(observed)) observed = String(now, "update_time");
+        return new WeatherReading(location, temperature, apparent, humidity, wind, code, clock(), observed, "墨迹天气");
+    }
+
+    private async Task<WeatherReading> ReadWttrAsync(WeatherLocation location, CancellationToken token)
+    {
+        var coords = Key(location).Split(',');
+        var url = $"https://wttr.in/{coords[0]},{coords[1]}?format=j1";
+        using var json = await ReadJsonAsync(url, token).ConfigureAwait(false);
+        if (!json.RootElement.TryGetProperty("current_condition", out var conditions) || conditions.GetArrayLength() == 0)
+            throw new InvalidDataException("wttr.in 返回格式无法识别。");
+        var now = conditions[0];
+        var temperature = Number(now, "temp_C");
+        var apparent = Number(now, "FeelsLikeC");
+        var humidity = (int)Number(now, "humidity");
+        var wind = Number(now, "windspeedKmph");
+        var code = WttrWeatherCode((int)Number(now, "weatherCode"));
+        Validate(temperature, apparent, humidity, wind);
+        return new WeatherReading(location, temperature, apparent, humidity, wind, code, clock(), String(now, "observation_time"), "wttr.in");
+    }
+
+    private static void Validate(double temperature, double apparent, int humidity, double wind)
+    {
+        if (!double.IsFinite(temperature) || !double.IsFinite(apparent) || !double.IsFinite(wind) || humidity is < 0 or > 100)
+            throw new InvalidDataException("Invalid weather values.");
+    }
+
     // Map QWeather icon codes to the WMO weather codes used by the widget glyphs.
     private static int QWeatherCode(int icon) => icon switch
     {
@@ -183,14 +272,78 @@ internal sealed class WeatherDataService
         700 or 701 or 702 or 703 => 45, 800 or 801 => 51, 802 => 53, 803 => 55,
         900 => 95, 901 => 96, _ => 3
     };
+    private static int BaiduWeatherCode(string text) => text switch
+    {
+        _ when text.Contains("雷", StringComparison.Ordinal) => 95,
+        _ when text.Contains("暴雨", StringComparison.Ordinal) => 65,
+        _ when text.Contains("大雨", StringComparison.Ordinal) => 65,
+        _ when text.Contains("中雨", StringComparison.Ordinal) => 63,
+        _ when text.Contains("雪", StringComparison.Ordinal) => 71,
+        _ when text.Contains("雨", StringComparison.Ordinal) => 61,
+        _ when text.Contains("雾", StringComparison.Ordinal) || text.Contains("霾", StringComparison.Ordinal) => 45,
+        _ when text.Contains("阴", StringComparison.Ordinal) => 3,
+        _ when text.Contains("多云", StringComparison.Ordinal) => 2,
+        _ when text.Contains("晴", StringComparison.Ordinal) => 0,
+        _ => 3
+    };
+    private static int WttrWeatherCode(int code) => code switch
+    {
+        113 => 0, 116 => 2, 119 or 122 => 3, 248 or 260 => 45,
+        176 or 263 or 266 or 293 or 296 or 299 or 302 or 305 or 308 => 61,
+        185 or 311 or 314 or 317 => 66,
+        200 or 386 or 389 or 392 => 95,
+        179 or 182 or 227 or 230 or 323 or 326 or 329 or 332 or 335 or 338 => 71,
+        _ => 3
+    };
+    private static double BeaufortToKmh(int level) => level switch
+    {
+        < 0 => 0, 0 => 1, 1 => 4, 2 => 8, 3 => 16, 4 => 25, 5 => 35,
+        6 => 45, 7 => 58, 8 => 70, 9 => 83, 10 => 96, 11 => 110, _ => 125
+    };
+    private static string? ExtractJsonObject(string text, string marker)
+    {
+        var markerIndex = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex < 0) return null;
+        var start = text.IndexOf('{', markerIndex + marker.Length);
+        if (start < 0) return null;
+        var depth = 0;
+        var inString = false;
+        var escaped = false;
+        for (var i = start; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (inString)
+            {
+                if (escaped) escaped = false;
+                else if (c == '\\') escaped = true;
+                else if (c == '"') inString = false;
+                continue;
+            }
+            if (c == '"') inString = true;
+            else if (c == '{') depth++;
+            else if (c == '}')
+            {
+                depth--;
+                if (depth == 0) return text.Substring(start, i - start + 1);
+            }
+        }
+        return null;
+    }
+
     private async Task<JsonDocument> ReadJsonAsync(string url, CancellationToken token)
     {
         try { return await FetchJsonAsync(client, url, token).ConfigureAwait(false); }
         catch (Exception ex) when (ShouldFallback(ex, token))
         {
-            // Direct request failed (timeout / DNS / connection). Retry the same host through
-            // the alternate route so a proxy-only network still works.
             return await FetchJsonAsync(fallback, url, token).ConfigureAwait(false);
+        }
+    }
+    private async Task<string> ReadTextAsync(string url, CancellationToken token)
+    {
+        try { return await FetchTextAsync(client, url, token).ConfigureAwait(false); }
+        catch (Exception ex) when (ShouldFallback(ex, token))
+        {
+            return await FetchTextAsync(fallback, url, token).ConfigureAwait(false);
         }
     }
     private bool ShouldFallback(Exception ex, CancellationToken token)
@@ -198,20 +351,30 @@ internal sealed class WeatherDataService
            && ex is HttpRequestException or TaskCanceledException or IOException or System.Net.Sockets.SocketException;
     private async Task<JsonDocument> FetchJsonAsync(HttpClient http, string url, CancellationToken token)
     {
+        using var buffer = await FetchBytesAsync(http, url, token).ConfigureAwait(false);
+        return JsonDocument.Parse(buffer, new JsonDocumentOptions { MaxDepth = 16 });
+    }
+    private async Task<string> FetchTextAsync(HttpClient http, string url, CancellationToken token)
+    {
+        using var buffer = await FetchBytesAsync(http, url, token).ConfigureAwait(false);
+        return Encoding.UTF8.GetString(buffer.ToArray());
+    }
+    private async Task<MemoryStream> FetchBytesAsync(HttpClient http, string url, CancellationToken token)
+    {
         using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength > MaximumResponseBytes) throw new InvalidDataException("Weather response too large.");
         await using var input = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-        using var buffer = new MemoryStream();
+        var buffer = new MemoryStream();
         var chunk = new byte[8192];
         int count;
         while ((count = await input.ReadAsync(chunk, token).ConfigureAwait(false)) > 0)
         {
-            if (buffer.Length + count > MaximumResponseBytes) throw new InvalidDataException("Weather response too large.");
+            if (buffer.Length + count > MaximumResponseBytes) { buffer.Dispose(); throw new InvalidDataException("Weather response too large."); }
             await buffer.WriteAsync(chunk.AsMemory(0, count), token).ConfigureAwait(false);
         }
         buffer.Position = 0;
-        return await JsonDocument.ParseAsync(buffer, new JsonDocumentOptions { MaxDepth = 16 }, token).ConfigureAwait(false);
+        return buffer;
     }
     private sealed class SharedRequest<T>
     {

@@ -177,9 +177,10 @@
       </StackPanel></Border>
       <Border Style="{StaticResource Panel}" MaxWidth="800" VerticalAlignment="Top" Margin="8,0,8,16"><StackPanel>
        <TextBlock Text="天气数据源" FontSize="20" FontWeight="SemiBold"/>
-       <TextBlock Text="默认使用免密钥的 Open-Meteo。填入和风天气开发版 Key 后改用和风（国内直连、简体城市名）。" Style="{StaticResource Label}" TextWrapping="Wrap" Margin="0,6,0,16"/>
+       <TextBlock Text="默认免密钥、国内直连：自动轮换墨迹天气 → Open-Meteo → wttr.in，哪个通、哪个快就用哪个，无需配置。" Style="{StaticResource Label}" TextWrapping="Wrap" Margin="0,6,0,10"/>
+       <TextBlock Text="可选：填入和风天气开发版 Key 可固定使用国内和风源（简体城市名，每天 1000 次免费）。" Style="{StaticResource Label}" TextWrapping="Wrap" Margin="0,0,0,10"/>
        <TextBox x:Name="WeatherKeyInput" MinHeight="44" Padding="12,10" FontSize="14" Background="{DynamicResource InsetBrush}" Foreground="{DynamicResource TextBrush}" BorderBrush="{DynamicResource LineBrush}" CaretBrush="{DynamicResource TextBrush}" AutomationProperties.Name="和风天气 API Key"/>
-       <WrapPanel Margin="0,12,0,0"><Button Content="套用" Click="OnSaveWeatherKey" Margin="0,0,12,8"/><Button Content="清除（用回 Open-Meteo）" Click="OnClearWeatherKey" Margin="0,0,0,8"/></WrapPanel>
+       <WrapPanel Margin="0,12,0,0"><Button Content="套用" Click="OnSaveWeatherKey" Margin="0,0,12,8"/><Button Content="清除（用回免密钥轮换）" Click="OnClearWeatherKey" Margin="0,0,0,8"/></WrapPanel>
        <TextBlock x:Name="WeatherKeyStatus" Style="{StaticResource Label}" Margin="0,8,0,0"/>
       </StackPanel></Border>
       <!-- Game mode has been removed. Hidden placeholders keep code-behind field references valid. -->

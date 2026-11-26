@@ -447,7 +447,10 @@ public sealed partial class HomeUtilityWidget
             attribution.Inlines.Add(SourceLink(("天气数据：和风天气"), "https://www.qweather.com/"));
         else
         {
-            attribution.Inlines.Add(SourceLink(("天气数据：Open-Meteo"), "https://open-meteo.com/"));
+            attribution.Inlines.Add(SourceLink(("天气数据：墨迹天气"), "https://www.moji.com/"));
+            attribution.Inlines.Add(new Run(" · "));
+            attribution.Inlines.Add(SourceLink(("Open-Meteo"), "https://open-meteo.com/"));
+            attribution.Inlines.Add(new Run(" · wttr.in"));
             attribution.Inlines.Add(new Run(" · "));
             attribution.Inlines.Add(SourceLink("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"));
         }

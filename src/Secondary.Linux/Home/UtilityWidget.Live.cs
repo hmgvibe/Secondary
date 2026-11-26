@@ -320,8 +320,10 @@ public sealed partial class UtilityWidget
         weatherMeta = Label("", 12); Muted(weatherMeta); weatherDisplay.Children.Add(weatherMeta);
         weatherUpdated = Label("", 11); Muted(weatherUpdated); weatherDisplay.Children.Add(weatherUpdated);
         var attribution = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
-        attribution.Children.Add(SourceLink("天气数据：Open-Meteo", "https://open-meteo.com/"));
+        attribution.Children.Add(SourceLink("天气数据：墨迹天气", "https://www.moji.com/"));
         attribution.Children.Add(new TextBlock { Text = " · ", FontSize = 10, VerticalAlignment = VerticalAlignment.Center });
+        attribution.Children.Add(SourceLink("Open-Meteo", "https://open-meteo.com/"));
+        attribution.Children.Add(new TextBlock { Text = " · wttr.in · ", FontSize = 10, VerticalAlignment = VerticalAlignment.Center });
         attribution.Children.Add(SourceLink("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"));
         ToolTip.SetTip(attribution, "数据按原值显示，数字四舍五入；约每 15 分钟更新。");
         weatherDisplay.Children.Add(attribution); body.Children.Add(weatherDisplay);

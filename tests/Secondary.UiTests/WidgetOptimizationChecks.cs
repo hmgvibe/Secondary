@@ -197,6 +197,66 @@ internal static class WidgetOptimizationChecks
         try { await new WeatherDataService(badDataClient, null, unusedFallback).SearchAsync("Taipei", CancellationToken.None); } catch (InvalidDataException) { }
         check(fallbackCalls == badDataFallbacks, "Weather does not retry a data-validation error through the fallback client");
         await CheckQWeatherAsync(check);
+        await CheckRotationAsync(check);
+    }
+    private static async Task CheckRotationAsync(Action<bool, string> check)
+    {
+        // The live path rotates through key-less providers. Verify Baidu wins first,
+        // that a dead primary falls through to Open-Meteo, and that both failing falls
+        // through to wttr.in. All responses are inlined so the test needs no network.
+        const string baiduHtml = "<script>window.tplData = {\"weather\":{\"temperature\":\"10\",\"real_feel_temperature\":\"9\",\"humidity\":\"64\",\"wind_power_num\":\"2\",\"weather\":\"晴\",\"publish_time\":\"2026-10-13 20:00\"},\"position\":{\"city\":\"长沙\"}};</script><script>more</script>";
+        const string openJson = "{\"current\":{\"temperature_2m\":25.5,\"apparent_temperature\":27,\"relative_humidity_2m\":75,\"wind_speed_10m\":8.2,\"weather_code\":2,\"time\":\"2026-10-13T20:00\"}}";
+        const string wttrJson = "{\"current_condition\":[{\"temp_C\":\"18\",\"FeelsLikeC\":\"17\",\"humidity\":\"55\",\"windspeedKmph\":\"11\",\"weatherCode\":\"116\",\"observation_time\":\"12:00 PM\"}]}";
+        var ip = new WeatherLocation("长沙", "中国", "湖南", 28.2, 112.97);
+        var hosts = new List<string>();
+        using var baiduClient = new HttpClient(new FakeHttp((request, _) =>
+        {
+            var host = request.RequestUri!.Host; hosts.Add(host);
+            if (host.Contains("baidu", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(baiduHtml, Encoding.UTF8) });
+            if (host.StartsWith("api.open-meteo", StringComparison.Ordinal)) return Task.FromResult(JsonResponse(openJson));
+            return Task.FromResult(JsonResponse(wttrJson));
+        }));
+        var primary = await new WeatherDataService(baiduClient, null, null, rotation: true).ReadAsync(ip, true, CancellationToken.None);
+        check(primary.Provider == "墨迹天气" && primary.Temperature == 10 && primary.ApparentTemperature == 9 && primary.Humidity == 64
+              && primary.Code == 0 && primary.WindSpeed > 0 && primary.SourceTime == "2026-10-13 20:00"
+              && hosts.FirstOrDefault()?.Contains("baidu") == true, "Baidu/Moji is the primary key-less weather provider with mapped values");
+
+        hosts.Clear();
+        using var fallbackClient = new HttpClient(new FakeHttp((request, _) =>
+        {
+            var host = request.RequestUri!.Host; hosts.Add(host);
+            if (host.Contains("baidu", StringComparison.OrdinalIgnoreCase)) return Task.FromException<HttpResponseMessage>(new HttpRequestException("Baidu down"));
+            if (host.StartsWith("api.open-meteo", StringComparison.Ordinal)) return Task.FromResult(JsonResponse(openJson));
+            return Task.FromResult(JsonResponse(wttrJson));
+        }));
+        var second = await new WeatherDataService(fallbackClient, null, null, rotation: true).ReadAsync(ip, true, CancellationToken.None);
+        check(second.Provider == "Open-Meteo" && second.Temperature == 25.5 && hosts.Count >= 2
+              && hosts.Any(h => h.Contains("baidu", StringComparison.OrdinalIgnoreCase)),
+            "A failed Baidu request falls through to Open-Meteo");
+
+        hosts.Clear();
+        using var lastClient = new HttpClient(new FakeHttp((request, _) =>
+        {
+            var host = request.RequestUri!.Host; hosts.Add(host);
+            if (host.Contains("baidu", StringComparison.OrdinalIgnoreCase) || host.StartsWith("api.open-meteo", StringComparison.Ordinal))
+                return Task.FromException<HttpResponseMessage>(new HttpRequestException("provider down"));
+            return Task.FromResult(JsonResponse(wttrJson));
+        }));
+        var last = await new WeatherDataService(lastClient, null, null, rotation: true).ReadAsync(ip, true, CancellationToken.None);
+        check(last.Provider == "wttr.in" && last.Temperature == 18 && last.Code == 2 && hosts.Count >= 3,
+            "Both primary providers failing falls through to wttr.in with mapped code");
+
+        // Chinese condition text maps to the widget's WMO glyph codes (Moji priority order).
+        async Task<int> CodeFor(string condition)
+        {
+            var html = "<script>window.tplData = {\"weather\":{\"temperature\":\"10\",\"real_feel_temperature\":\"9\",\"humidity\":\"60\",\"wind_power_num\":\"2\",\"weather\":\"" + condition + "\",\"publish_time\":\"2026-10-13 20:00\"}};</script>";
+            using var c = new HttpClient(new FakeHttp((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(html, Encoding.UTF8) })));
+            return (await new WeatherDataService(c, null, null, rotation: true).ReadAsync(ip, true, CancellationToken.None)).Code;
+        }
+        check(await CodeFor("雷阵雨") == 95 && await CodeFor("大雨") == 65 && await CodeFor("中雨") == 63
+              && await CodeFor("小雪") == 71 && await CodeFor("雾") == 45 && await CodeFor("阴") == 3
+              && await CodeFor("多云") == 2 && await CodeFor("晴") == 0,
+            "Chinese weather conditions map to the correct WMO glyph codes");
     }
     private static async Task CheckQWeatherAsync(Action<bool, string> check)
     {
