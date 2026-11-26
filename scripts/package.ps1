@@ -53,7 +53,8 @@ try {
     $smokeInfo = [Diagnostics.ProcessStartInfo]::new((Join-Path $publish 'Secondary.App.exe'))
     $smokeInfo.UseShellExecute = $false
     $smokeInfo.WorkingDirectory = $publish
-    foreach ($arg in @('--measure',$smokePath,'Home','--seconds=5','--warmup=1')) { $smokeInfo.ArgumentList.Add($arg) }
+    # Windows PowerShell 5.1 has no ProcessStartInfo.ArgumentList; build the quoted string explicitly.
+    $smokeInfo.Arguments = '--measure "' + $smokePath + '" Home --seconds=5 --warmup=1'
     # This intentional WPF test window uses an isolated profile and closes itself.
     $smoke = [Diagnostics.Process]::Start($smokeInfo)
     try {
