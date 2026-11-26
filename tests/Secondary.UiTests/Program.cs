@@ -741,7 +741,46 @@ internal static class Program
         var shortcutsWidget = canvas.Children.OfType<HomeWidget>().SelectMany(w => w.Children.OfType<HomeUtilityWidget>()).Single(w => w.Settings.Kind == "Shortcuts");
         Check(shortcutsWidget.PinnedShortcutIds.Length == 0 && Descendants(shortcutsWidget).OfType<TextBlock>().Any(t => t.Text == "（还没有固定的快捷方式）"), "Empty shortcuts widget explains pinning");
         shortcutsWidget.PinShortcut(pinnedEntry.Id);
-        Check(shortcutsWidget.PinnedShortcutIds.SequenceEqual([pinnedEntry.Id]) && Descendants(shortcutsWidget).OfType<Button>().Any(b => b.Content as string == "↗  首页固定项"), "Pinning an existing shortcut renders it on the home page");
+        var pinnedTile = Descendants(shortcutsWidget).OfType<Button>()
+            .FirstOrDefault(b => System.Windows.Automation.AutomationProperties.GetName(b) == "首页固定项");
+        Check(shortcutsWidget.PinnedShortcutIds.SequenceEqual([pinnedEntry.Id]) && pinnedTile is { Width: <= 80, Height: <= 100 }, "Pinning an existing shortcut renders an icon tile on the home page");
+        Check(pinnedTile is not null && (pinnedTile.Content as StackPanel)?.Children.OfType<Grid>()
+            .Any(g => g.Children.OfType<Border>().Any(b => b.Width is > 20 and < 40)) == true, "A website shortcut shows a coloured initial badge instead of a text row");
+        var iconProbe = new ShortcutEntry("icon-probe", "图标探测", "日常", "↗", [new ShortcutStep("Open", Path.Combine(directory, "icon-probe.txt"))]);
+        File.WriteAllText(Path.Combine(directory, "icon-probe.txt"), "probe");
+        Check(ShortcutIcons.For(iconProbe) is { Width: > 16 }, "Files resolve to their real shell icon");
+        Check(ShortcutIcons.For(iconProbe with { Steps = [new ShortcutStep("Open", directory)] }) is { Width: > 16 }, "Folders resolve to the folder icon");
+        Check(ShortcutIcons.For(pinnedEntry) is null, "Websites have no local icon and fall back to the badge");
+        if (OutputDirectory(args) is not null && !args.Contains("--live"))
+        {
+            var iconDirectory = Path.Combine(directory, "shortcut-icons");
+            Directory.CreateDirectory(iconDirectory);
+            var iconLibraryPath = Path.Combine(iconDirectory, "shortcuts.json");
+            var textFile = Path.Combine(iconDirectory, "说明文件.txt");
+            File.WriteAllText(textFile, "preview");
+            var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            var previewEntries = new ShortcutEntry[]
+            {
+                new("p1", "资源管理器", "日常", "↗", [new ShortcutStep("Open", Path.Combine(windows, "explorer.exe"))]),
+                new("p2", "Windows 文件夹", "日常", "▣", [new ShortcutStep("Open", windows)]),
+                new("p3", "说明文件", "日常", "↗", [new ShortcutStep("Open", textFile)]),
+                new("p4", "example.com", "日常", "↗", [new ShortcutStep("Open", "https://example.com/")]),
+            };
+            new ShortcutLibrary(iconLibraryPath).Save(previewEntries);
+            var previousPath = HomeUtilityWidget.ShortcutsFilePath;
+            HomeUtilityWidget.ShortcutsFilePath = _ => iconLibraryPath;
+            var preview = new HomeUtilityWidget(new HomeWidgetSettings("preview", "Shortcuts",
+                ShortcutIds: previewEntries.Select(e => e.Id).ToArray())) { Width = 320, Height = 300, Margin = new Thickness(12) };
+            HomeUtilityWidget.ShortcutsFilePath = previousPath;
+            var previewSurface = new Canvas { Width = 344, Height = 324, Background = (Brush)window.FindResource("SurfaceBrush"), Resources = window.Resources };
+            previewSurface.Children.Add(preview);
+            previewSurface.Measure(new Size(344, 324)); previewSurface.Arrange(new Rect(0, 0, 344, 324)); previewSurface.UpdateLayout();
+            var previewBitmap = new RenderTargetBitmap(344, 324, 96, 96, PixelFormats.Pbgra32);
+            previewBitmap.Render(previewSurface);
+            var previewPng = new PngBitmapEncoder(); previewPng.Frames.Add(BitmapFrame.Create(previewBitmap));
+            using (var previewFile = File.Create(Path.Combine(OutputDirectory(args)!, "shortcuts-widget-icons.png"))) previewPng.Save(previewFile);
+            preview.Dispose();
+        }
         Check(model.Settings.Home!.Widgets!.Single(w => w.Kind == "Shortcuts").ShortcutIds!.SequenceEqual([pinnedEntry.Id]), "Pinned ids persist in home settings");
         shortcutsWidget.ImportShortcutUrl("https://example.invalid/imported");
         Check(new ShortcutLibrary(shortcutPath).Load().Length == 2 && shortcutsWidget.PinnedShortcutIds.Length == 2, "Dropping a URL imports and pins a shortcut");

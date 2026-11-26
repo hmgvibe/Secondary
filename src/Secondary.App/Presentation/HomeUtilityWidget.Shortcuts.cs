@@ -12,23 +12,34 @@ using Secondary.Shared;
 namespace Secondary.App.Presentation;
 
 // A home-page shortcut box: a small frame where shortcuts can be pinned by dragging files,
-// URLs or existing launchpad tiles in, and launched with one click. Entries stay in
-// shortcuts.json; this widget only stores their ids, so edits stay in sync everywhere.
+// URLs or existing launchpad tiles in, and launched with one click. Tiles show the target's
+// real shell icon with the name underneath, laid out as a wrapping grid of icons.
+// Entries stay in shortcuts.json; this widget only stores their ids, so edits stay in sync.
 public sealed partial class HomeUtilityWidget
 {
-    private const string ShortcutHintText = "把快捷方式、文件或网址拖进来；点击即可运行";
-    private StackPanel? shortcutList;
+    private const string ShortcutHintText = "把快捷方式、文件或网址拖进来；点击图标即可运行";
+    private const double TileWidth = 70;
+    private const double TileHeight = 92;
+    private const double IconSize = 32;
+    private const double LabelWidth = 66;
+    private WrapPanel? shortcutGrid;
     private TextBlock? shortcutHint;
 
     private void RenderShortcuts()
     {
-        shortcutHint = Label(ShortcutHintText, 12);
+        shortcutHint = Label(ShortcutHintText, 11);
         shortcutHint.TextWrapping = TextWrapping.Wrap;
         shortcutHint.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         body.Children.Add(shortcutHint);
-        shortcutList = new StackPanel();
-        body.Children.Add(shortcutList);
+        shortcutGrid = new WrapPanel { Margin = new Thickness(0, 8, 0, 0), Orientation = Orientation.Horizontal };
+        body.Children.Add(shortcutGrid);
         var openLaunchpad = ActionButton("管理全部快捷方式", () => LaunchShortcutById?.Invoke(this, ManageShortcutsCommand));
+        openLaunchpad.HorizontalAlignment = HorizontalAlignment.Left;
+        openLaunchpad.Margin = new Thickness(2, 4, 2, 0);
+        openLaunchpad.Padding = new Thickness(10, 0, 10, 0);
+        openLaunchpad.Height = 30;
+        openLaunchpad.MinHeight = 30;
+        openLaunchpad.FontSize = 12;
         body.Children.Add(openLaunchpad);
         AllowDrop = true;
         PreviewDragOver += (_, e) =>
@@ -63,36 +74,77 @@ public sealed partial class HomeUtilityWidget
 
     private void RefreshShortcuts()
     {
-        if (shortcutList is null) return;
-        shortcutList.Children.Clear();
+        if (shortcutGrid is null) return;
+        shortcutGrid.Children.Clear();
         var library = OpenLibrary();
         var all = library.Load();
         var ids = (Settings.ShortcutIds ?? []).Where(id => all.Any(e => e.Id == id)).Take(12).ToArray();
         if (ids.Length == 0)
         {
-            var empty = new TextBlock { Text = "（还没有固定的快捷方式）", FontSize = 13, TextWrapping = TextWrapping.Wrap };
+            var empty = new TextBlock { Text = "（还没有固定的快捷方式）", FontSize = 12, TextWrapping = TextWrapping.Wrap };
             empty.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
-            shortcutList.Children.Add(empty);
+            shortcutGrid.Children.Add(empty);
             return;
         }
         foreach (var id in ids)
         {
             var entry = all.First(e => e.Id == id);
-            var button = new Button
-            {
-                Content = $"{entry.Icon}  {entry.Name}",
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 6),
-                Padding = new Thickness(10, 8, 10, 8),
-                ToolTip = string.Join("\n", entry.Steps!.Select(s => $"{s.Kind}: {s.Target}"))
-            };
-            button.Click += (_, _) => LaunchShortcutById?.Invoke(this, id);
-            button.ContextMenu = new ContextMenu();
-            var unpin = new MenuItem { Header = "从此组件移除" };
-            unpin.Click += (_, _) => Pin(id, remove: true);
-            button.ContextMenu.Items.Add(unpin);
-            shortcutList.Children.Add(button);
+            shortcutGrid.Children.Add(CreateShortcutTile(entry));
         }
+    }
+
+    // One launcher tile: the target's real icon above a one-or-two-line name. Websites have no
+    // icon on disk, so they get a coloured initial badge instead of a blank square.
+    private FrameworkElement CreateShortcutTile(ShortcutEntry entry)
+    {
+        var icon = ShortcutIcons.For(entry);
+        FrameworkElement visual;
+        if (icon is not null)
+        {
+            var image = new Image { Source = icon, Width = IconSize, Height = IconSize, Stretch = Stretch.Uniform };
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+            visual = image;
+        }
+        else
+        {
+            visual = new Border
+            {
+                Width = IconSize, Height = IconSize, CornerRadius = new CornerRadius(9),
+                Background = ShortcutIcons.FallbackBrush(entry.Name),
+                Child = new TextBlock
+                {
+                    Text = ShortcutIcons.Initial(entry.Name), Foreground = Brushes.White, FontSize = 16,
+                    FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+        }
+        var iconHost = new Grid { Height = IconSize, HorizontalAlignment = HorizontalAlignment.Center };
+        iconHost.Children.Add(visual);
+        var name = new TextBlock
+        {
+            Text = entry.Name, FontSize = 10, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 6, 0, 0),
+            TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxHeight = 28, Width = LabelWidth
+        };
+        var stack = new StackPanel { Width = LabelWidth };
+        stack.Children.Add(iconHost);
+        stack.Children.Add(name);
+        var tile = new Button
+        {
+            Content = stack, Width = TileWidth, Height = TileHeight, MinWidth = 0, MinHeight = 0,
+            Padding = new Thickness(0, 10, 0, 6), Margin = new Thickness(1, 0, 1, 4),
+            ToolTip = string.Join("\n", entry.Steps!.Select(s => $"{s.Kind}: {s.Target}"))
+        };
+        System.Windows.Automation.AutomationProperties.SetName(tile, entry.Name);
+        System.Windows.Automation.AutomationProperties.SetHelpText(tile, ShortcutIcons.IsWebsite(entry.Steps![0].Target) ? "网站" : entry.Steps![0].Target);
+        tile.Click += (_, _) => LaunchShortcutById?.Invoke(this, entry.Id);
+        var menu = new ContextMenu();
+        var unpin = new MenuItem { Header = "从此组件移除" };
+        unpin.Click += (_, _) => Pin(entry.Id, remove: true);
+        menu.Items.Add(unpin);
+        tile.ContextMenu = menu;
+        return tile;
     }
 
     private void Pin(string id, bool remove = false)
